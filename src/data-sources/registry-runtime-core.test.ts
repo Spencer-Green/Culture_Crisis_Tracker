@@ -26,7 +26,7 @@ describe("runtime source registry", () => {
     expect(registry.databaseStatus).toBe("available");
     expect(abs).toMatchObject({
       configured: true,
-      implementationStatus: "not-implemented",
+      implementationStatus: "implemented",
       enabled: false,
       healthStatus: "not-checked",
       runtimeStateStatus: "available",

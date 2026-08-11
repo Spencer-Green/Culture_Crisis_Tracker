@@ -24,7 +24,27 @@ function Mark({ index }: { index: number }) {
   );
 }
 
-export function SidebarNavigation() {
+export function SidebarNavigation({
+  databaseStatus,
+  activeSourceCount,
+}: {
+  databaseStatus: "available" | "unavailable";
+  activeSourceCount: number;
+}) {
+  const hasActiveSources = activeSourceCount > 0;
+  const footerTitle =
+    databaseStatus === "unavailable"
+      ? "Foundation state"
+      : hasActiveSources
+        ? "Live foundation"
+        : "Foundation phase";
+  const footerDetail =
+    databaseStatus === "unavailable"
+      ? "Ingestion status is temporarily unavailable."
+      : hasActiveSources
+        ? `${activeSourceCount} data ${activeSourceCount === 1 ? "source" : "sources"} active`
+        : "No sources have successfully ingested data.";
+
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-zinc-800/80 bg-zinc-950/90 p-4 backdrop-blur-xl lg:flex">
       <Link
@@ -55,11 +75,15 @@ export function SidebarNavigation() {
         ))}
       </nav>
 
-      <div className="mt-auto rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
-        <p className="text-xs font-medium text-zinc-300">Foundation phase</p>
-        <p className="mt-1 text-xs leading-5 text-zinc-500">
-          Data ingestion is intentionally disabled.
-        </p>
+      <div
+        className={`mt-auto rounded-xl border p-4 ${
+          hasActiveSources && databaseStatus === "available"
+            ? "border-emerald-950 bg-emerald-950/20"
+            : "border-zinc-800 bg-zinc-900/60"
+        }`}
+      >
+        <p className="text-xs font-medium text-zinc-300">{footerTitle}</p>
+        <p className="mt-1 text-xs leading-5 text-zinc-500">{footerDetail}</p>
       </div>
     </aside>
   );

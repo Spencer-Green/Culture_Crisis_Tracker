@@ -9,6 +9,7 @@ describe("health response", () => {
     const registry = await buildRuntimeSourceRegistry(
       buildStaticSourceRegistry({
         ABS_BASE_URL: "https://data.api.abs.gov.au/rest",
+        ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1",
       }),
       async () => {
         throw new Error("database unavailable");
@@ -27,8 +28,8 @@ describe("health response", () => {
       externalApis: { status: "not-checked" },
       sources: {
         supported: 13,
-        configured: 1,
-        implemented: 0,
+        configured: 2,
+        implemented: 2,
         enabled: 0,
       },
     });

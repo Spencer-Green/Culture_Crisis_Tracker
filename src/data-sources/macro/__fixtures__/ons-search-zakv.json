@@ -1,0 +1,23 @@
+{
+  "count": 2,
+  "items": [
+    {
+      "type": "timeseries",
+      "cdid": "ZAKV",
+      "dataset_id": "UKEA",
+      "edition": "",
+      "release_date": "2026-06-29T23:00:00.000Z",
+      "title": "0 Household final consumption expenditure: Domestic concept CP SA £m",
+      "uri": "/economy/nationalaccounts/satelliteaccounts/timeseries/zakv/ukea"
+    },
+    {
+      "type": "timeseries",
+      "cdid": "ZAKV",
+      "dataset_id": "CT",
+      "edition": "",
+      "release_date": "2026-06-29T23:00:00.000Z",
+      "title": "0 Household final consumption expenditure: Domestic concept CP SA £m",
+      "uri": "/economy/nationalaccounts/satelliteaccounts/timeseries/zakv/ct"
+    }
+  ]
+}

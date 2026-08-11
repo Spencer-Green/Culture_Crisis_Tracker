@@ -30,7 +30,13 @@ export function DashboardCard({
   );
 }
 
-export function EmptyChart({ label }: { label: string }) {
+export function EmptyChart({
+  label,
+  message = "Awaiting the first validated ingestion run",
+}: {
+  label: string;
+  message?: string;
+}) {
   return (
     <div className="relative flex h-44 items-center justify-center overflow-hidden rounded-xl border border-dashed border-zinc-800 bg-zinc-950">
       <div
@@ -45,9 +51,7 @@ export function EmptyChart({ label }: { label: string }) {
       <div className="relative max-w-xs px-4 text-center">
         <div className="mx-auto mb-3 h-0.5 w-10 rounded bg-blue-500/50" />
         <p className="text-xs font-medium text-zinc-400">{label}</p>
-        <p className="mt-1 text-xs text-zinc-600">
-          Awaiting the first validated ingestion run
-        </p>
+        <p className="mt-1 text-xs text-zinc-600">{message}</p>
       </div>
     </div>
   );

@@ -1,3 +1,6 @@
-import { createPlaceholderAdapter } from "@/data-sources/create-adapter";
+import { OnsDataSourceAdapter } from "@/data-sources/macro/ons-adapter";
+import { env } from "@/lib/env";
 
-export const onsAdapter = createPlaceholderAdapter("ons");
+export const onsAdapter = new OnsDataSourceAdapter({
+  getBaseUrl: () => env.ONS_BASE_URL,
+});

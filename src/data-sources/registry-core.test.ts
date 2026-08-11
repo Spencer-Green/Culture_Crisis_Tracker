@@ -10,6 +10,7 @@ describe("source registry", () => {
     const databaseUrl = "postgresql://user:password@localhost/private";
     const sources = buildStaticSourceRegistry({
       ABS_BASE_URL: "https://data.api.abs.gov.au/rest",
+      ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1",
       BEA_BASE_URL: "https://apps.bea.gov/api/data",
       BEA_API_KEY: apiKey,
       EVENTBRITE_BASE_URL: "https://www.eventbriteapi.com/v3",
@@ -23,10 +24,17 @@ describe("source registry", () => {
 
     expect(sources).toHaveLength(13);
     expect(
-      sources.every(
-        (source) => source.implementationStatus === "not-implemented",
-      ),
-    ).toBe(true);
+      sources.filter((source) => source.implementationStatus === "implemented"),
+    ).toHaveLength(2);
+    expect(
+      sources.find((source) => source.slug === "abs")?.implementationStatus,
+    ).toBe("implemented");
+    expect(
+      sources.find((source) => source.slug === "ons")?.implementationStatus,
+    ).toBe("implemented");
+    expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
+      true,
+    );
     expect(serialised).not.toContain(apiKey);
     expect(serialised).not.toContain(token);
     expect(serialised).not.toContain(clientSecret);

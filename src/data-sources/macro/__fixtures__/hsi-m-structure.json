@@ -1,0 +1,163 @@
+{
+  "data": {
+    "dataflows": [
+      {
+        "id": "HSI_M",
+        "version": "1.6.0",
+        "agencyID": "ABS",
+        "name": "Monthly Household Spending Indicator",
+        "description": "Experimental indicator of household spending using bank transactions data.",
+        "annotations": [
+          {
+            "type": "NonProductionDataflow",
+            "text": "true"
+          }
+        ]
+      }
+    ],
+    "codelists": [
+      {
+        "id": "CL_HSI_MEASURE",
+        "version": "1.0.0",
+        "name": "HSI measure",
+        "codes": [
+          { "id": "7", "name": "Household spending" },
+          {
+            "id": "8",
+            "name": "Household spending - Percentage change from previous period"
+          }
+        ]
+      },
+      {
+        "id": "CL_HSI_CATEGORY",
+        "version": "1.0.0",
+        "name": "HSI category",
+        "codes": [
+          { "id": "TOT", "name": "Total" },
+          { "id": "50", "name": "Recreation and culture" },
+          { "id": "3", "name": "Discretionary" }
+        ]
+      },
+      {
+        "id": "CL_PRICE_ADJUSTMENT",
+        "version": "1.0.0",
+        "name": "Price adjustment",
+        "codes": [{ "id": "CUR", "name": "Current Price" }]
+      },
+      {
+        "id": "CL_TSEST",
+        "version": "1.0.0",
+        "name": "Adjustment type",
+        "codes": [{ "id": "20", "name": "Seasonally Adjusted" }]
+      },
+      {
+        "id": "CL_STATE",
+        "version": "1.0.0",
+        "name": "State",
+        "codes": [{ "id": "AUS", "name": "Australia" }]
+      },
+      {
+        "id": "CL_FREQ",
+        "version": "1.0.0",
+        "name": "Frequency",
+        "codes": [{ "id": "M", "name": "Monthly" }]
+      },
+      {
+        "id": "CL_UNIT_MEASURE",
+        "version": "1.0.0",
+        "name": "Unit of measure",
+        "codes": [
+          { "id": "AUD", "name": "Australian Dollars" },
+          { "id": "PCT", "name": "Percent" }
+        ]
+      },
+      {
+        "id": "CL_UNIT_MULT",
+        "version": "1.0.0",
+        "name": "Unit multiplier",
+        "codes": [
+          { "id": "0", "name": "Units" },
+          { "id": "6", "name": "Millions" }
+        ]
+      }
+    ],
+    "dataStructures": [
+      {
+        "id": "HSI_M",
+        "version": "1.6.0",
+        "agencyID": "ABS",
+        "dataStructureComponents": {
+          "dimensionList": {
+            "dimensions": [
+              {
+                "id": "MEASURE",
+                "position": 0,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_HSI_MEASURE(1.0.0)"
+                }
+              },
+              {
+                "id": "CATEGORY",
+                "position": 1,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_HSI_CATEGORY(1.0.0)"
+                }
+              },
+              {
+                "id": "PRICE_ADJUSTMENT",
+                "position": 2,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_PRICE_ADJUSTMENT(1.0.0)"
+                }
+              },
+              {
+                "id": "TSEST",
+                "position": 3,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_TSEST(1.0.0)"
+                }
+              },
+              {
+                "id": "STATE",
+                "position": 4,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_STATE(1.0.0)"
+                }
+              },
+              {
+                "id": "FREQ",
+                "position": 5,
+                "localRepresentation": {
+                  "enumeration": "urn:sdmx:org.sdmx.infomodel.codelist.Codelist=ABS:CL_FREQ(1.0.0)"
+                }
+              }
+            ],
+            "timeDimensions": [{ "id": "TIME_PERIOD", "position": 6 }]
+          }
+        }
+      }
+    ],
+    "contentConstraints": [
+      {
+        "validFrom": "2026-08-04T02:00:00Z",
+        "cubeRegions": [
+          {
+            "keyValues": [
+              {
+                "id": "TIME_PERIOD",
+                "timeRange": {
+                  "startPeriod": {
+                    "period": "2012-07-01T00:00:00"
+                  },
+                  "endPeriod": {
+                    "period": "2026-06-30T00:00:00"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

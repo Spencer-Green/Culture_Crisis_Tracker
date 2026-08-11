@@ -93,7 +93,12 @@ export default async function DataSourcesPage() {
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/70">
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto overscroll-x-contain"
+          role="region"
+          aria-label="Scrollable data sources table"
+          tabIndex={0}
+        >
           <table className="w-full min-w-[1380px] border-collapse text-left text-sm">
             <caption className="sr-only">
               Supported data sources and their current readiness state

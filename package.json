@@ -13,11 +13,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "prisma generate",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "abs:inspect": "tsx scripts/abs-inspect.ts",
+    "ingest:abs": "node --conditions=react-server --import tsx scripts/ingest-abs.ts",
+    "ons:inspect": "tsx scripts/ons-inspect.ts",
+    "ingest:ons": "node --conditions=react-server --import tsx scripts/ingest-ons.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
+    "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "next": "^16.2.12",
     "pg": "^8.22.0",

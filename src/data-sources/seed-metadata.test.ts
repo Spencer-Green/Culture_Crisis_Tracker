@@ -13,16 +13,42 @@ describe("source seed metadata", () => {
     expect(new Set(slugs).size).toBe(SOURCE_DEFINITIONS.length);
   });
 
-  it("defaults new sources to disabled without overwriting runtime state", () => {
-    const operation = buildSourceSeedOperation(getSourceDefinition("abs"), {
-      ABS_BASE_URL: "https://data.api.abs.gov.au/rest",
-    });
+  it("enables only ABS and ONS without overwriting operational timestamps", () => {
+    const operations = [
+      getSourceDefinition("abs"),
+      getSourceDefinition("ons"),
+    ].map((source) =>
+      buildSourceSeedOperation(
+        source,
+        source.slug === "abs"
+          ? { ABS_BASE_URL: "https://data.api.abs.gov.au/rest" }
+          : { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" },
+      ),
+    );
+    const otherOperations = SOURCE_DEFINITIONS.filter(
+      (source) => source.slug !== "abs" && source.slug !== "ons",
+    ).map((source) => buildSourceSeedOperation(source, {}));
 
-    expect(operation.where).toEqual({ slug: "abs" });
-    expect(operation.create.enabled).toBe(false);
-    expect(operation.update).not.toHaveProperty("enabled");
-    expect(operation.update).not.toHaveProperty("lastAttemptedSyncAt");
-    expect(operation.update).not.toHaveProperty("lastSuccessfulSyncAt");
+    expect(operations.map((operation) => operation.where.slug)).toEqual([
+      "abs",
+      "ons",
+    ]);
+    expect(
+      operations.every(
+        (operation) =>
+          operation.create.enabled === true &&
+          operation.update.enabled === true,
+      ),
+    ).toBe(true);
+    expect(
+      otherOperations.every(
+        (item) => !item.create.enabled && !item.update.enabled,
+      ),
+    ).toBe(true);
+    for (const operation of operations) {
+      expect(operation.update).not.toHaveProperty("lastAttemptedSyncAt");
+      expect(operation.update).not.toHaveProperty("lastSuccessfulSyncAt");
+    }
   });
 
   it("keeps multi-source coverage in the static catalogue", () => {

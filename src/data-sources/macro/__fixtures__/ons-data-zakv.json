@@ -1,0 +1,70 @@
+{
+  "years": [
+    {
+      "date": "2025",
+      "value": "1762970",
+      "label": "2025",
+      "year": "2025",
+      "month": "",
+      "quarter": "",
+      "sourceDataset": "CT",
+      "updateDate": "2026-06-29T23:00:00.000Z"
+    }
+  ],
+  "quarters": [
+    {
+      "date": "2025 Q3",
+      "value": "443621",
+      "label": "2025 Q3",
+      "year": "2025",
+      "month": "",
+      "quarter": "Q3",
+      "sourceDataset": "CT",
+      "updateDate": "2026-06-29T23:00:00.000Z"
+    },
+    {
+      "date": "2025 Q4",
+      "value": null,
+      "label": "2025 Q4",
+      "year": "2025",
+      "month": "",
+      "quarter": "Q4",
+      "sourceDataset": "CT",
+      "updateDate": "2026-03-30T23:00:00.000Z"
+    },
+    {
+      "date": "2026 Q1",
+      "value": "451700",
+      "label": "2026 Q1 preliminary",
+      "year": "2026",
+      "month": "",
+      "quarter": "Q1",
+      "sourceDataset": "CT",
+      "updateDate": "2026-03-30T23:00:00.000Z"
+    },
+    {
+      "date": "2026 Q1",
+      "value": "451,764",
+      "label": "2026 Q1",
+      "year": "2026",
+      "month": "",
+      "quarter": "Q1",
+      "sourceDataset": "CT",
+      "updateDate": "2026-06-29T23:00:00.000Z"
+    }
+  ],
+  "months": [],
+  "type": "timeseries",
+  "uri": "/economy/nationalaccounts/satelliteaccounts/timeseries/zakv/ct",
+  "description": {
+    "title": "0 Household final consumption expenditure: Domestic concept CP SA £m",
+    "releaseDate": "2026-06-29T23:00:00.000Z",
+    "nextRelease": "30 September 2026",
+    "datasetId": "CT",
+    "cdid": "ZAKV",
+    "unit": "m",
+    "preUnit": "£",
+    "date": "2026 Q1",
+    "number": "451764"
+  }
+}

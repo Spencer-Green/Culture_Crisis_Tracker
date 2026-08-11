@@ -38,7 +38,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ["AU"],
     sectors: ["consumer-spending"],
     requiresAuthentication: false,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "bea",
@@ -71,7 +71,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ["GB"],
     sectors: ["consumer-spending"],
     requiresAuthentication: false,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "eurostat",

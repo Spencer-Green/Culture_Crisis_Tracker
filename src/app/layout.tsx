@@ -6,6 +6,8 @@ import { AppShell } from "@/components/app-shell";
 
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",

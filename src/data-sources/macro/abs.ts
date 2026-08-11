@@ -1,3 +1,8 @@
-import { createPlaceholderAdapter } from "@/data-sources/create-adapter";
+import "server-only";
 
-export const absAdapter = createPlaceholderAdapter("abs");
+import { AbsDataSourceAdapter } from "@/data-sources/macro/abs-adapter";
+import { env } from "@/lib/env";
+
+export const absAdapter = new AbsDataSourceAdapter({
+  getBaseUrl: () => env.ABS_BASE_URL,
+});

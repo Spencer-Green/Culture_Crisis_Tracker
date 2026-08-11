@@ -35,6 +35,17 @@ describe("source configuration status", () => {
     });
   });
 
+  it("configures ONS v1 without an API credential", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("ons"), {
+        ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1",
+      }),
+    ).toEqual({
+      configured: true,
+      missingConfiguration: [],
+    });
+  });
+
   it("requires both the base URL and declared authentication fields", () => {
     const ticketmaster = getSourceDefinition("ticketmaster");
     const baseEnvironment = {

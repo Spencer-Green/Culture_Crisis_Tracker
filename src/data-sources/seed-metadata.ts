@@ -10,13 +10,17 @@ type SourceSeedMetadata = {
   requiresAuthentication: boolean;
 };
 
+type SourceSeedRuntimeState = {
+  enabled: boolean;
+};
+
 export type SourceSeedOperation = {
   where: { slug: SourceDefinition["slug"] };
-  update: SourceSeedMetadata;
-  create: SourceSeedMetadata & {
-    slug: SourceDefinition["slug"];
-    enabled: false;
-  };
+  update: SourceSeedMetadata & SourceSeedRuntimeState;
+  create: SourceSeedMetadata &
+    SourceSeedRuntimeState & {
+      slug: SourceDefinition["slug"];
+    };
 };
 
 export function buildSourceSeedOperation(
@@ -36,14 +40,18 @@ export function buildSourceSeedOperation(
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
   };
+  const runtimeState = {
+    // Seed policy is explicit and independent from configuration or health.
+    enabled: source.slug === "abs" || source.slug === "ons",
+  };
 
   return {
     where: { slug: source.slug },
-    update: metadata,
+    update: { ...metadata, ...runtimeState },
     create: {
       slug: source.slug,
       ...metadata,
-      enabled: false,
+      ...runtimeState,
     },
   };
 }

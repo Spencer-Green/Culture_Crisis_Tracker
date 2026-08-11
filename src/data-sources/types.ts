@@ -6,6 +6,7 @@ import type { CountryCode, SectorSlug } from "@/lib/constants";
 export type DataSourceHealth = {
   status: HealthStatus;
   checkedAt: string | null;
+  latencyMs?: number;
   message?: string;
 };
 

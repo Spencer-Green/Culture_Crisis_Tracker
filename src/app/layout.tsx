@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
@@ -7,18 +6,6 @@ import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-data",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -33,7 +20,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en">
       <body>
         <AppShell>{children}</AppShell>
       </body>

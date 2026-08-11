@@ -16,7 +16,7 @@ type SourceSeedRuntimeState = {
 
 export type SourceSeedOperation = {
   where: { slug: SourceDefinition["slug"] };
-  update: SourceSeedMetadata & SourceSeedRuntimeState;
+  update: SourceSeedMetadata;
   create: SourceSeedMetadata &
     SourceSeedRuntimeState & {
       slug: SourceDefinition["slug"];
@@ -47,7 +47,7 @@ export function buildSourceSeedOperation(
 
   return {
     where: { slug: source.slug },
-    update: { ...metadata, ...runtimeState },
+    update: metadata,
     create: {
       slug: source.slug,
       ...metadata,

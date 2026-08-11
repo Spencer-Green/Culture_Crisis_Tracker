@@ -13,7 +13,7 @@ describe("source seed metadata", () => {
     expect(new Set(slugs).size).toBe(SOURCE_DEFINITIONS.length);
   });
 
-  it("enables only ABS and ONS without overwriting operational timestamps", () => {
+  it("initialises canonical enablement only when creating sources", () => {
     const operations = [
       getSourceDefinition("abs"),
       getSourceDefinition("ons"),
@@ -36,18 +36,18 @@ describe("source seed metadata", () => {
     expect(
       operations.every(
         (operation) =>
-          operation.create.enabled === true &&
-          operation.update.enabled === true,
+          operation.create.enabled === true && !("enabled" in operation.update),
       ),
     ).toBe(true);
     expect(
       otherOperations.every(
-        (item) => !item.create.enabled && !item.update.enabled,
+        (item) => !item.create.enabled && !("enabled" in item.update),
       ),
     ).toBe(true);
     for (const operation of operations) {
       expect(operation.update).not.toHaveProperty("lastAttemptedSyncAt");
       expect(operation.update).not.toHaveProperty("lastSuccessfulSyncAt");
+      expect(operation.update).not.toHaveProperty("enabled");
     }
   });
 

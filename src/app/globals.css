@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b;
+  --surface: #0c0c0f;
+  --surface-raised: #111116;
+  --border: #1e1e24;
+  --muted: #8b8b98;
+  --foreground: #fafafa;
+  --accent: #3b82f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(
+      circle at 75% -10%,
+      rgb(37 99 235 / 10%),
+      transparent 32rem
+    ),
+    var(--background);
+  color: var(--foreground);
+  font-family:
+    var(--font-sans),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.font-data {
+  font-family: var(--font-data), "SFMono-Regular", Consolas, monospace;
+}
+
+::selection {
+  background: rgb(37 99 235 / 35%);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

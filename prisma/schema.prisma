@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Country {
+  id                String             @id @default(uuid()) @db.Uuid
+  code              String             @unique @db.VarChar(3)
+  name              String             @unique
+  region            String
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  dataSources       DataSource[]
+  metricDefinitions MetricDefinition[]
+  industryEvents    IndustryEvent[]
+}
+
+model Sector {
+  id                String             @id @default(uuid()) @db.Uuid
+  slug              String             @unique
+  name              String             @unique
+  description       String
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  dataSources       DataSource[]
+  metricDefinitions MetricDefinition[]
+  industryEvents    IndustryEvent[]
+}
+
+model DataSource {
+  id                     String             @id @default(uuid()) @db.Uuid
+  slug                   String             @unique
+  name                   String
+  provider               String
+  baseUrl                String
+  countryCode            String?            @db.VarChar(3)
+  sectorSlug             String?
+  requiresAuthentication Boolean            @default(false)
+  enabled                Boolean            @default(false)
+  lastSuccessfulSyncAt   DateTime?          @db.Timestamptz(3)
+  lastAttemptedSyncAt    DateTime?          @db.Timestamptz(3)
+  createdAt              DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
+  country                Country?           @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                 Sector?            @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  metricDefinitions      MetricDefinition[]
+  ingestionRuns          IngestionRun[]
+
+  @@index([countryCode])
+  @@index([sectorSlug])
+  @@index([enabled])
+}
+
+model MetricDefinition {
+  id           String              @id @default(uuid()) @db.Uuid
+  slug         String              @unique
+  name         String
+  description  String
+  unit         String
+  frequency    String
+  sourceId     String              @db.Uuid
+  countryCode  String?             @db.VarChar(3)
+  sectorSlug   String
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
+  source       DataSource          @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  country      Country?            @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector       Sector              @relation(fields: [sectorSlug], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+  observations MetricObservation[]
+
+  @@index([sourceId])
+  @@index([countryCode, sectorSlug])
+}
+
+model MetricObservation {
+  id                  String           @id @default(uuid()) @db.Uuid
+  metricDefinitionId  String           @db.Uuid
+  periodStart         DateTime         @db.Timestamptz(3)
+  periodEnd           DateTime         @db.Timestamptz(3)
+  value               Decimal          @db.Decimal(20, 6)
+  previousValue       Decimal?         @db.Decimal(20, 6)
+  prePandemicBaseline Decimal?         @db.Decimal(20, 6)
+  sourceUrl           String?
+  retrievedAt         DateTime         @db.Timestamptz(3)
+  metadata            Json             @default("{}")
+  createdAt           DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(3)
+  metricDefinition    MetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([metricDefinitionId, periodStart, periodEnd])
+  @@index([periodStart])
+  @@index([retrievedAt])
+}
+
+model IndustryEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventType    String
+  title        String
+  summary      String
+  countryCode  String?  @db.VarChar(3)
+  sectorSlug   String
+  organisation String?
+  eventDate    DateTime @db.Timestamptz(3)
+  sourceUrl    String
+  sourceName   String
+  confidence   Decimal  @db.Decimal(3, 2)
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+  country      Country? @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector       Sector   @relation(fields: [sectorSlug], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([eventDate])
+  @@index([eventType])
+  @@index([countryCode, sectorSlug])
+}
+
+model IngestionRun {
+  id             String     @id @default(uuid()) @db.Uuid
+  sourceId       String     @db.Uuid
+  status         String
+  startedAt      DateTime   @db.Timestamptz(3)
+  completedAt    DateTime?  @db.Timestamptz(3)
+  recordsRead    Int        @default(0)
+  recordsCreated Int        @default(0)
+  recordsUpdated Int        @default(0)
+  errorMessage   String?
+  metadata       Json       @default("{}")
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  source         DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
+  @@index([status])
+}

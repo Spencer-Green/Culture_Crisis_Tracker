@@ -99,6 +99,9 @@ export function parseFredObservations(
               ? record.realtime_end
               : null,
           measureType: metric.measureType,
+          presentationRole: metric.presentationRole,
+          normalizationPurpose: metric.normalizationPurpose ?? null,
+          distributor: "Federal Reserve Economic Data (FRED)",
           sourceSemantics: metric.sourceSemantics,
           sourceNotes: notesSummary(series.notes),
           requestUrl,

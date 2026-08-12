@@ -48,7 +48,21 @@ describe("FRED adapter", () => {
     ).toBe(false);
   });
 
-  it("validates metadata for all four target series", async () => {
+  it("exposes four headline series and three raw normalization inputs", async () => {
+    const adapter = new FredDataSourceAdapter({
+      getBaseUrl: () => "https://api.stlouisfed.org/fred",
+      getApiKey: () => "test-key",
+    });
+
+    await expect(adapter.fetchAvailableMetrics()).resolves.toHaveLength(7);
+    expect(
+      FRED_METRICS.filter(
+        (metric) => metric.presentationRole === "supporting-input",
+      ).map((metric) => metric.seriesId),
+    ).toEqual(["CPIAUCSL", "POPTHM", "DSPI"]);
+  });
+
+  it("validates metadata for all headline and normalization series", async () => {
     for (const metric of FRED_METRICS) {
       const result = await fetchFredSeriesMetadata(
         "https://api.stlouisfed.org/fred",
@@ -65,7 +79,7 @@ describe("FRED adapter", () => {
         title: metric.expectedTitle,
         frequency: metric.expectedFrequency,
         units: metric.expectedUnits,
-        seasonalAdjustment: "Seasonally Adjusted",
+        seasonalAdjustment: metric.expectedSeasonalAdjustment,
       });
     }
   });
@@ -147,6 +161,44 @@ describe("FRED adapter", () => {
         sourceSemantics:
           "Seasonally adjusted quarterly rate, annualized and net of recoveries",
       },
+    });
+  });
+
+  it("preserves normalization purpose and underlying source attribution", () => {
+    const metric = FRED_METRICS.find(
+      (candidate) => candidate.seriesId === "CPIAUCSL",
+    )!;
+    const record = (
+      seriesFixtures.CPIAUCSL.seriess as Record<string, string>[]
+    )[0];
+    const observations = parseFredObservations(
+      { observations: [{ date: "2026-06-01", value: "332.568" }] },
+      metric,
+      {
+        id: record.id,
+        title: record.title,
+        frequency: record.frequency,
+        units: record.units,
+        seasonalAdjustment: record.seasonal_adjustment,
+        observationStart: record.observation_start,
+        observationEnd: record.observation_end,
+        lastUpdated: record.last_updated,
+        notes: record.notes,
+      },
+      "https://api.stlouisfed.org/fred/series/observations?series_id=CPIAUCSL",
+      new Date("2026-08-12T00:00:00.000Z"),
+      new Date("2026-06-01T00:00:00.000Z"),
+      new Date("2026-06-30T23:59:59.999Z"),
+    );
+
+    expect(observations[0].metadata).toMatchObject({
+      seriesId: "CPIAUCSL",
+      source: "U.S. Bureau of Labor Statistics",
+      release: "Consumer Price Index",
+      distributor: "Federal Reserve Economic Data (FRED)",
+      measureType: "normalization-input",
+      presentationRole: "supporting-input",
+      normalizationPurpose: "inflation-normalization",
     });
   });
 

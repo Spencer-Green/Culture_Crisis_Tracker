@@ -3,6 +3,12 @@ import {
   EmptyChart,
   EmptyList,
 } from "@/components/dashboard-card";
+import { DemandIndexChart } from "@/components/demand-index-chart";
+import {
+  buildNominalDemandSeries,
+  prepareMixedFrequencyChart,
+  type IndexedDemandSeries,
+} from "@/lib/consumer-demand";
 import { getConsumerSpendingData } from "@/services/consumer-spending";
 import type { OverviewState, SourceFreshness } from "@/services/overview-core";
 import { getOverviewState } from "@/services/overview";
@@ -85,6 +91,53 @@ function DataFreshness({ overview }: { overview: OverviewState }) {
   );
 }
 
+function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
+  const validated = series.filter((item) => item.points.length > 0);
+  const pending = ["Canada", "New Zealand", "European Union"];
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-xs font-medium text-zinc-300">
+          Validated consumer-demand data
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {validated.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-xl border border-emerald-900/50 bg-emerald-950/15 p-4"
+            >
+              <p className="text-sm font-medium text-emerald-200">
+                {item.country}
+              </p>
+              <p className="mt-1 text-xs text-emerald-300/60">
+                {item.source} · {item.points[0].frequency}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-medium text-zinc-400">Coverage pending</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {pending.map((country) => (
+            <span
+              key={country}
+              className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-500"
+            >
+              {country}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs leading-5 text-zinc-600">
+        Current coverage supports indexed demand comparison, not direct
+        currency-level or definition-level equivalence.
+      </p>
+    </div>
+  );
+}
+
 export default async function OverviewPage() {
   const [overview, consumerSpending] = await Promise.all([
     getOverviewState(),
@@ -94,6 +147,10 @@ export default async function OverviewPage() {
   const consumerSourceCount = new Set(
     consumerSpending.observations.map((observation) => observation.sourceSlug),
   ).size;
+  const nominalDemandSeries = buildNominalDemandSeries(
+    consumerSpending.observations,
+  );
+  const nominalDemandChart = prepareMixedFrequencyChart(nominalDemandSeries);
   const indicators = [
     {
       title: "Culture Stress Index",
@@ -227,24 +284,13 @@ export default async function OverviewPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard
-          title="Consumer Demand"
-          description="Recreation and culture spending over time"
+          title="Recreation & Culture Demand — Nominal Index"
+          description="Baseline = 100 at first available 2019 observation"
         >
-          <EmptyChart
-            label={
-              consumerDemandActive
-                ? `${consumerSourceCount} consumer-spending ${
-                    consumerSourceCount === 1 ? "source" : "sources"
-                  } available`
-                : "Consumer demand series"
-            }
-            message={
-              consumerDemandActive
-                ? consumerSourceCount > 1
-                  ? "Cross-market visualisation pending"
-                  : "Cross-market visualisation pending additional sources"
-                : "No validated consumer-spending observations available"
-            }
+          <DemandIndexChart
+            data={nominalDemandChart}
+            series={nominalDemandSeries}
+            emptyMessage="No validated recreation-demand observations are available."
           />
         </DashboardCard>
         <DashboardCard
@@ -261,7 +307,7 @@ export default async function OverviewPage() {
           description="Australia, US, UK, Canada, New Zealand, and EU"
           className="xl:col-span-2"
         >
-          <EmptyChart label="Comparable country indicators" />
+          <CountryComparison series={nominalDemandSeries} />
         </DashboardCard>
         <DashboardCard title="Data Freshness" description="Recency by source">
           <DataFreshness overview={overview} />

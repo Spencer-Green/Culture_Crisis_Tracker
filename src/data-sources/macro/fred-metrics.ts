@@ -1,18 +1,36 @@
 import type { AvailableMetric } from "@/data-sources/types";
 
 export type FredMetricDefinition = AvailableMetric & {
-  seriesId: "TOTALSL" | "REVOLSL" | "DRCCLACBS" | "CORCCACBS";
+  seriesId:
+    | "TOTALSL"
+    | "REVOLSL"
+    | "DRCCLACBS"
+    | "CORCCACBS"
+    | "CPIAUCSL"
+    | "POPTHM"
+    | "DSPI";
   expectedTitle: string;
   expectedFrequency: string;
   expectedUnits: string;
-  expectedSeasonalAdjustment: "Seasonally Adjusted";
-  source: "Board of Governors of the Federal Reserve System (US)";
+  expectedSeasonalAdjustment:
+    | "Seasonally Adjusted"
+    | "Not Seasonally Adjusted"
+    | "Seasonally Adjusted Annual Rate";
+  source:
+    | "Board of Governors of the Federal Reserve System (US)"
+    | "U.S. Bureau of Labor Statistics"
+    | "U.S. Bureau of Economic Analysis";
   release: string;
   countryCode: "US";
   sectorSlug: "consumer-spending";
-  measureType: "credit-balance" | "credit-stress-rate";
+  measureType: "credit-balance" | "credit-stress-rate" | "normalization-input";
   periodType: "monthly" | "quarterly";
   sourceSemantics: string;
+  presentationRole: "headline" | "supporting-input";
+  normalizationPurpose?:
+    | "inflation-normalization"
+    | "per-capita-normalization"
+    | "income-normalization";
 };
 
 const COMMON = {
@@ -38,6 +56,7 @@ export const FRED_METRICS = [
     measureType: "credit-balance",
     periodType: "monthly",
     sourceSemantics: "Seasonally adjusted monthly credit balance",
+    presentationRole: "headline",
     ...COMMON,
   },
   {
@@ -55,6 +74,7 @@ export const FRED_METRICS = [
     measureType: "credit-balance",
     periodType: "monthly",
     sourceSemantics: "Seasonally adjusted monthly revolving credit balance",
+    presentationRole: "headline",
     ...COMMON,
   },
   {
@@ -74,6 +94,7 @@ export const FRED_METRICS = [
     measureType: "credit-stress-rate",
     periodType: "quarterly",
     sourceSemantics: "Seasonally adjusted quarterly end-of-period rate",
+    presentationRole: "headline",
     ...COMMON,
   },
   {
@@ -93,7 +114,78 @@ export const FRED_METRICS = [
     periodType: "quarterly",
     sourceSemantics:
       "Seasonally adjusted quarterly rate, annualized and net of recoveries",
+    presentationRole: "headline",
     ...COMMON,
+  },
+  {
+    slug: "us-cpi-all-urban-consumers-sa",
+    name: "US consumer price index, all urban consumers",
+    description:
+      "Monthly seasonally adjusted US consumer price index for all urban consumers, all items.",
+    unit: "index 1982-1984=100",
+    frequency: "monthly",
+    seriesId: "CPIAUCSL",
+    expectedTitle:
+      "Consumer Price Index for All Urban Consumers: All Items in U.S. City Average",
+    expectedFrequency: "Monthly",
+    expectedUnits: "Index 1982-1984=100",
+    expectedSeasonalAdjustment: "Seasonally Adjusted",
+    source: "U.S. Bureau of Labor Statistics",
+    release: "Consumer Price Index",
+    countryCode: "US",
+    sectorSlug: "consumer-spending",
+    measureType: "normalization-input",
+    periodType: "monthly",
+    sourceSemantics:
+      "Seasonally adjusted monthly price index, 1982-1984 average equals 100",
+    presentationRole: "supporting-input",
+    normalizationPurpose: "inflation-normalization",
+  },
+  {
+    slug: "us-population-monthly",
+    name: "US population",
+    description:
+      "Monthly US population including resident population plus armed forces overseas.",
+    unit: "thousands of persons",
+    frequency: "monthly",
+    seriesId: "POPTHM",
+    expectedTitle: "Population",
+    expectedFrequency: "Monthly",
+    expectedUnits: "Thousands",
+    expectedSeasonalAdjustment: "Not Seasonally Adjusted",
+    source: "U.S. Bureau of Economic Analysis",
+    release: "Personal Income and Outlays",
+    countryCode: "US",
+    sectorSlug: "consumer-spending",
+    measureType: "normalization-input",
+    periodType: "monthly",
+    sourceSemantics:
+      "Monthly population in thousands of persons, not seasonally adjusted",
+    presentationRole: "supporting-input",
+    normalizationPurpose: "per-capita-normalization",
+  },
+  {
+    slug: "us-disposable-personal-income-saar",
+    name: "US disposable personal income",
+    description:
+      "Monthly US disposable personal income at seasonally adjusted annual rates.",
+    unit: "USD billions SAAR",
+    frequency: "monthly",
+    seriesId: "DSPI",
+    expectedTitle: "Disposable Personal Income",
+    expectedFrequency: "Monthly",
+    expectedUnits: "Billions of Dollars",
+    expectedSeasonalAdjustment: "Seasonally Adjusted Annual Rate",
+    source: "U.S. Bureau of Economic Analysis",
+    release: "Personal Income and Outlays",
+    countryCode: "US",
+    sectorSlug: "consumer-spending",
+    measureType: "normalization-input",
+    periodType: "monthly",
+    sourceSemantics:
+      "Monthly disposable personal income in billions of dollars at a seasonally adjusted annual rate",
+    presentationRole: "supporting-input",
+    normalizationPurpose: "income-normalization",
   },
 ] as const satisfies readonly FredMetricDefinition[];
 

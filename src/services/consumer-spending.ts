@@ -42,7 +42,6 @@ export async function getConsumerSpendingData(): Promise<ConsumerSpendingData> {
         },
         observations: {
           orderBy: { periodStart: "desc" },
-          take: 12,
           select: {
             periodStart: true,
             periodEnd: true,

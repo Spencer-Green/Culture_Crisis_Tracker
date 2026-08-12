@@ -29,7 +29,9 @@ async function main() {
           ),
         );
 
-  console.log("Source: FRED US consumer credit and credit-card stress series");
+  console.log(
+    "Source: FRED US consumer credit, credit-card stress, and normalization inputs",
+  );
   console.log(`Range: ${range.startPeriod} to ${range.endPeriod}`);
   const result = await ingestSource({
     sourceSlug: "fred",

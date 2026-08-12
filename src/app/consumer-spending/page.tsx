@@ -1,6 +1,27 @@
 import type { Metadata } from "next";
 
+import {
+  CreditHistoryChart,
+  type CreditHistoryView,
+} from "@/components/credit-history-chart";
 import { DashboardCard } from "@/components/dashboard-card";
+import { DemandIndexChart } from "@/components/demand-index-chart";
+import {
+  buildNominalDemandSeries,
+  buildRealDemandSeries,
+  prepareMixedFrequencyChart,
+} from "@/lib/consumer-demand";
+import {
+  buildHistoricalMetricContext,
+  type HistoricalMetricContext,
+} from "@/lib/historical-statistics";
+import {
+  buildNormalizedCreditAnalytics,
+  formatCreditIncomeRatio,
+  formatUsdPerPerson,
+  type DerivedHistoricalContext,
+} from "@/lib/normalized-credit";
+import { formatPublishedValue } from "@/lib/source-value-format";
 import type { ConsumerSpendingObservation } from "@/services/consumer-spending";
 import { getConsumerSpendingData } from "@/services/consumer-spending";
 
@@ -69,15 +90,7 @@ function formatTimestamp(value: string, locale = "en-AU"): string {
 }
 
 function formatValue(value: string, unit: string, locale = "en-AU"): string {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return value;
-  }
-
-  const formatted = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 2,
-  }).format(numericValue);
-  return unit === "percent" ? `${formatted}%` : formatted;
+  return formatPublishedValue(value, unit, locale).headline;
 }
 
 function MetricValue({
@@ -104,12 +117,21 @@ function MetricValue({
     );
   }
 
+  const presentation = formatPublishedValue(
+    observation.value,
+    observation.unit,
+    locale,
+  );
+
   return (
     <div>
-      <p className="font-data text-3xl text-zinc-50">
-        {formatValue(observation.value, observation.unit, locale)}
-      </p>
-      <p className="mt-2 text-xs text-zinc-500">{observation.unit}</p>
+      <p className="font-data text-3xl text-zinc-50">{presentation.headline}</p>
+      <p className="mt-2 text-xs text-zinc-400">{presentation.descriptor}</p>
+      {presentation.descriptor !== presentation.sourceUnit ? (
+        <p className="mt-1 text-[11px] text-zinc-600">
+          Source unit: {presentation.sourceUnit}
+        </p>
+      ) : null}
       <p className="mt-2 text-[11px] font-medium text-blue-300">{provenance}</p>
       <dl className="mt-5 grid gap-3 text-xs sm:grid-cols-3">
         <div>
@@ -161,6 +183,317 @@ function calculateQuarterlyChange(
     latest: series[0],
     previous: series[1],
   };
+}
+
+function formatRate(value: number): string {
+  return `${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}%`;
+}
+
+function formatSigned(value: number, suffix: string): string {
+  return `${new Intl.NumberFormat("en-US", {
+    signDisplay: "always",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)}${suffix}`;
+}
+
+function formatHistoricalMoney(value: number): string {
+  return formatPublishedValue(String(value), "USD millions", "en-US").headline;
+}
+
+function HistoricalRows({
+  rows,
+}: {
+  rows: readonly { label: string; value: string }[];
+}) {
+  return (
+    <dl className="grid gap-x-5 gap-y-3 border-t border-zinc-800 pt-5 text-xs sm:grid-cols-2">
+      {rows.map((row) => (
+        <div key={row.label}>
+          <dt className="text-zinc-600">{row.label}</dt>
+          <dd className="font-data mt-1 text-zinc-300">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function CreditBalanceContext({
+  title,
+  context,
+  observation,
+  normalization,
+}: {
+  title: string;
+  context: HistoricalMetricContext | null;
+  observation: ConsumerSpendingObservation | undefined;
+  normalization?: {
+    real?: DerivedHistoricalContext | null;
+    perCapita: DerivedHistoricalContext | null;
+    income?: DerivedHistoricalContext | null;
+    cpiReferencePeriod?: string | null;
+  };
+}) {
+  if (!context) {
+    return (
+      <DashboardCard
+        title={title}
+        description="Monthly seasonally adjusted balance"
+      >
+        <MetricValue
+          observation={observation}
+          emptyMessage={`No ${title.toLowerCase()} observations`}
+          locale="en-US"
+          provenance="FRED / Federal Reserve published balance"
+          ingestionCommand="the FRED ingestion command"
+        />
+      </DashboardCard>
+    );
+  }
+
+  const currentPresentation = formatPublishedValue(
+    context.current.value,
+    context.current.unit,
+    "en-US",
+  );
+  const rows = [
+    {
+      label: "Previous month",
+      value: context.previous
+        ? `${formatHistoricalMoney(Number(context.previous.value))} · ${formatPeriod(context.previous, "en-US")}`
+        : "Not available",
+    },
+    {
+      label: "Month-on-month",
+      value:
+        context.previousChange?.percent === null ||
+        context.previousChange?.percent === undefined
+          ? "Not available"
+          : formatSigned(context.previousChange.percent, "%"),
+    },
+    {
+      label: "Same month one year earlier",
+      value: context.yearAgo
+        ? `${formatHistoricalMoney(Number(context.yearAgo.value))} · ${formatPeriod(context.yearAgo, "en-US")}`
+        : "Not available",
+    },
+    {
+      label: "Year-on-year",
+      value:
+        context.yearOverYearChange?.percent === null ||
+        context.yearOverYearChange?.percent === undefined
+          ? "Not available"
+          : formatSigned(context.yearOverYearChange.percent, "%"),
+    },
+    {
+      label: "Historical median",
+      value: formatHistoricalMoney(context.median),
+    },
+    {
+      label: "Historical maximum",
+      value: formatHistoricalMoney(context.maximum),
+    },
+    {
+      label: "Current nominal percentile",
+      value: `${context.percentileRank.toFixed(1)}th percentile`,
+    },
+    {
+      label: "Full-history observations",
+      value: new Intl.NumberFormat("en-US").format(context.observationCount),
+    },
+  ];
+  const normalizedRows = normalization
+    ? [
+        ...(normalization.real !== undefined
+          ? [
+              {
+                label: "Inflation-adjusted consumer credit",
+                value: normalization.real
+                  ? formatHistoricalMoney(normalization.real.current.value)
+                  : "Not available",
+              },
+              {
+                label: "Inflation-adjusted percentile",
+                value: normalization.real
+                  ? `${normalization.real.percentileRank.toFixed(1)}th percentile`
+                  : "Not available",
+              },
+              {
+                label: "Inflation-adjusted YoY",
+                value:
+                  normalization.real?.yearOverYearChange?.percent === null ||
+                  normalization.real?.yearOverYearChange?.percent === undefined
+                    ? "Not available"
+                    : formatSigned(
+                        normalization.real.yearOverYearChange.percent,
+                        "%",
+                      ),
+              },
+            ]
+          : []),
+        {
+          label: "Consumer credit per capita",
+          value: normalization.perCapita
+            ? formatUsdPerPerson(normalization.perCapita.current.value)
+            : "Not available",
+        },
+        {
+          label: "Per-capita historical percentile",
+          value: normalization.perCapita
+            ? `${normalization.perCapita.percentileRank.toFixed(1)}th percentile`
+            : "Not available",
+        },
+        {
+          label: "Per-capita YoY",
+          value:
+            normalization.perCapita?.yearOverYearChange?.percent === null ||
+            normalization.perCapita?.yearOverYearChange?.percent === undefined
+              ? "Not available"
+              : formatSigned(
+                  normalization.perCapita.yearOverYearChange.percent,
+                  "%",
+                ),
+        },
+        ...(normalization.income !== undefined
+          ? [
+              {
+                label: "Credit / disposable income",
+                value: normalization.income
+                  ? formatCreditIncomeRatio(normalization.income.current.value)
+                  : "Not available",
+              },
+              {
+                label: "Credit / income historical percentile",
+                value: normalization.income
+                  ? `${normalization.income.percentileRank.toFixed(1)}th percentile`
+                  : "Not available",
+              },
+              {
+                label: "Credit / income one-year change",
+                value: normalization.income?.yearOverYearChange
+                  ? formatSigned(
+                      normalization.income.yearOverYearChange.absolute,
+                      " pp",
+                    )
+                  : "Not available",
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  return (
+    <DashboardCard
+      title={title}
+      description="Monthly seasonally adjusted balance"
+    >
+      <p className="font-data text-3xl text-zinc-50">
+        {currentPresentation.headline}
+      </p>
+      <p className="mt-2 text-xs text-zinc-500">
+        {formatPeriod(context.current, "en-US")} · {context.current.unit}
+      </p>
+      <p className="mt-3 text-[11px] font-medium text-blue-300">
+        Nominal historical context
+      </p>
+      <HistoricalRows rows={rows} />
+      {normalization ? (
+        <div className="mt-5 rounded-xl border border-blue-900/40 bg-blue-950/10 p-4">
+          <p className="text-[11px] font-medium text-blue-300">
+            Culture Crisis Tracker calculations
+          </p>
+          {normalization.cpiReferencePeriod ? (
+            <p className="mt-1 text-[11px] text-zinc-600">
+              Real values use the CPI from {normalization.cpiReferencePeriod} as
+              the latest-period-dollar reference.
+            </p>
+          ) : null}
+          <HistoricalRows rows={normalizedRows} />
+        </div>
+      ) : null}
+    </DashboardCard>
+  );
+}
+
+function CreditPerformanceContext({
+  title,
+  context,
+  observation,
+  semantics,
+}: {
+  title: string;
+  context: HistoricalMetricContext | null;
+  observation: ConsumerSpendingObservation | undefined;
+  semantics: string;
+}) {
+  if (!context) {
+    return (
+      <DashboardCard title={title} description={semantics}>
+        <MetricValue
+          observation={observation}
+          emptyMessage={`No ${title.toLowerCase()} observations`}
+          locale="en-US"
+          provenance="FRED / Federal Reserve published rate"
+          ingestionCommand="the FRED ingestion command"
+        />
+      </DashboardCard>
+    );
+  }
+
+  const rows = [
+    { label: "Historical minimum", value: formatRate(context.minimum) },
+    { label: "Historical median", value: formatRate(context.median) },
+    { label: "25th percentile", value: formatRate(context.percentile25) },
+    { label: "75th percentile", value: formatRate(context.percentile75) },
+    { label: "90th percentile", value: formatRate(context.percentile90) },
+    { label: "97.5th percentile", value: formatRate(context.percentile975) },
+    { label: "Historical maximum", value: formatRate(context.maximum) },
+    {
+      label: "Previous quarter",
+      value: context.previous
+        ? `${formatRate(Number(context.previous.value))}${context.previousChange ? ` · ${formatSigned(context.previousChange.absolute, " pp QoQ")}` : ""}`
+        : "Not available",
+    },
+    {
+      label: "One year ago",
+      value: context.yearAgo
+        ? `${formatRate(Number(context.yearAgo.value))}${context.yearOverYearChange ? ` · ${formatSigned(context.yearOverYearChange.absolute, " pp YoY")}` : ""}`
+        : "Not available",
+    },
+    {
+      label: "Full-history observations",
+      value: new Intl.NumberFormat("en-US").format(context.observationCount),
+    },
+  ];
+
+  return (
+    <DashboardCard title={title} description={semantics}>
+      <p className="font-data text-3xl text-zinc-50">
+        {formatRate(Number(context.current.value))}
+      </p>
+      <p className="mt-2 text-xs text-zinc-500">
+        {formatPeriod(context.current, "en-US")} · Quarterly ·{" "}
+        {context.current.unit}
+      </p>
+      <div className="mt-5 rounded-xl border border-blue-900/40 bg-blue-950/15 p-4">
+        <p className="text-[11px] font-medium text-blue-300">
+          Culture Crisis Tracker historical classification
+        </p>
+        <div className="mt-2 flex items-end justify-between gap-4">
+          <p className="text-xl font-medium text-zinc-100">
+            {context.classification}
+          </p>
+          <p className="font-data text-xs text-zinc-400">
+            {context.percentileRank.toFixed(1)}th percentile
+          </p>
+        </div>
+      </div>
+      <HistoricalRows rows={rows} />
+    </DashboardCard>
+  );
 }
 
 export default async function ConsumerSpendingPage() {
@@ -247,6 +580,94 @@ export default async function ConsumerSpendingPage() {
   );
   const recentAustralianObservations = australianObservations.slice(0, 24);
   const recentUkObservations = ukObservations.slice(0, 24);
+  const nominalDemandSeries = buildNominalDemandSeries(data.observations);
+  const realDemandSeries = buildRealDemandSeries(data.observations);
+  const nominalDemandChart = prepareMixedFrequencyChart(nominalDemandSeries);
+  const realDemandChart = prepareMixedFrequencyChart(realDemandSeries);
+  const totalCreditContext = buildHistoricalMetricContext(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.totalCredit,
+    "monthly",
+  );
+  const revolvingCreditContext = buildHistoricalMetricContext(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.revolvingCredit,
+    "monthly",
+  );
+  const delinquencyContext = buildHistoricalMetricContext(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.delinquency,
+    "quarterly",
+  );
+  const chargeOffContext = buildHistoricalMetricContext(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.chargeOffs,
+    "quarterly",
+  );
+  const normalizedCredit = buildNormalizedCreditAnalytics(fredObservations);
+  const cpiReferencePeriod = normalizedCredit.cpiReference
+    ? new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(new Date(normalizedCredit.cpiReference.periodStart))
+    : null;
+  const totalCreditViews: CreditHistoryView[] = [
+    {
+      id: "nominal",
+      label: "Nominal",
+      unit: "usd-millions",
+      points: normalizedCredit.totalNominalPoints,
+    },
+    ...(normalizedCredit.totalReal
+      ? [
+          {
+            id: "real",
+            label: "Inflation-adjusted",
+            unit: "usd-millions" as const,
+            points: normalizedCredit.totalReal.points,
+          },
+        ]
+      : []),
+    ...(normalizedCredit.totalPerCapita
+      ? [
+          {
+            id: "per-capita",
+            label: "Per capita",
+            unit: "usd-per-person" as const,
+            points: normalizedCredit.totalPerCapita.points,
+          },
+        ]
+      : []),
+    ...(normalizedCredit.totalToDisposableIncome
+      ? [
+          {
+            id: "income",
+            label: "Credit / disposable income",
+            unit: "percent" as const,
+            points: normalizedCredit.totalToDisposableIncome.points,
+          },
+        ]
+      : []),
+  ];
+  const revolvingCreditViews: CreditHistoryView[] = [
+    {
+      id: "nominal",
+      label: "Nominal",
+      unit: "usd-millions",
+      points: normalizedCredit.revolvingNominalPoints,
+    },
+    ...(normalizedCredit.revolvingPerCapita
+      ? [
+          {
+            id: "per-capita",
+            label: "Per capita",
+            unit: "usd-per-person" as const,
+            points: normalizedCredit.revolvingPerCapita.points,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="space-y-6">
@@ -298,6 +719,31 @@ export default async function ConsumerSpendingPage() {
           could not be reached.
         </div>
       ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <DashboardCard
+          title="Recreation & Culture Demand — Nominal Index"
+          description="Baseline = 100 at first available 2019 observation"
+        >
+          <DemandIndexChart
+            data={nominalDemandChart}
+            series={nominalDemandSeries}
+          />
+        </DashboardCard>
+        <DashboardCard
+          title="Recreation Demand — Real Index"
+          description="Baseline = 100 at first available 2019 observation"
+        >
+          <DemandIndexChart data={realDemandChart} series={realDemandSeries} />
+        </DashboardCard>
+      </div>
+
+      <p className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-xs leading-5 text-zinc-500">
+        Indexing makes unlike currency levels easier to compare, but source
+        definitions remain distinct: ABS and ONS cover recreation and culture,
+        while BEA covers recreation services. Nominal and real measures are
+        shown separately.
+      </p>
 
       <div className="border-b border-zinc-800 pb-3">
         <h2 className="text-lg font-semibold text-zinc-100">Australia</h2>
@@ -566,9 +1012,9 @@ export default async function ConsumerSpendingPage() {
           Household Consumption
         </h3>
         <p className="mt-2 max-w-4xl text-xs leading-5 text-zinc-500">
-          BEA values are monthly observations expressed as seasonally adjusted
-          annual rates. They are not literal monthly cash totals and should not
-          be directly compared with ABS AUD or ONS GBP levels.
+          SAAR = seasonally adjusted annual rate. Monthly BEA values show the
+          annualized spending pace implied by that month, not the amount spent
+          during the month itself.
         </p>
       </div>
 
@@ -621,8 +1067,10 @@ export default async function ConsumerSpendingPage() {
         </DashboardCard>
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-zinc-200">Credit Stress</h3>
+      <div className="border-b border-zinc-800 pb-3">
+        <h3 className="text-sm font-semibold text-zinc-200">
+          Credit &amp; Household Stress
+        </h3>
         <p className="mt-2 max-w-4xl text-xs leading-5 text-zinc-500">
           Raw FRED indicators are shown separately from BEA consumption demand.
           Monthly balances and quarterly stress rates are not combined into an
@@ -630,55 +1078,109 @@ export default async function ConsumerSpendingPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <DashboardCard
-          title="Total Consumer Credit"
-          description="Monthly seasonally adjusted balance"
-        >
-          <MetricValue
+      <div>
+        <h4 className="text-xs font-semibold tracking-[0.12em] text-zinc-400 uppercase">
+          Outstanding Credit
+        </h4>
+        <div className="mt-4 grid gap-6 xl:grid-cols-2">
+          <CreditBalanceContext
+            title="Total Consumer Credit"
+            context={totalCreditContext}
             observation={usTotalCredit}
-            emptyMessage="No total consumer credit observations"
-            locale="en-US"
-            provenance="FRED / Federal Reserve published balance"
-            ingestionCommand="the FRED ingestion command"
+            normalization={{
+              real: normalizedCredit.totalReal,
+              perCapita: normalizedCredit.totalPerCapita,
+              income: normalizedCredit.totalToDisposableIncome,
+              cpiReferencePeriod,
+            }}
           />
-        </DashboardCard>
-        <DashboardCard
-          title="Revolving Consumer Credit"
-          description="Monthly seasonally adjusted balance"
-        >
-          <MetricValue
+          <CreditBalanceContext
+            title="Revolving Consumer Credit"
+            context={revolvingCreditContext}
             observation={usRevolvingCredit}
-            emptyMessage="No revolving consumer credit observations"
-            locale="en-US"
-            provenance="FRED / Federal Reserve published balance"
-            ingestionCommand="the FRED ingestion command"
+            normalization={{
+              perCapita: normalizedCredit.revolvingPerCapita,
+            }}
           />
+        </div>
+        <p className="mt-3 text-xs leading-5 text-zinc-600">
+          Nominal credit tends to rise with inflation, population, and income
+          growth. Real, per-capita, and income-relative measures provide more
+          meaningful historical context. A high nominal percentile is not, by
+          itself, interpreted as credit stress.
+        </p>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <DashboardCard
+          title="Total Consumer Credit History"
+          description="Switch between distinct native and tracker-derived units"
+        >
+          <CreditHistoryChart views={totalCreditViews} />
         </DashboardCard>
         <DashboardCard
-          title="Credit-Card Delinquency"
-          description="Quarterly, seasonally adjusted, end of period"
+          title="Revolving Consumer Credit History"
+          description="Nominal and population-adjusted monthly views"
         >
-          <MetricValue
+          <CreditHistoryChart views={revolvingCreditViews} />
+        </DashboardCard>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            title: "Real credit",
+            copy: "Controls for general inflation using CPIAUCSL and expresses history in latest aligned-period dollars.",
+          },
+          {
+            title: "Per capita",
+            copy: "Controls for population growth using POPTHM. It is credit per person, not credit per borrower.",
+          },
+          {
+            title: "Credit / disposable income",
+            copy: "Compares consumer-credit stock with annualized disposable personal income. DSPI is not divided by twelve.",
+          },
+          {
+            title: "Historical percentile",
+            copy: "Describes position within each derived series’ history. It does not prove financial crisis or causation.",
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4"
+          >
+            <p className="text-xs font-medium text-zinc-300">{item.title}</p>
+            <p className="mt-2 text-[11px] leading-5 text-zinc-600">
+              {item.copy}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold tracking-[0.12em] text-zinc-400 uppercase">
+          Credit Performance
+        </h4>
+        <div className="mt-4 grid gap-6 xl:grid-cols-2">
+          <CreditPerformanceContext
+            title="Credit-Card Delinquency"
+            context={delinquencyContext}
             observation={usDelinquency}
-            emptyMessage="No credit-card delinquency observations"
-            locale="en-US"
-            provenance="FRED / Federal Reserve published rate"
-            ingestionCommand="the FRED ingestion command"
+            semantics="Quarterly, seasonally adjusted, end of period"
           />
-        </DashboardCard>
-        <DashboardCard
-          title="Credit-Card Charge-Offs"
-          description="Quarterly, seasonally adjusted, annualized net rate"
-        >
-          <MetricValue
+          <CreditPerformanceContext
+            title="Credit-Card Charge-Offs"
+            context={chargeOffContext}
             observation={usChargeOffs}
-            emptyMessage="No credit-card charge-off observations"
-            locale="en-US"
-            provenance="FRED / Federal Reserve published rate"
-            ingestionCommand="the FRED ingestion command"
+            semantics="Quarterly, seasonally adjusted, annualized and net of recoveries"
           />
-        </DashboardCard>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-zinc-600">
+          The Federal Reserve delinquency series covers loans at least 30 days
+          past due and still accruing, plus loans in nonaccrual status.
+          Delinquency is not described here as default, and neither performance
+          series establishes causation.
+        </p>
       </div>
     </div>
   );

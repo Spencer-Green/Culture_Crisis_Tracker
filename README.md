@@ -360,21 +360,152 @@ Inspect current metadata without database writes:
 npm run fred:inspect
 ```
 
-Ingest a shared inclusive ISO date window:
+Ingest the full shared inclusive ISO date window:
 
 ```bash
-npm run ingest:fred -- --start=2019-01-01 --end=2026-06-01
+npm run ingest:fred -- --start=1943-01-01 --end=2026-06-01
 ```
 
 The adapter does not transform units, resample, forward-fill, or interpolate. Monthly balance
-series and quarterly stress rates keep their native frequencies and individual latest dates. As
-of the August 2026 inspection, `TOTALSL` and `REVOLSL` extend through June 2026, while
-`DRCCLACBS` and `CORCCACBS` extend through the first quarter of 2026. FRED observations and
-Federal Reserve source releases may be revised on different schedules.
+series and quarterly stress rates keep their native frequencies and individual ranges. Live
+metadata verified `TOTALSL` from January 1943 through June 2026 (1,002 observations), `REVOLSL`
+from January 1968 through June 2026 (702), `DRCCLACBS` from 1991 Q1 through 2026 Q1 (141), and
+`CORCCACBS` from 1985 Q1 through 2026 Q1 (165). FRED observations and Federal Reserve source
+releases may be revised on different schedules.
+
+### Historical credit context
+
+Historical summaries are Culture Crisis Tracker presentation-layer calculations over the full
+persisted native series. They are not stored as observations. Missing values are excluded and input
+order does not affect the result. Minimum, maximum, median, 25th, 75th, 90th, and 97.5th
+percentiles use linear interpolation at ordered index `(n - 1) × p`, equivalent to the common R-7
+or Excel `PERCENTILE.INC` method. Percentile rank uses empirical midrank: observations below the
+current value plus half of observations equal to it, divided by the valid observation count.
+
+The tracker-derived historical classification uses these exact percentile-rank boundaries:
+
+- Below 25: `Low`
+- 25 inclusive to below 75: `Typical`
+- 75 inclusive to below 90: `Elevated`
+- 90 inclusive to below 97.5: `High`
+- 97.5 and above: `Extreme`
+
+The UI labels this as `Culture Crisis Tracker historical classification`. These are not Federal
+Reserve thresholds and do not establish causation. Previous-period and year-over-year comparisons
+require observations at the exact preceding native period and exact year-earlier period; missing
+periods are not filled.
+
+For `DRCCLACBS`, the Federal Reserve delinquency series covers loans at least 30 days past due and
+still accruing, plus loans in nonaccrual status. Delinquency is not described as default. For
+`CORCCACBS`, rates retain their source meaning as seasonally adjusted, annualized, and net of
+recoveries.
+
+`TOTALSL` and `REVOLSL` historical percentiles are explicitly nominal context, not standalone
+stress measures. Nominal outstanding credit tends to rise over long periods with inflation,
+population, income, and economic growth. CPI, population, disposable-income, per-capita, real, and
+credit-to-income normalization are therefore presented as separate lenses rather than collapsed
+into a composite score.
+
+### Normalized consumer-credit analytics
+
+FRED redistributes the three raw supporting series used for normalization; the application retains
+the underlying statistical source and release instead of attributing their authorship to FRED:
+
+- `CPIAUCSL` — `Consumer Price Index for All Urban Consumers: All Items in U.S. City Average`
+  - U.S. Bureau of Labor Statistics; `Consumer Price Index` release
+  - Monthly; seasonally adjusted; `Index 1982-1984=100`
+  - January 1947 through June 2026; 953 persisted observations
+- `POPTHM` — `Population`
+  - U.S. Bureau of Economic Analysis; `Personal Income and Outlays` release
+  - Monthly; not seasonally adjusted; thousands of persons
+  - January 1959 through June 2026; 810 persisted observations
+- `DSPI` — `Disposable Personal Income`
+  - U.S. Bureau of Economic Analysis; `Personal Income and Outlays` release
+  - Monthly; seasonally adjusted annual rate; billions of dollars
+  - January 1959 through June 2026; 810 persisted observations
+
+These are genuine raw FRED `MetricObservation` inputs but are not headline culture metrics. Derived
+real credit, per-capita credit, credit/income ratios, growth rates, and percentiles are calculated at
+request time and are never persisted as source observations.
+
+All joins require an exact matching monthly period; missing months are omitted without interpolation
+or forward filling. The practical common histories are January 1947 onward for `TOTALSL` plus
+`CPIAUCSL`, January 1959 onward for `TOTALSL` plus `POPTHM` or `DSPI`, and January 1968 onward for
+`REVOLSL` plus `POPTHM`.
+
+Inflation-adjusted credit uses latest-aligned-period dollars:
+
+```text
+real_credit_t = nominal_credit_t × latest_aligned_CPI / CPI_t
+```
+
+The current reference is the June 2026 CPI observation. This controls for general price-level
+change but remains a Culture Crisis Tracker calculation rather than an official FRED series.
+
+Per-capita credit converts `USD millions` and `thousands of persons` to dollars per person:
+
+```text
+credit_per_person = credit_USD_millions × 1,000 / population_thousands
+```
+
+This controls for population growth but is not credit per borrower.
+
+Credit relative to disposable income converts DSPI billions to the same million-dollar unit:
+
+```text
+credit_to_DPI_percent = credit_USD_millions / (DSPI_USD_billions × 1,000) × 100
+```
+
+DSPI remains an annualized income flow and is not divided by twelve. The result compares consumer
+credit stock with annualized disposable personal income; it is not generic household
+debt-to-income because `TOTALSL` excludes major liabilities such as mortgages.
+
+Historical percentiles describe each normalized series' position within its own available history.
+They do not prove financial crisis, borrower distress, or causation. Charts expose Nominal,
+Inflation-adjusted, Per capita, and Credit / disposable income as separate single-unit views over
+5Y, 10Y, 20Y, or maximum available ranges.
 
 FRED and Federal Reserve attribution and any applicable provider terms must be reviewed before a
 public or commercial deployment. The application presents BEA consumption and FRED credit
 evidence separately and does not claim that credit availability causes entertainment spending.
+
+## Cross-market demand presentation
+
+The Overview and Consumer Spending pages use Recharts for local, client-rendered time-series
+visualization. Recharts is bundled with the application and does not load fonts, scripts, or other
+assets from an external network.
+
+The nominal recreation and culture comparison uses these persisted source series:
+
+- Australia: ABS recreation and culture spending, current prices, monthly
+- United Kingdom: ONS `09 Recreation and culture CP SA £m`, quarterly
+- United States: BEA recreation services, current dollars, monthly, SAAR
+
+Each series is independently indexed to `100` at its first valid observation on or after
+`2019-01-01`. Raw currencies are not compared directly: AUD, GBP, and USD levels are not converted,
+and indexing does not imply that the source definitions are identical. Indexed values are Culture
+Crisis Tracker presentation-layer calculations and are never persisted.
+
+The real comparison uses ONS recreation and culture CVM and BEA real recreation services in chained
+2017 dollars, SAAR. The current ABS integration has no comparable real recreation and culture
+metric, so Australia is shown as unavailable rather than estimated. Nominal and real series remain
+separate.
+
+Native frequencies are preserved. Australia and the United States remain monthly; the United
+Kingdom remains quarterly. The chart places published observations on a shared time axis and draws
+lines between them, but does not interpolate, forward-fill, resample, or manufacture quarterly UK
+values for intervening months. Tooltips retain the native period, frequency, source value, source
+unit, price basis, and SAAR status.
+
+BEA monthly PCE values are seasonally adjusted annual rates. SAAR is the annualized spending pace
+implied by a month, not the amount spent during that month; values are not divided by twelve for
+display. Headline values therefore include `annualized` and retain current-dollar or chained-2017
+dollar labels.
+
+Source values published in millions use compact presentation when the resulting number is easier to
+read: USD uses `$`, AUD uses `A$`, and GBP uses `£`; million, billion, and trillion suffixes use
+sensible magnitude-based precision. Persisted values and source units remain unchanged and visible
+in supporting information and chart tooltips.
 
 ## Credential safety
 
@@ -396,15 +527,14 @@ The local `.env` uses the development-only PostgreSQL credentials defined in
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
-- No real charts or charting dependency
-- Persisted metrics include four each from ABS, ONS, BEA, and FRED; no industry events are
-  ingested
+- Persisted metrics include four each from ABS, ONS, and BEA plus seven FRED metrics; no industry
+  events are ingested
 - `DataSource.countryCode` and `DataSource.sectorSlug` hold only unambiguous single-value metadata.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.
 
-Overview charts and composite indicators remain explicit empty states; they do not contain
-fabricated data.
+Consumer Demand now uses indexed persisted observations. Other Overview charts and composite
+indicators remain explicit empty states; they do not contain fabricated data.
 
 ## Planned ingestion phases
 

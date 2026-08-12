@@ -66,5 +66,50 @@
         "notes": "Rates are annualized, net of recoveries."
       }
     ]
+  },
+  "CPIAUCSL": {
+    "seriess": [
+      {
+        "id": "CPIAUCSL",
+        "title": "Consumer Price Index for All Urban Consumers: All Items in U.S. City Average",
+        "observation_start": "1947-01-01",
+        "observation_end": "2026-06-01",
+        "frequency": "Monthly",
+        "units": "Index 1982-1984=100",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "last_updated": "2026-07-14 08:10:40-05",
+        "notes": "The Consumer Price Index for All Urban Consumers is produced by the U.S. Bureau of Labor Statistics."
+      }
+    ]
+  },
+  "POPTHM": {
+    "seriess": [
+      {
+        "id": "POPTHM",
+        "title": "Population",
+        "observation_start": "1959-01-01",
+        "observation_end": "2026-06-01",
+        "frequency": "Monthly",
+        "units": "Thousands",
+        "seasonal_adjustment": "Not Seasonally Adjusted",
+        "last_updated": "2026-07-30 09:40:15-05",
+        "notes": "Population includes resident population plus armed forces overseas. BEA Account Code: B230RC."
+      }
+    ]
+  },
+  "DSPI": {
+    "seriess": [
+      {
+        "id": "DSPI",
+        "title": "Disposable Personal Income",
+        "observation_start": "1959-01-01",
+        "observation_end": "2026-06-01",
+        "frequency": "Monthly",
+        "units": "Billions of Dollars",
+        "seasonal_adjustment": "Seasonally Adjusted Annual Rate",
+        "last_updated": "2026-07-30 09:40:12-05",
+        "notes": "Disposable personal income is produced by the U.S. Bureau of Economic Analysis. BEA Account Code: A067RC."
+      }
+    ]
   }
 }

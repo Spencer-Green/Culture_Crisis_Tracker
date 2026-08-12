@@ -8,47 +8,51 @@ datasource db {
 }
 
 model Country {
-  id                String             @id @default(uuid()) @db.Uuid
-  code              String             @unique @db.VarChar(3)
-  name              String             @unique
-  region            String
-  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
-  dataSources       DataSource[]
-  metricDefinitions MetricDefinition[]
-  industryEvents    IndustryEvent[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  code               String              @unique @db.VarChar(3)
+  name               String              @unique
+  region             String
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  dataSources        DataSource[]
+  metricDefinitions  MetricDefinition[]
+  industryEvents     IndustryEvent[]
+  ticketmasterEvents TicketmasterEvent[]
+  ticketmasterVenues TicketmasterVenue[]
 }
 
 model Sector {
-  id                String             @id @default(uuid()) @db.Uuid
-  slug              String             @unique
-  name              String             @unique
-  description       String
-  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
-  dataSources       DataSource[]
-  metricDefinitions MetricDefinition[]
-  industryEvents    IndustryEvent[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  slug               String              @unique
+  name               String              @unique
+  description        String
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  dataSources        DataSource[]
+  metricDefinitions  MetricDefinition[]
+  industryEvents     IndustryEvent[]
+  ticketmasterEvents TicketmasterEvent[]
 }
 
 model DataSource {
-  id                     String             @id @default(uuid()) @db.Uuid
-  slug                   String             @unique
+  id                     String              @id @default(uuid()) @db.Uuid
+  slug                   String              @unique
   name                   String
   provider               String
   baseUrl                String
-  countryCode            String?            @db.VarChar(3)
+  countryCode            String?             @db.VarChar(3)
   sectorSlug             String?
-  requiresAuthentication Boolean            @default(false)
-  enabled                Boolean            @default(false)
-  lastSuccessfulSyncAt   DateTime?          @db.Timestamptz(3)
-  lastAttemptedSyncAt    DateTime?          @db.Timestamptz(3)
-  createdAt              DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
-  country                Country?           @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
-  sector                 Sector?            @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  requiresAuthentication Boolean             @default(false)
+  enabled                Boolean             @default(false)
+  lastSuccessfulSyncAt   DateTime?           @db.Timestamptz(3)
+  lastAttemptedSyncAt    DateTime?           @db.Timestamptz(3)
+  createdAt              DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime            @updatedAt @db.Timestamptz(3)
+  country                Country?            @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                 Sector?             @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
   metricDefinitions      MetricDefinition[]
   ingestionRuns          IngestionRun[]
+  ticketmasterEvents     TicketmasterEvent[]
 
   @@index([countryCode])
   @@index([sectorSlug])
@@ -117,6 +121,77 @@ model IndustryEvent {
   @@index([eventDate])
   @@index([eventType])
   @@index([countryCode, sectorSlug])
+}
+
+model TicketmasterVenue {
+  id             String              @id @default(uuid()) @db.Uuid
+  ticketmasterId String              @unique
+  name           String
+  city           String?
+  region         String?
+  countryCode    String              @db.VarChar(3)
+  timezone       String?
+  latitude       Decimal?            @db.Decimal(10, 7)
+  longitude      Decimal?            @db.Decimal(10, 7)
+  firstSeenAt    DateTime            @db.Timestamptz(3)
+  lastSeenAt     DateTime            @db.Timestamptz(3)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(3)
+  country        Country             @relation(fields: [countryCode], references: [code], onDelete: Restrict, onUpdate: Cascade)
+  events         TicketmasterEvent[]
+
+  @@index([countryCode, city])
+}
+
+model TicketmasterEvent {
+  id                  String             @id @default(uuid()) @db.Uuid
+  ticketmasterId      String             @unique
+  sourceId            String             @db.Uuid
+  venueId             String?            @db.Uuid
+  name                String
+  sourceUrl           String
+  sourcePlatform      String
+  countryCode         String             @db.VarChar(3)
+  sectorSlug          String
+  localDate           String
+  localTime           String?
+  eventDateTime       DateTime?          @db.Timestamptz(3)
+  timezone            String?
+  status              String
+  previousStatus      String?
+  statusChangedAt     DateTime?          @db.Timestamptz(3)
+  segmentId           String
+  segmentName         String
+  genreId             String?
+  genreName           String?
+  subGenreId          String?
+  subGenreName        String?
+  promoterId          String?
+  promoterName        String?
+  publicOnsaleStartAt DateTime?          @db.Timestamptz(3)
+  publicOnsaleEndAt   DateTime?          @db.Timestamptz(3)
+  priceMin            Decimal?           @db.Decimal(12, 2)
+  priceMax            Decimal?           @db.Decimal(12, 2)
+  priceCurrency       String?            @db.VarChar(3)
+  priceType           String?
+  locale              String?
+  testEvent           Boolean            @default(false)
+  firstSeenAt         DateTime           @db.Timestamptz(3)
+  lastSeenAt          DateTime           @db.Timestamptz(3)
+  retrievedAt         DateTime           @db.Timestamptz(3)
+  metadata            Json               @default("{}")
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+  source              DataSource         @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  venue               TicketmasterVenue? @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  country             Country            @relation(fields: [countryCode], references: [code], onDelete: Restrict, onUpdate: Cascade)
+  sector              Sector             @relation(fields: [sectorSlug], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([eventDateTime])
+  @@index([countryCode, sectorSlug, eventDateTime])
+  @@index([status])
+  @@index([venueId])
+  @@index([sourceId])
 }
 
 model IngestionRun {

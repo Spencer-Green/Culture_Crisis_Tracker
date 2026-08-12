@@ -1,3 +1,9 @@
-import { createPlaceholderAdapter } from "@/data-sources/create-adapter";
+import "server-only";
 
-export const ticketmasterAdapter = createPlaceholderAdapter("ticketmaster");
+import { TicketmasterDataSourceAdapter } from "@/data-sources/entertainment/ticketmaster-adapter";
+import { env } from "@/lib/env";
+
+export const ticketmasterAdapter = new TicketmasterDataSourceAdapter({
+  getBaseUrl: () => env.TICKETMASTER_BASE_URL,
+  getApiKey: () => env.TICKETMASTER_API_KEY,
+});

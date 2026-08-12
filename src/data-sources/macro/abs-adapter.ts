@@ -7,7 +7,10 @@ import {
   getAbsDataKey,
   getAbsMetric,
 } from "@/data-sources/macro/abs-metrics";
-import { formatAbsPeriod } from "@/data-sources/macro/abs-period";
+import {
+  formatAbsPeriod,
+  formatAbsQuarter,
+} from "@/data-sources/macro/abs-period";
 import type {
   AvailableMetric,
   DataSourceAdapter,
@@ -50,7 +53,7 @@ export function buildAbsDataUrl(
   }
 
   const url = new URL(
-    `data/${ABS_DATAFLOW.agency},${ABS_DATAFLOW.id},${ABS_DATAFLOW.version}/${getAbsDataKey(metric)}`,
+    `data/${metric.dataflow.agency},${metric.dataflow.id},${metric.dataflow.version}/${getAbsDataKey(metric)}`,
     `${baseUrl.replace(/\/+$/, "")}/`,
   );
   url.searchParams.set("startPeriod", startPeriod);
@@ -148,17 +151,18 @@ export class AbsDataSourceAdapter implements DataSourceAdapter {
       throw new Error("ABS HSI_M metrics currently support Australia only.");
     }
 
-    const startPeriod = formatAbsPeriod(request.startDate);
-    const endPeriod = formatAbsPeriod(request.endDate);
-    if (endPeriod < startPeriod) {
-      throw new Error(
-        "ABS observation end period must not precede start period.",
-      );
-    }
-
     const metric = getAbsMetric(request.metricSlug);
     if (!metric) {
       throw new UnsupportedAbsMetricError(request.metricSlug);
+    }
+    const formatPeriod =
+      metric.frequency === "quarterly" ? formatAbsQuarter : formatAbsPeriod;
+    const startPeriod = formatPeriod(request.startDate);
+    const endPeriod = formatPeriod(request.endDate);
+    if (request.endDate < request.startDate) {
+      throw new Error(
+        "ABS observation end period must not precede start period.",
+      );
     }
 
     const url = buildAbsDataUrl(baseUrl, metric.slug, startPeriod, endPeriod);

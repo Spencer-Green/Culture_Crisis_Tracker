@@ -23,6 +23,7 @@ export type IndexedDemandPoint = {
   originalPeriod: string;
   frequency: string;
   indexedValue: number;
+  yearOverYearChange: number | null;
   originalValue: string;
   unit: string;
   basis: DemandBasis;
@@ -40,6 +41,8 @@ export type MixedFrequencyChartDatum = {
   values: Partial<Record<DemandSeriesDefinition["id"], number>>;
   points: Partial<Record<DemandSeriesDefinition["id"], IndexedDemandPoint>>;
 };
+
+export type DemandChartMode = "indexed" | "year-over-year";
 
 const NOMINAL_DEFINITIONS = [
   {
@@ -85,11 +88,10 @@ const REAL_DEFINITIONS = [
     id: "australia",
     country: "Australia",
     source: "ABS",
+    metricSlug: "au-recreation-culture-spending-real",
     basis: "real",
     color: "#38bdf8",
     annualized: false,
-    unavailableReason:
-      "No comparable real recreation and culture metric is available in the current ABS integration.",
   },
   {
     id: "united-kingdom",
@@ -150,7 +152,7 @@ export function normalizeIndexedSeries(
   }
 
   const baselineTimestamp = new Date(baselineStart).getTime();
-  const validObservations = observations
+  const allValidObservations = observations
     .filter((observation) => observation.metricSlug === definition.metricSlug)
     .map((observation) => ({
       observation,
@@ -160,10 +162,13 @@ export function normalizeIndexedSeries(
     .filter(
       ({ timestamp, numericValue }) =>
         Number.isFinite(timestamp) &&
-        timestamp >= baselineTimestamp &&
+        Number.isFinite(timestamp) &&
         Number.isFinite(numericValue),
     )
     .sort((left, right) => left.timestamp - right.timestamp);
+  const validObservations = allValidObservations.filter(
+    ({ timestamp }) => timestamp >= baselineTimestamp,
+  );
   const baseline = validObservations.find(
     ({ numericValue }) => numericValue !== 0,
   );
@@ -173,6 +178,9 @@ export function normalizeIndexedSeries(
   }
 
   const seenPeriods = new Set<string>();
+  const byPeriod = new Map(
+    allValidObservations.map((item) => [item.observation.periodStart, item]),
+  );
   const points = validObservations
     .filter(({ timestamp }) => timestamp >= baseline.timestamp)
     .flatMap(({ observation, numericValue }): IndexedDemandPoint[] => {
@@ -180,6 +188,16 @@ export function normalizeIndexedSeries(
         return [];
       }
       seenPeriods.add(observation.periodStart);
+
+      const date = new Date(observation.periodStart);
+      const yearAgoPeriod = new Date(
+        Date.UTC(date.getUTCFullYear() - 1, date.getUTCMonth(), 1),
+      ).toISOString();
+      const yearAgo = byPeriod.get(yearAgoPeriod);
+      const yearOverYearChange =
+        yearAgo && yearAgo.numericValue !== 0
+          ? ((numericValue - yearAgo.numericValue) / yearAgo.numericValue) * 100
+          : null;
 
       return [
         {
@@ -195,6 +213,10 @@ export function normalizeIndexedSeries(
           indexedValue: Number(
             ((numericValue / baseline.numericValue) * 100).toFixed(4),
           ),
+          yearOverYearChange:
+            yearOverYearChange === null
+              ? null
+              : Number(yearOverYearChange.toFixed(4)),
           originalValue: observation.value,
           unit: observation.unit,
           basis: definition.basis,
@@ -228,6 +250,7 @@ export function buildRealDemandSeries(
 
 export function prepareMixedFrequencyChart(
   series: readonly IndexedDemandSeries[],
+  mode: DemandChartMode = "indexed",
 ): MixedFrequencyChartDatum[] {
   const byPeriod = new Map<string, MixedFrequencyChartDatum>();
 
@@ -239,7 +262,10 @@ export function prepareMixedFrequencyChart(
         values: {},
         points: {},
       };
-      datum.values[item.id] = point.indexedValue;
+      const value =
+        mode === "indexed" ? point.indexedValue : point.yearOverYearChange;
+      if (value === null) continue;
+      datum.values[item.id] = value;
       datum.points[item.id] = point;
       byPeriod.set(point.periodStart, datum);
     }

@@ -42,9 +42,16 @@ export function buildSourceSeedOperation(
   };
   const runtimeState = {
     // Seed policy is explicit and independent from configuration or health.
-    enabled: ["abs", "bea", "eurostat", "fred", "ons", "statcan"].includes(
-      source.slug,
-    ),
+    enabled: [
+      "abs",
+      "bea",
+      "eurostat",
+      "fred",
+      "gdelt",
+      "ons",
+      "statcan",
+      "ticketmaster",
+    ].includes(source.slug),
   };
 
   return {

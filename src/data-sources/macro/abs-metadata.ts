@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { ABS_DATAFLOW, ABS_METRICS } from "@/data-sources/macro/abs-metrics";
+import {
+  ABS_DATAFLOW,
+  ABS_METRICS,
+  type AbsDataflowDefinition,
+  type AbsMetricDefinition,
+} from "@/data-sources/macro/abs-metrics";
 import { fetchText, type FetchImplementation } from "@/lib/http";
 
 const codeSchema = z
@@ -178,7 +183,7 @@ export function parseAbsStructureMetadata(body: string): AbsStructureMetadata {
   const dataflow = parsed.data.data.dataflows[0];
   const dataStructure = parsed.data.data.dataStructures[0];
   if (!dataflow || !dataStructure) {
-    throw new Error("ABS structural metadata did not contain HSI_M.");
+    throw new Error("ABS structural metadata did not contain a dataflow.");
   }
 
   const codelists = Object.fromEntries(
@@ -244,9 +249,12 @@ export function parseAbsStructureMetadata(body: string): AbsStructureMetadata {
   };
 }
 
-export function buildAbsStructureUrl(baseUrl: string): URL {
+export function buildAbsStructureUrl(
+  baseUrl: string,
+  dataflow: AbsDataflowDefinition = ABS_DATAFLOW,
+): URL {
   return new URL(
-    `dataflow/${ABS_DATAFLOW.agency}/${ABS_DATAFLOW.id}/latest?references=all`,
+    `dataflow/${dataflow.agency}/${dataflow.id}/latest?references=all`,
     `${baseUrl.replace(/\/+$/, "")}/`,
   );
 }
@@ -254,8 +262,9 @@ export function buildAbsStructureUrl(baseUrl: string): URL {
 export async function fetchAbsStructureMetadata(
   baseUrl: string,
   fetchImplementation?: FetchImplementation,
+  dataflow: AbsDataflowDefinition = ABS_DATAFLOW,
 ): Promise<AbsStructureMetadata> {
-  const response = await fetchText(buildAbsStructureUrl(baseUrl), {
+  const response = await fetchText(buildAbsStructureUrl(baseUrl, dataflow), {
     accept: "application/vnd.sdmx.structure+json;version=1.0",
     acceptedContentTypes: [
       "application/vnd.sdmx.structure+json",
@@ -282,24 +291,28 @@ function hasCode(
 
 export function validateAbsMetricMappings(
   metadata: AbsStructureMetadata,
+  dataflow: AbsDataflowDefinition = ABS_DATAFLOW,
+  metrics: readonly AbsMetricDefinition[] = ABS_METRICS.filter(
+    (metric) => metric.dataflow.id === dataflow.id,
+  ),
 ): string[] {
   const issues: string[] = [];
   const dimensionOrder = metadata.dimensions
     .filter((dimension) => dimension.id !== "TIME_PERIOD")
     .map((dimension) => dimension.id);
 
-  if (metadata.dataflow.agency !== ABS_DATAFLOW.agency) {
-    issues.push(`Expected agency ${ABS_DATAFLOW.agency}.`);
+  if (metadata.dataflow.agency !== dataflow.agency) {
+    issues.push(`Expected agency ${dataflow.agency}.`);
   }
-  if (metadata.dataflow.id !== ABS_DATAFLOW.id) {
-    issues.push(`Expected dataflow ${ABS_DATAFLOW.id}.`);
+  if (metadata.dataflow.id !== dataflow.id) {
+    issues.push(`Expected dataflow ${dataflow.id}.`);
   }
-  if (metadata.dataflow.version !== ABS_DATAFLOW.version) {
+  if (metadata.dataflow.version !== dataflow.version) {
     issues.push(
-      `Expected HSI_M version ${ABS_DATAFLOW.version}, received ${metadata.dataflow.version}.`,
+      `Expected ${dataflow.id} version ${dataflow.version}, received ${metadata.dataflow.version}.`,
     );
   }
-  if (dimensionOrder.join(".") !== ABS_DATAFLOW.dimensionOrder.join(".")) {
+  if (dimensionOrder.join(".") !== dataflow.dimensionOrder.join(".")) {
     issues.push(`Unexpected dimension order: ${dimensionOrder.join(".")}.`);
   }
 
@@ -310,7 +323,7 @@ export function validateAbsMetricMappings(
     ]),
   );
 
-  for (const metric of ABS_METRICS) {
+  for (const metric of metrics) {
     const expectedDimensions = [
       ["MEASURE", metric.dimensions.measure],
       ["CATEGORY", metric.dimensions.category],

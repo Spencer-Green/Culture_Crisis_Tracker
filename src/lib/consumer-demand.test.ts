@@ -145,6 +145,61 @@ describe("consumer-demand analysis", () => {
     ).toHaveLength(2);
   });
 
+  it("calculates native-frequency YoY points without interpolation", () => {
+    const monthly = normalizeIndexedSeries(
+      [
+        observation("2019-01-01T00:00:00.000Z", "100"),
+        observation("2020-01-01T00:00:00.000Z", "110"),
+        observation("2020-02-01T00:00:00.000Z", "120"),
+      ],
+      definition,
+    );
+    const quarterly = normalizeIndexedSeries(
+      [
+        observation("2019-01-01T00:00:00.000Z", "200", "quarterly"),
+        observation("2020-01-01T00:00:00.000Z", "220", "quarterly"),
+      ],
+      {
+        ...definition,
+        id: "united-kingdom",
+        country: "United Kingdom",
+        source: "ONS",
+      },
+    );
+    const chart = prepareMixedFrequencyChart(
+      [monthly, quarterly],
+      "year-over-year",
+    );
+
+    expect(chart).toHaveLength(1);
+    expect(chart[0].values).toEqual({
+      australia: 10,
+      "united-kingdom": 10,
+    });
+    expect(chart[0].points.australia).toMatchObject({
+      originalPeriod: "Jan 2020",
+      frequency: "monthly",
+      source: "ABS",
+      originalValue: "110",
+    });
+    expect(monthly.points.at(-1)?.yearOverYearChange).toBeNull();
+  });
+
+  it("uses pre-baseline history for the first eligible YoY point", () => {
+    const series = normalizeIndexedSeries(
+      [
+        observation("2018-01-01T00:00:00.000Z", "80"),
+        observation("2019-01-01T00:00:00.000Z", "100"),
+      ],
+      definition,
+    );
+
+    expect(series.points[0]).toMatchObject({
+      indexedValue: 100,
+      yearOverYearChange: 25,
+    });
+  });
+
   it("does not mutate raw observations", () => {
     const observations = [
       observation("2019-02-01T00:00:00.000Z", "12"),
@@ -199,6 +254,15 @@ describe("consumer-demand analysis", () => {
         countryCode: "CA",
         unit: "2017 constant CAD millions, quarterly rate",
       },
+      {
+        ...observation(
+          "2019-01-01T00:00:00.000Z",
+          "25",
+          "quarterly",
+          "au-recreation-culture-spending-real",
+        ),
+        unit: "chain volume AUD millions",
+      },
       observation(
         "2019-01-01T00:00:00.000Z",
         "999",
@@ -224,8 +288,7 @@ describe("consumer-demand analysis", () => {
     });
     expect(real[0]).toMatchObject({
       country: "Australia",
-      baselinePeriod: null,
-      points: [],
+      baselinePeriod: "2019-01-01T00:00:00.000Z",
     });
     expect(real[3]).toMatchObject({
       country: "Canada",

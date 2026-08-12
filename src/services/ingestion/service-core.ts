@@ -46,7 +46,9 @@ export function sanitiseIngestionError(error: unknown): string {
       error.name === "BeaResponseError" ||
       error.name === "FredResponseError" ||
       error.name === "EurostatResponseError" ||
-      error.name === "StatCanResponseError")
+      error.name === "StatCanResponseError" ||
+      error.name === "GdeltResponseError" ||
+      error.name === "TicketmasterResponseError")
   ) {
     return error.message.slice(0, 500);
   }

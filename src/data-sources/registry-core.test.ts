@@ -19,6 +19,9 @@ describe("source registry", () => {
       EUROSTAT_BASE_URL:
         "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
       STATCAN_BASE_URL: "https://www150.statcan.gc.ca/t1/wds",
+      GDELT_BASE_URL: "https://api.gdeltproject.org",
+      TICKETMASTER_BASE_URL: "https://app.ticketmaster.com/discovery/v2",
+      TICKETMASTER_API_KEY: apiKey,
       EVENTBRITE_BASE_URL: "https://www.eventbriteapi.com/v3",
       EVENTBRITE_PRIVATE_TOKEN: token,
       IGDB_BASE_URL: "https://api.igdb.com/v4",
@@ -31,7 +34,7 @@ describe("source registry", () => {
     expect(sources).toHaveLength(13);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(6);
+    ).toHaveLength(8);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -59,6 +62,22 @@ describe("source registry", () => {
       implementationStatus: "implemented",
       isPublic: true,
       requiresAuthentication: false,
+    });
+    expect(sources.find((source) => source.slug === "gdelt")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      requiresAuthentication: false,
+      countries: ["AU", "US", "GB", "CA"],
+    });
+    expect(
+      sources.find((source) => source.slug === "ticketmaster"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: false,
+      requiresAuthentication: true,
+      countries: ["AU", "US", "GB", "CA"],
     });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,

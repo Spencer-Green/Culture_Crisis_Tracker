@@ -5,11 +5,16 @@ import {
   validateAbsMetricMappings,
 } from "../src/data-sources/macro/abs-metadata";
 import {
+  ABS_QUARTERLY_DATAFLOW,
   ABS_DATAFLOW,
+  ABS_REAL_METRICS,
   ABS_METRICS,
   getAbsDataKey,
 } from "../src/data-sources/macro/abs-metrics";
+import { buildAbsDataUrl } from "../src/data-sources/macro/abs-adapter";
+import { parseAbsObservationCsv } from "../src/data-sources/macro/abs-csv";
 import { parseServerEnv } from "../src/lib/env-schema";
+import { fetchText } from "../src/lib/http";
 
 const env = parseServerEnv(process.env);
 
@@ -35,6 +40,16 @@ async function main() {
 
   const metadata = await fetchAbsStructureMetadata(env.ABS_BASE_URL);
   const issues = validateAbsMetricMappings(metadata);
+  const quarterlyMetadata = await fetchAbsStructureMetadata(
+    env.ABS_BASE_URL,
+    undefined,
+    ABS_QUARTERLY_DATAFLOW,
+  );
+  const quarterlyIssues = validateAbsMetricMappings(
+    quarterlyMetadata,
+    ABS_QUARTERLY_DATAFLOW,
+    ABS_REAL_METRICS,
+  );
 
   console.log("ABS Monthly Household Spending Indicator");
   console.log(`  Dataflow: ${metadata.dataflow.id}`);
@@ -89,7 +104,9 @@ async function main() {
   );
 
   console.log("\nImplemented metric mappings");
-  for (const metric of ABS_METRICS) {
+  for (const metric of ABS_METRICS.filter(
+    (item) => item.dataflow.id === ABS_DATAFLOW.id,
+  )) {
     console.log(`  ${metric.slug}`);
     console.log(`    ${metric.name}`);
     console.log(
@@ -100,9 +117,57 @@ async function main() {
     );
   }
 
-  if (issues.length > 0) {
+  console.log("\nABS Quarterly Household Spending Indicator");
+  console.log(
+    `  Dataflow: ${quarterlyMetadata.dataflow.agency}:${quarterlyMetadata.dataflow.id}(${quarterlyMetadata.dataflow.version})`,
+  );
+  console.log(`  Label: ${quarterlyMetadata.dataflow.label}`);
+  console.log(
+    `  Dimension order: ${quarterlyMetadata.dimensions.map((item) => item.id).join(", ")}`,
+  );
+  const quarterlyEndMonth = quarterlyMetadata.availability.endPeriod;
+  const quarterlyEnd = quarterlyEndMonth
+    ? `${quarterlyEndMonth.slice(0, 4)}-Q${Math.floor((Number(quarterlyEndMonth.slice(5, 7)) - 1) / 3) + 1}`
+    : "2026-Q2";
+  for (const metric of ABS_REAL_METRICS) {
+    const url = buildAbsDataUrl(
+      env.ABS_BASE_URL,
+      metric.slug,
+      ABS_QUARTERLY_DATAFLOW.firstAvailablePeriod,
+      quarterlyEnd,
+    );
+    const response = await fetchText(url, {
+      accept: "application/vnd.sdmx.data+csv;version=2.0.0;labels=both",
+      acceptedContentTypes: ["application/vnd.sdmx.data+csv", "text/csv"],
+      timeoutMs: 15_000,
+    });
+    const observations = parseAbsObservationCsv(
+      response.body,
+      metric,
+      response.responseUrl,
+      new Date(),
+    ).observations;
+    const first = observations[0];
+    const latest = observations.at(-1);
+    console.log(`  ${metric.slug}`);
+    console.log(`    ${metric.name}`);
+    console.log(
+      `    ${metric.dataflow.agency},${metric.dataflow.id},${metric.dataflow.version}/${getAbsDataKey(metric)}`,
+    );
+    console.log(
+      `    ${metric.dimensions.category.label}; ${metric.dimensions.priceAdjustment.label}; ${metric.dimensions.adjustmentType.label}`,
+    );
+    console.log(
+      `    Frequency: ${metric.dimensions.frequency.label}; unit: ${metric.unitMetadata.label}, ${metric.unitMetadata.multiplierLabel}`,
+    );
+    console.log(
+      `    Periods: ${first ? `${first.periodStart.getUTCFullYear()}-Q${Math.floor(first.periodStart.getUTCMonth() / 3) + 1}` : "unknown"} to ${latest ? `${latest.periodStart.getUTCFullYear()}-Q${Math.floor(latest.periodStart.getUTCMonth() / 3) + 1}` : "unknown"}; latest value: ${latest?.value ?? "unknown"}`,
+    );
+  }
+
+  if (issues.length > 0 || quarterlyIssues.length > 0) {
     console.error("\nMapping validation failed:");
-    for (const issue of issues) {
+    for (const issue of [...issues, ...quarterlyIssues]) {
       console.error(`  - ${issue}`);
     }
     process.exitCode = 1;

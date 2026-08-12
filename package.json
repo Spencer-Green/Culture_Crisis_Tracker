@@ -16,6 +16,7 @@
     "db:seed": "prisma db seed",
     "abs:inspect": "tsx scripts/abs-inspect.ts",
     "ingest:abs": "node --conditions=react-server --import tsx scripts/ingest-abs.ts",
+    "ingest:abs-real": "node --conditions=react-server --import tsx scripts/ingest-abs-real.ts",
     "ons:inspect": "tsx scripts/ons-inspect.ts",
     "ingest:ons": "node --conditions=react-server --import tsx scripts/ingest-ons.ts",
     "bea:inspect": "tsx scripts/bea-inspect.ts",
@@ -25,7 +26,11 @@
     "eurostat:inspect": "tsx scripts/eurostat-inspect.ts",
     "ingest:eurostat": "node --conditions=react-server --import tsx scripts/ingest-eurostat.ts",
     "statcan:inspect": "tsx scripts/statcan-inspect.ts",
-    "ingest:statcan": "node --conditions=react-server --import tsx scripts/ingest-statcan.ts"
+    "ingest:statcan": "node --conditions=react-server --import tsx scripts/ingest-statcan.ts",
+    "gdelt:inspect": "node --conditions=react-server --import tsx scripts/gdelt-inspect.ts",
+    "ingest:gdelt": "node --conditions=react-server --import tsx scripts/ingest-gdelt.ts",
+    "ingest:ticketmaster": "node --conditions=react-server --import tsx scripts/ingest-ticketmaster.ts",
+    "ticketmaster:inspect": "node --conditions=react-server --import tsx scripts/ticketmaster-inspect.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

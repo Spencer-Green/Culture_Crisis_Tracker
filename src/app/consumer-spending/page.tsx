@@ -4,6 +4,10 @@ import {
   CreditHistoryChart,
   type CreditHistoryView,
 } from "@/components/credit-history-chart";
+import {
+  CountryDemandSummary,
+  type DemandSummaryRow,
+} from "@/components/country-demand-summary";
 import { DashboardCard } from "@/components/dashboard-card";
 import { DemandIndexChart } from "@/components/demand-index-chart";
 import {
@@ -11,6 +15,12 @@ import {
   buildRealDemandSeries,
   prepareMixedFrequencyChart,
 } from "@/lib/consumer-demand";
+import {
+  alignedNominalRealGrowthGap,
+  buildMetricTrend,
+  buildRecreationShareTrend,
+  type MetricTrend,
+} from "@/lib/consumer-spending-analysis";
 import {
   buildHistoricalMetricContext,
   type HistoricalMetricContext,
@@ -34,7 +44,9 @@ export const metadata: Metadata = {
 const METRIC_SLUGS = {
   australia: {
     total: "au-household-spending-total-current-price-sa",
+    totalReal: "au-household-spending-total-real",
     recreationValue: "au-recreation-culture-spending-current-price-sa",
+    recreationReal: "au-recreation-culture-spending-real",
     recreationChange: "au-recreation-culture-spending-mom-pct-sa",
     discretionaryChange: "au-discretionary-spending-mom-pct-sa",
   },
@@ -173,39 +185,97 @@ function MetricValue({
   );
 }
 
-function calculateQuarterlyChange(
-  observations: readonly ConsumerSpendingObservation[],
-  metricSlug: string,
-) {
-  const series = observations.filter(
-    (observation) => observation.metricSlug === metricSlug,
-  );
-  if (series.length < 2) {
-    return null;
-  }
-
-  const latest = Number(series[0].value);
-  const previous = Number(series[1].value);
-  if (
-    !Number.isFinite(latest) ||
-    !Number.isFinite(previous) ||
-    previous === 0
-  ) {
-    return null;
-  }
-
-  return {
-    value: ((latest - previous) / previous) * 100,
-    latest: series[0],
-    previous: series[1],
-  };
-}
-
 function formatRate(value: number): string {
   return `${new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)}%`;
+}
+
+function formatSnapshotChange(value: number | null): string {
+  if (value === null) return "N/A";
+  return `${new Intl.NumberFormat("en-US", {
+    signDisplay: "always",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
+}
+
+function SourceObservations({
+  title,
+  description,
+  observations,
+  locale,
+  source,
+}: {
+  title: string;
+  description: string;
+  observations: readonly ConsumerSpendingObservation[];
+  locale: string;
+  source: string;
+}) {
+  return (
+    <details className="group overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/40">
+      <summary className="cursor-pointer list-none px-5 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-zinc-300">{title}</p>
+            <p className="mt-1 text-xs text-zinc-600">{description}</p>
+          </div>
+          <span className="text-xs text-zinc-500 group-open:hidden">Show</span>
+          <span className="hidden text-xs text-zinc-500 group-open:inline">
+            Hide
+          </span>
+        </div>
+      </summary>
+      <div className="overflow-x-auto border-t border-zinc-800">
+        <table className="w-full min-w-[760px] text-left text-xs">
+          <thead className="border-b border-zinc-800 text-zinc-600">
+            <tr>
+              <th className="px-3 py-3 font-medium">Period</th>
+              <th className="px-3 py-3 font-medium">Metric</th>
+              <th className="px-3 py-3 font-medium">Value</th>
+              <th className="px-3 py-3 font-medium">Unit</th>
+              <th className="px-3 py-3 font-medium">Frequency</th>
+              <th className="px-3 py-3 font-medium">Source</th>
+              <th className="px-3 py-3 font-medium">Retrieved</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800/70">
+            {observations.map((observation) => (
+              <tr key={`${observation.metricSlug}-${observation.periodStart}`}>
+                <td className="font-data px-3 py-3 text-zinc-300">
+                  {formatPeriod(observation, locale)}
+                </td>
+                <td className="px-3 py-3 text-zinc-400">
+                  {observation.metricName}
+                </td>
+                <td className="font-data px-3 py-3 text-zinc-200">
+                  {formatValue(observation.value, observation.unit, locale)}
+                </td>
+                <td className="px-3 py-3 text-zinc-500">{observation.unit}</td>
+                <td className="px-3 py-3 text-zinc-500 capitalize">
+                  {observation.frequency}
+                </td>
+                <td className="px-3 py-3 text-zinc-500">{source}</td>
+                <td className="font-data px-3 py-3 text-zinc-600">
+                  {formatTimestamp(observation.retrievedAt, locale)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
+function snapshotCard(
+  country: string,
+  nominal: MetricTrend | null,
+  real: MetricTrend | null,
+) {
+  return { country, nominal, real };
 }
 
 function formatSigned(value: number, suffix: string): string {
@@ -532,14 +602,6 @@ export default async function ConsumerSpendingPage() {
   const canadianObservations = data.observations.filter(
     (observation) => observation.sourceSlug === "statcan",
   );
-  const total = latestObservation(
-    australianObservations,
-    METRIC_SLUGS.australia.total,
-  );
-  const recreationValue = latestObservation(
-    australianObservations,
-    METRIC_SLUGS.australia.recreationValue,
-  );
   const recreationChange = latestObservation(
     australianObservations,
     METRIC_SLUGS.australia.recreationChange,
@@ -547,42 +609,6 @@ export default async function ConsumerSpendingPage() {
   const discretionaryChange = latestObservation(
     australianObservations,
     METRIC_SLUGS.australia.discretionaryChange,
-  );
-  const ukTotalNominal = latestObservation(
-    ukObservations,
-    METRIC_SLUGS.unitedKingdom.totalNominal,
-  );
-  const ukTotalReal = latestObservation(
-    ukObservations,
-    METRIC_SLUGS.unitedKingdom.totalReal,
-  );
-  const ukRecreationNominal = latestObservation(
-    ukObservations,
-    METRIC_SLUGS.unitedKingdom.recreationNominal,
-  );
-  const ukRecreationReal = latestObservation(
-    ukObservations,
-    METRIC_SLUGS.unitedKingdom.recreationReal,
-  );
-  const ukRealQuarterlyChange = calculateQuarterlyChange(
-    ukObservations,
-    METRIC_SLUGS.unitedKingdom.totalReal,
-  );
-  const usTotalNominal = latestObservation(
-    beaObservations,
-    METRIC_SLUGS.unitedStates.totalNominal,
-  );
-  const usTotalReal = latestObservation(
-    beaObservations,
-    METRIC_SLUGS.unitedStates.totalReal,
-  );
-  const usRecreationNominal = latestObservation(
-    beaObservations,
-    METRIC_SLUGS.unitedStates.recreationNominal,
-  );
-  const usRecreationReal = latestObservation(
-    beaObservations,
-    METRIC_SLUGS.unitedStates.recreationReal,
   );
   const usTotalCredit = latestObservation(
     fredObservations,
@@ -616,28 +642,251 @@ export default async function ConsumerSpendingPage() {
     eurostatObservations,
     METRIC_SLUGS.europeanUnion.recreationReal,
   );
-  const caTotalNominal = latestObservation(
+  const auTotalTrend = buildMetricTrend(
+    australianObservations,
+    METRIC_SLUGS.australia.total,
+    "monthly",
+  );
+  const auRecreationTrend = buildMetricTrend(
+    australianObservations,
+    METRIC_SLUGS.australia.recreationValue,
+    "monthly",
+  );
+  const auTotalRealTrend = buildMetricTrend(
+    australianObservations,
+    METRIC_SLUGS.australia.totalReal,
+    "quarterly",
+  );
+  const auRecreationRealTrend = buildMetricTrend(
+    australianObservations,
+    METRIC_SLUGS.australia.recreationReal,
+    "quarterly",
+  );
+  const auShare = buildRecreationShareTrend(
+    australianObservations,
+    METRIC_SLUGS.australia.recreationValue,
+    METRIC_SLUGS.australia.total,
+    "monthly",
+  );
+  const ukTotalNominalTrend = buildMetricTrend(
+    ukObservations,
+    METRIC_SLUGS.unitedKingdom.totalNominal,
+    "quarterly",
+  );
+  const ukTotalRealTrend = buildMetricTrend(
+    ukObservations,
+    METRIC_SLUGS.unitedKingdom.totalReal,
+    "quarterly",
+  );
+  const ukRecreationNominalTrend = buildMetricTrend(
+    ukObservations,
+    METRIC_SLUGS.unitedKingdom.recreationNominal,
+    "quarterly",
+  );
+  const ukRecreationRealTrend = buildMetricTrend(
+    ukObservations,
+    METRIC_SLUGS.unitedKingdom.recreationReal,
+    "quarterly",
+  );
+  const ukShare = buildRecreationShareTrend(
+    ukObservations,
+    METRIC_SLUGS.unitedKingdom.recreationNominal,
+    METRIC_SLUGS.unitedKingdom.totalNominal,
+    "quarterly",
+  );
+  const usTotalNominalTrend = buildMetricTrend(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.totalNominal,
+    "monthly",
+  );
+  const usTotalRealTrend = buildMetricTrend(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.totalReal,
+    "monthly",
+  );
+  const usRecreationNominalTrend = buildMetricTrend(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.recreationNominal,
+    "monthly",
+  );
+  const usRecreationRealTrend = buildMetricTrend(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.recreationReal,
+    "monthly",
+  );
+  const usShare = buildRecreationShareTrend(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.recreationNominal,
+    METRIC_SLUGS.unitedStates.totalNominal,
+    "monthly",
+  );
+  const caTotalNominalTrend = buildMetricTrend(
     canadianObservations,
     METRIC_SLUGS.canada.totalNominal,
+    "quarterly",
   );
-  const caTotalReal = latestObservation(
+  const caTotalRealTrend = buildMetricTrend(
     canadianObservations,
     METRIC_SLUGS.canada.totalReal,
+    "quarterly",
   );
-  const caRecreationNominal = latestObservation(
+  const caRecreationNominalTrend = buildMetricTrend(
     canadianObservations,
     METRIC_SLUGS.canada.recreationNominal,
+    "quarterly",
   );
-  const caRecreationReal = latestObservation(
+  const caRecreationRealTrend = buildMetricTrend(
     canadianObservations,
     METRIC_SLUGS.canada.recreationReal,
+    "quarterly",
+  );
+  const caShare = buildRecreationShareTrend(
+    canadianObservations,
+    METRIC_SLUGS.canada.recreationNominal,
+    METRIC_SLUGS.canada.totalNominal,
+    "quarterly",
   );
   const recentAustralianObservations = australianObservations.slice(0, 24);
   const recentUkObservations = ukObservations.slice(0, 24);
+  const recentUsObservations = beaObservations.slice(0, 24);
+  const recentCanadianObservations = canadianObservations.slice(0, 24);
   const nominalDemandSeries = buildNominalDemandSeries(data.observations);
   const realDemandSeries = buildRealDemandSeries(data.observations);
   const nominalDemandChart = prepareMixedFrequencyChart(nominalDemandSeries);
   const realDemandChart = prepareMixedFrequencyChart(realDemandSeries);
+  const nominalDemandYoYChart = prepareMixedFrequencyChart(
+    nominalDemandSeries,
+    "year-over-year",
+  );
+  const realDemandYoYChart = prepareMixedFrequencyChart(
+    realDemandSeries,
+    "year-over-year",
+  );
+  const countryRows = {
+    australia: [
+      {
+        label: "Total household spending",
+        trend: auTotalTrend,
+        locale: "en-AU",
+        basis: "Current prices, seasonally adjusted",
+        periodLabel: "MoM",
+      },
+      {
+        label: "Recreation & culture",
+        trend: auRecreationTrend,
+        locale: "en-AU",
+        basis: "Current prices, seasonally adjusted",
+        officialPeriodChange: recreationChange,
+        periodLabel: "MoM",
+      },
+      {
+        label: "Total household spending — real",
+        trend: auTotalRealTrend,
+        locale: "en-AU",
+        basis: "Official ABS chain volume measures, seasonally adjusted",
+        periodLabel: "QoQ",
+      },
+      {
+        label: "Recreation & culture — real",
+        trend: auRecreationRealTrend,
+        locale: "en-AU",
+        basis: "Official ABS chain volume measures, seasonally adjusted",
+        periodLabel: "QoQ",
+      },
+    ],
+    unitedKingdom: [
+      {
+        label: "Total household spending — nominal",
+        trend: ukTotalNominalTrend,
+        locale: "en-GB",
+        basis: "Current prices",
+      },
+      {
+        label: "Total household spending — real",
+        trend: ukTotalRealTrend,
+        locale: "en-GB",
+        basis: "Chained volume measure",
+      },
+      {
+        label: "Recreation & culture — nominal",
+        trend: ukRecreationNominalTrend,
+        locale: "en-GB",
+        basis: "Current prices · COICOP 09",
+      },
+      {
+        label: "Recreation & culture — real",
+        trend: ukRecreationRealTrend,
+        locale: "en-GB",
+        basis: "Chained volume measure · COICOP 09",
+      },
+    ],
+    unitedStates: [
+      {
+        label: "Total PCE — nominal",
+        trend: usTotalNominalTrend,
+        locale: "en-US",
+        basis: "Current dollars, SAAR",
+      },
+      {
+        label: "Total PCE — real",
+        trend: usTotalRealTrend,
+        locale: "en-US",
+        basis: "Chained 2017 dollars, SAAR",
+      },
+      {
+        label: "Recreation services — nominal",
+        trend: usRecreationNominalTrend,
+        locale: "en-US",
+        basis: "Current dollars, SAAR",
+      },
+      {
+        label: "Recreation services — real",
+        trend: usRecreationRealTrend,
+        locale: "en-US",
+        basis: "Chained 2017 dollars, SAAR",
+      },
+    ],
+    canada: [
+      {
+        label: "Household expenditure — nominal",
+        trend: caTotalNominalTrend,
+        locale: "en-CA",
+        basis: "Current prices",
+      },
+      {
+        label: "Household expenditure — real",
+        trend: caTotalRealTrend,
+        locale: "en-CA",
+        basis: "2017 constant prices",
+      },
+      {
+        label: "Recreation & culture — nominal",
+        trend: caRecreationNominalTrend,
+        locale: "en-CA",
+        basis: "Current prices",
+      },
+      {
+        label: "Recreation & culture — real",
+        trend: caRecreationRealTrend,
+        locale: "en-CA",
+        basis: "2017 constant prices",
+      },
+    ],
+  } satisfies Record<string, DemandSummaryRow[]>;
+  const latestDemandSnapshot = [
+    snapshotCard("Australia", auRecreationTrend, auRecreationRealTrend),
+    snapshotCard(
+      "United States",
+      usRecreationNominalTrend,
+      usRecreationRealTrend,
+    ),
+    snapshotCard(
+      "United Kingdom",
+      ukRecreationNominalTrend,
+      ukRecreationRealTrend,
+    ),
+    snapshotCard("Canada", caRecreationNominalTrend, caRecreationRealTrend),
+  ];
   const totalCreditContext = buildHistoricalMetricContext(
     fredObservations,
     METRIC_SLUGS.unitedStates.totalCredit,
@@ -788,6 +1037,7 @@ export default async function ConsumerSpendingPage() {
         >
           <DemandIndexChart
             data={nominalDemandChart}
+            yearOverYearData={nominalDemandYoYChart}
             series={nominalDemandSeries}
           />
         </DashboardCard>
@@ -795,9 +1045,62 @@ export default async function ConsumerSpendingPage() {
           title="Recreation Demand — Real Index"
           description="Baseline = 100 at first available 2019 observation"
         >
-          <DemandIndexChart data={realDemandChart} series={realDemandSeries} />
+          <DemandIndexChart
+            data={realDemandChart}
+            yearOverYearData={realDemandYoYChart}
+            series={realDemandSeries}
+          />
         </DashboardCard>
       </div>
+
+      <DashboardCard
+        title="Latest Recreation Demand"
+        description="Each market uses its own latest published period"
+      >
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {latestDemandSnapshot.map((item) => (
+            <div
+              key={item.country}
+              className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4"
+            >
+              <p className="text-sm font-medium text-zinc-200">
+                {item.country}
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-600">
+                {item.nominal
+                  ? formatPeriod(item.nominal.current)
+                  : "No current observation"}
+              </p>
+              <dl className="mt-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-zinc-500">Nominal YoY</dt>
+                  <dd className="font-data text-zinc-200">
+                    {formatSnapshotChange(
+                      item.nominal?.yearOverYearChange ?? null,
+                    )}
+                  </dd>
+                </div>
+                <div className="text-[10px] text-zinc-700">
+                  {item.nominal
+                    ? `Nominal: ${formatPeriod(item.nominal.current)}`
+                    : "Nominal period unavailable"}
+                  {item.real
+                    ? ` · Real: ${formatPeriod(item.real.current)}`
+                    : " · Real period unavailable"}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-zinc-500">Real YoY</dt>
+                  <dd className="font-data text-zinc-200">
+                    {formatSnapshotChange(
+                      item.real?.yearOverYearChange ?? null,
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+      </DashboardCard>
 
       <p className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-xs leading-5 text-zinc-500">
         Indexing makes unlike currency levels easier to compare, but source
@@ -807,385 +1110,106 @@ export default async function ConsumerSpendingPage() {
         EU structural benchmark is excluded from this current-demand comparison.
       </p>
 
-      <div className="border-b border-zinc-800 pb-3">
-        <h2 className="text-lg font-semibold text-zinc-100">Australia</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Monthly, seasonally adjusted ABS observations
-        </p>
-      </div>
+      <CountryDemandSummary
+        country="Australia"
+        description="Monthly, seasonally adjusted ABS household-spending indicators"
+        rows={countryRows.australia}
+        share={auShare}
+        shareLabel="Recreation & culture share of household spending"
+        source="ABS"
+        sourceSemantics="current prices; official recreation MoM retained"
+        periodLabel="MoM"
+        realUnavailable="Nominal indicators are monthly while official ABS chain-volume indicators are quarterly. No mixed-period nominal-real gap is calculated."
+        ancillarySignal={{
+          label: "Discretionary spending signal",
+          observation: discretionaryChange,
+          description: "ABS-published monthly change; not a dollar level",
+        }}
+      />
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <DashboardCard
-          title="Australian Household Spending"
-          description="Total, current prices, seasonally adjusted"
-        >
-          <MetricValue
-            observation={total}
-            emptyMessage="No total household spending observations"
-            provenance="ABS published observation"
-          />
-        </DashboardCard>
-        <DashboardCard
-          title="Recreation & Culture"
-          description="Current-price value and monthly change"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={recreationValue}
-              emptyMessage="No recreation and culture observations"
-              provenance="ABS published observation"
-            />
-            {recreationChange ? (
-              <div className="border-t border-zinc-800 pt-4">
-                <p className="text-xs text-zinc-500">
-                  Latest month-on-month change
-                </p>
-                <p className="font-data mt-2 text-xl text-zinc-100">
-                  {formatValue(recreationChange.value, recreationChange.unit)}
-                </p>
-                <p className="mt-1 text-xs text-zinc-600">
-                  {formatPeriod(recreationChange)}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Discretionary Spending"
-          description="ABS-defined monthly discretionary signal"
-        >
-          <MetricValue
-            observation={discretionaryChange}
-            emptyMessage="No discretionary spending observations"
-            provenance="ABS published observation"
-          />
-        </DashboardCard>
-      </div>
-
-      <DashboardCard
-        title="Recent observations"
+      <SourceObservations
+        title="Show Australian source observations"
         description="Latest persisted ABS HSI_M records"
-      >
-        {recentAustralianObservations.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-10 text-center">
-            <p className="text-sm text-zinc-400">
-              No ABS observations have been ingested.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="border-b border-zinc-800 text-zinc-600">
-                <tr>
-                  <th className="px-3 py-3 font-medium">Period</th>
-                  <th className="px-3 py-3 font-medium">Metric</th>
-                  <th className="px-3 py-3 font-medium">Value</th>
-                  <th className="px-3 py-3 font-medium">Unit</th>
-                  <th className="px-3 py-3 font-medium">Frequency</th>
-                  <th className="px-3 py-3 font-medium">Retrieved</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/70">
-                {recentAustralianObservations.map((observation) => (
-                  <tr
-                    key={`${observation.metricSlug}-${observation.periodStart}`}
-                  >
-                    <td className="font-data px-3 py-3 text-zinc-300">
-                      {formatPeriod(observation)}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-400">
-                      {observation.metricName}
-                    </td>
-                    <td className="font-data px-3 py-3 text-zinc-200">
-                      {formatValue(observation.value, observation.unit)}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-500">
-                      {observation.unit}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-500 capitalize">
-                      {observation.frequency}
-                    </td>
-                    <td className="font-data px-3 py-3 text-zinc-600">
-                      {formatTimestamp(observation.retrievedAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        observations={recentAustralianObservations}
+        locale="en-AU"
+        source="ABS"
+      />
+
+      <CountryDemandSummary
+        country="Canada"
+        description="Quarterly Statistics Canada household consumption"
+        rows={countryRows.canada}
+        share={caShare}
+        shareLabel="Recreation & culture share of household spending"
+        source="Statistics Canada"
+        sourceSemantics="seasonally adjusted at quarterly rates; not SAAR"
+        periodLabel="QoQ"
+        nominalRealGap={alignedNominalRealGrowthGap(
+          caRecreationNominalTrend,
+          caRecreationRealTrend,
         )}
-      </DashboardCard>
+      />
 
-      <div className="border-b border-zinc-800 pt-4 pb-3">
-        <h2 className="text-lg font-semibold text-zinc-100">Canada</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Quarterly Statistics Canada observations, seasonally adjusted at
-          quarterly rates. Latest available periods follow the official
-          quarterly release cadence.
-        </p>
-      </div>
+      <SourceObservations
+        title="Show Canadian source observations"
+        description="Latest persisted table 36-10-0124-01 records"
+        observations={recentCanadianObservations}
+        locale="en-CA"
+        source="Statistics Canada"
+      />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <DashboardCard
-          title="Household Final Consumption Expenditure"
-          description="Current prices and 2017 constant prices"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={caTotalNominal}
-              emptyMessage="No Canadian nominal household spending observations"
-              locale="en-CA"
-              provenance="Statistics Canada — current prices; seasonally adjusted at quarterly rates"
-              ingestionCommand="the Statistics Canada ingestion command"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={caTotalReal}
-                emptyMessage="No Canadian real household spending observations"
-                locale="en-CA"
-                provenance="Statistics Canada — 2017 constant prices; seasonally adjusted at quarterly rates"
-                ingestionCommand="the Statistics Canada ingestion command"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Recreation and Culture"
-          description="Published category, current and 2017 constant prices"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={caRecreationNominal}
-              emptyMessage="No Canadian nominal recreation and culture observations"
-              locale="en-CA"
-              provenance="Statistics Canada — current prices; seasonally adjusted at quarterly rates"
-              ingestionCommand="the Statistics Canada ingestion command"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={caRecreationReal}
-                emptyMessage="No Canadian real recreation and culture observations"
-                locale="en-CA"
-                provenance="Statistics Canada — 2017 constant prices; seasonally adjusted at quarterly rates"
-                ingestionCommand="the Statistics Canada ingestion command"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-      </div>
+      <CountryDemandSummary
+        country="United Kingdom"
+        description="Quarterly, seasonally adjusted ONS Consumer Trends"
+        rows={countryRows.unitedKingdom}
+        share={ukShare}
+        shareLabel="Recreation & culture share of household spending"
+        source="ONS"
+        sourceSemantics="current prices and chained volume measures"
+        periodLabel="QoQ"
+        nominalRealGap={alignedNominalRealGrowthGap(
+          ukRecreationNominalTrend,
+          ukRecreationRealTrend,
+        )}
+      />
 
-      <div className="border-b border-zinc-800 pt-4 pb-3">
-        <h2 className="text-lg font-semibold text-zinc-100">United Kingdom</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Quarterly, seasonally adjusted ONS Consumer Trends observations
-        </p>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-3">
-        <DashboardCard
-          title="Total Household Spending"
-          description="Nominal expenditure and real chained volume measure"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={ukTotalNominal}
-              emptyMessage="No UK nominal household spending observations"
-              locale="en-GB"
-              provenance="ONS published observation — current prices"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={ukTotalReal}
-                emptyMessage="No UK real household spending observations"
-                locale="en-GB"
-                provenance="ONS published observation — chained volume measure"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Recreation & Culture"
-          description="COICOP division 09, nominal and real measures"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={ukRecreationNominal}
-              emptyMessage="No UK nominal recreation observations"
-              locale="en-GB"
-              provenance="ONS published observation — current prices"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={ukRecreationReal}
-                emptyMessage="No UK real recreation observations"
-                locale="en-GB"
-                provenance="ONS published observation — chained volume measure"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Real Spending Signal"
-          description="Latest total-household CVM quarter-on-quarter movement"
-        >
-          {ukRealQuarterlyChange ? (
-            <div>
-              <p className="font-data text-3xl text-zinc-50">
-                {new Intl.NumberFormat("en-GB", {
-                  signDisplay: "always",
-                  maximumFractionDigits: 2,
-                }).format(ukRealQuarterlyChange.value)}
-                %
-              </p>
-              <p className="mt-2 text-[11px] font-medium text-amber-300">
-                Culture Crisis Tracker calculated change
-              </p>
-              <p className="mt-4 text-xs leading-5 text-zinc-500">
-                Calculated from consecutive ONS-published CVM observations for{" "}
-                {formatPeriod(ukRealQuarterlyChange.previous, "en-GB")} and{" "}
-                {formatPeriod(ukRealQuarterlyChange.latest, "en-GB")}. This is
-                not a separately published ONS series.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-10 text-center">
-              <p className="text-sm text-zinc-400">
-                Two consecutive UK CVM quarters are required.
-              </p>
-            </div>
-          )}
-        </DashboardCard>
-      </div>
-
-      <DashboardCard
-        title="Recent UK observations"
+      <SourceObservations
+        title="Show UK source observations"
         description="Latest persisted ONS CT quarterly records"
-      >
-        {recentUkObservations.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-10 text-center">
-            <p className="text-sm text-zinc-400">
-              No ONS observations have been ingested.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-xs">
-              <thead className="border-b border-zinc-800 text-zinc-600">
-                <tr>
-                  <th className="px-3 py-3 font-medium">Quarter</th>
-                  <th className="px-3 py-3 font-medium">Metric</th>
-                  <th className="px-3 py-3 font-medium">Value</th>
-                  <th className="px-3 py-3 font-medium">Unit</th>
-                  <th className="px-3 py-3 font-medium">Frequency</th>
-                  <th className="px-3 py-3 font-medium">Provenance</th>
-                  <th className="px-3 py-3 font-medium">Retrieved</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/70">
-                {recentUkObservations.map((observation) => (
-                  <tr
-                    key={`${observation.metricSlug}-${observation.periodStart}`}
-                  >
-                    <td className="font-data px-3 py-3 text-zinc-300">
-                      {formatPeriod(observation, "en-GB")}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-400">
-                      {observation.metricName}
-                    </td>
-                    <td className="font-data px-3 py-3 text-zinc-200">
-                      {formatValue(
-                        observation.value,
-                        observation.unit,
-                        "en-GB",
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-500">
-                      {observation.unit}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-500 capitalize">
-                      {observation.frequency}
-                    </td>
-                    <td className="px-3 py-3 text-zinc-500">
-                      ONS published observation
-                    </td>
-                    <td className="font-data px-3 py-3 text-zinc-600">
-                      {formatTimestamp(observation.retrievedAt, "en-GB")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        observations={recentUkObservations}
+        locale="en-GB"
+        source="ONS"
+      />
+
+      <CountryDemandSummary
+        country="United States"
+        description="Monthly BEA personal-consumption demand"
+        rows={countryRows.unitedStates}
+        share={usShare}
+        shareLabel="Recreation services share of total PCE"
+        source="BEA"
+        sourceSemantics="seasonally adjusted annual rates"
+        periodLabel="MoM"
+        nominalRealGap={alignedNominalRealGrowthGap(
+          usRecreationNominalTrend,
+          usRecreationRealTrend,
         )}
-      </DashboardCard>
+      />
 
-      <div className="border-b border-zinc-800 pt-4 pb-3">
-        <h2 className="text-lg font-semibold text-zinc-100">United States</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Monthly BEA consumption demand and native-frequency FRED credit
-          conditions
-        </p>
-      </div>
+      <p className="rounded-xl border border-blue-900/30 bg-blue-950/10 px-4 py-3 text-xs leading-5 text-zinc-500">
+        SAAR = seasonally adjusted annual rate. Monthly BEA values show the
+        annualized spending pace implied by that month, not the amount spent
+        during the month itself. Consecutive SAAR levels can be compared as
+        growth rates and are not divided by twelve.
+      </p>
 
-      <div>
-        <h3 className="text-sm font-semibold text-zinc-200">
-          Household Consumption
-        </h3>
-        <p className="mt-2 max-w-4xl text-xs leading-5 text-zinc-500">
-          SAAR = seasonally adjusted annual rate. Monthly BEA values show the
-          annualized spending pace implied by that month, not the amount spent
-          during the month itself.
-        </p>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <DashboardCard
-          title="Total Personal Consumption Expenditures"
-          description="BEA NIPA total PCE, nominal and real"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={usTotalNominal}
-              emptyMessage="No US nominal total PCE observations"
-              locale="en-US"
-              provenance="BEA published observation — current dollars, SAAR"
-              ingestionCommand="the BEA ingestion command"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={usTotalReal}
-                emptyMessage="No US real total PCE observations"
-                locale="en-US"
-                provenance="BEA published observation — chained 2017 dollars, SAAR"
-                ingestionCommand="the BEA ingestion command"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-        <DashboardCard
-          title="Recreation Services"
-          description="BEA terminology; recreational goods are not combined"
-        >
-          <div className="space-y-6">
-            <MetricValue
-              observation={usRecreationNominal}
-              emptyMessage="No US nominal recreation services observations"
-              locale="en-US"
-              provenance="BEA published observation — current dollars, SAAR"
-              ingestionCommand="the BEA ingestion command"
-            />
-            <div className="border-t border-zinc-800 pt-5">
-              <MetricValue
-                observation={usRecreationReal}
-                emptyMessage="No US real recreation services observations"
-                locale="en-US"
-                provenance="BEA published observation — chained 2017 dollars, SAAR"
-                ingestionCommand="the BEA ingestion command"
-              />
-            </div>
-          </div>
-        </DashboardCard>
-      </div>
+      <SourceObservations
+        title="Show US consumption source observations"
+        description="Latest persisted BEA NIPA monthly records"
+        observations={recentUsObservations}
+        locale="en-US"
+        source="BEA"
+      />
 
       <div className="border-b border-zinc-800 pb-3">
         <h3 className="text-sm font-semibold text-zinc-200">

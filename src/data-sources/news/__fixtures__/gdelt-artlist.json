@@ -1,0 +1,36 @@
+{
+  "articles": [
+    {
+      "url": "https://example.com/culture/venue-close?utm_source=newsletter",
+      "url_mobile": "https://m.example.com/culture/venue-close",
+      "title": "Melbourne music venue to close permanently after 30 years",
+      "seendate": "20260810T041500Z",
+      "socialimage": "https://example.com/images/venue.jpg",
+      "domain": "Example.com",
+      "language": "English",
+      "sourcecountry": "Australia",
+      "tone": -4.2
+    },
+    {
+      "url": "https://example.ca/arts/theatre-risk",
+      "title": "Toronto theatre at risk without emergency funding",
+      "seendate": "20260809T120000Z",
+      "domain": "example.ca",
+      "sourcecountry": "Canada"
+    },
+    {
+      "url": "https://news.example.org/games/company-update",
+      "title": "Game studio discusses the changing market",
+      "seendate": "20260808T090000Z"
+    },
+    {
+      "url": "javascript:alert(1)",
+      "title": "Unsafe URL",
+      "seendate": "20260808T090000Z"
+    },
+    {
+      "url": "https://example.com/malformed",
+      "seendate": "not-a-date"
+    }
+  ]
+}

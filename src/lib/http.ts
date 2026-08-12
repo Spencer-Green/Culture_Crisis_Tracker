@@ -14,6 +14,7 @@ export type FetchTextResult = {
   contentType: string;
   latencyMs: number;
   responseUrl: string;
+  headers: Headers;
 };
 
 export type HttpErrorKind =
@@ -150,6 +151,7 @@ export async function fetchText(
       contentType,
       latencyMs,
       responseUrl: response.url || url.toString(),
+      headers: response.headers,
     };
   } catch (error) {
     if (error instanceof HttpRequestError) {

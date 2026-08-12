@@ -1,0 +1,6 @@
+STRUCTURE,STRUCTURE_ID,ACTION,MEASURE: Measure,CATEGORY: Category,PRICE_ADJUSTMENT: Price Adjustment,TSEST: Adjustment Type,STATE: State,FREQ: Frequency,TIME_PERIOD: Time Period,OBS_VALUE,UNIT_MEASURE: Unit of Measure,UNIT_MULT: Unit of Multiplier,OBS_STATUS: Observation Status,OBS_COMMENT: Observation Comment
+DATAFLOW,ABS:HSI_Q(1.2.0),I,7: Household spending,50: Recreation and culture,CVM: Chain Volume Measures,20: Seasonally Adjusted,AUS: Australia,Q: Quarterly,2025-Q2,37131.9,AUD: Australian Dollars,6: Millions,,
+DATAFLOW,ABS:HSI_Q(1.2.0),I,7: Household spending,50: Recreation and culture,CVM: Chain Volume Measures,20: Seasonally Adjusted,AUS: Australia,Q: Quarterly,2026-Q1,38001.1,AUD: Australian Dollars,6: Millions,,
+DATAFLOW,ABS:HSI_Q(1.2.0),I,7: Household spending,50: Recreation and culture,CVM: Chain Volume Measures,20: Seasonally Adjusted,AUS: Australia,Q: Quarterly,2025-Q3,,AUD: Australian Dollars,6: Millions,q: not available,
+DATAFLOW,ABS:HSI_Q(1.2.0),I,7: Household spending,50: Recreation and culture,CVM: Chain Volume Measures,20: Seasonally Adjusted,AUS: Australia,Q: Quarterly,2025-Q4,37988.7,AUD: Australian Dollars,6: Millions,,
+DATAFLOW,ABS:HSI_Q(1.2.0),I,7: Household spending,50: Recreation and culture,CVM: Chain Volume Measures,20: Seasonally Adjusted,AUS: Australia,Q: Quarterly,2026-Q2,38445.2,AUD: Australian Dollars,6: Millions,,

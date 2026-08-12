@@ -2,7 +2,10 @@ import { parse } from "csv-parse/sync";
 import { z } from "zod";
 
 import type { AbsMetricDefinition } from "@/data-sources/macro/abs-metrics";
-import { getAbsMonthBoundaries } from "@/data-sources/macro/abs-period";
+import {
+  getAbsMonthBoundaries,
+  getAbsQuarterBoundaries,
+} from "@/data-sources/macro/abs-period";
 import {
   normalisedObservationSchema,
   type NormalisedObservation,
@@ -152,7 +155,10 @@ export function parseAbsObservationCsv(
       code: metric.unitMetadata.multiplierCode,
       label: metric.unitMetadata.multiplierLabel,
     });
-    const { periodStart, periodEnd } = getAbsMonthBoundaries(period);
+    const { periodStart, periodEnd } =
+      metric.frequency === "quarterly"
+        ? getAbsQuarterBoundaries(period)
+        : getAbsMonthBoundaries(period);
     const observationStatus = parseCodeAndLabel(getColumn(row, "OBS_STATUS"));
     const observationComment = getColumn(row, "OBS_COMMENT")?.trim() || null;
 
@@ -172,6 +178,21 @@ export function parseAbsObservationCsv(
           id: metric.dataflow.id,
           version: metric.dataflow.version,
         },
+        seriesKey: [
+          metric.dataflow.agency,
+          metric.dataflow.id,
+          metric.dataflow.version,
+          [
+            metric.dimensions.measure.code,
+            metric.dimensions.category.code,
+            metric.dimensions.priceAdjustment.code,
+            metric.dimensions.adjustmentType.code,
+            metric.dimensions.geography.code,
+            metric.dimensions.frequency.code,
+          ].join("."),
+        ].join("/"),
+        priceBasis: priceAdjustment.label,
+        chainVolumeMeasure: priceAdjustment.code === "CVM",
         dimensions: {
           measure,
           category,
@@ -186,6 +207,7 @@ export function parseAbsObservationCsv(
         observationStatus,
         observationComment,
         sourceRequestUrl: sourceUrl,
+        retrievedAt: retrievedAt.toISOString(),
       },
     });
 

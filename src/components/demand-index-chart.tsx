@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 import {
   CartesianGrid,
   Line,
@@ -12,12 +14,14 @@ import {
 } from "recharts";
 
 import type {
+  DemandChartMode,
   IndexedDemandSeries,
   MixedFrequencyChartDatum,
 } from "@/lib/consumer-demand";
 
 type DemandIndexChartProps = {
   data: MixedFrequencyChartDatum[];
+  yearOverYearData?: MixedFrequencyChartDatum[];
   series: IndexedDemandSeries[];
   emptyMessage?: string;
 };
@@ -29,7 +33,11 @@ function formatAxisDate(value: number): string {
   }).format(new Date(value));
 }
 
-function DemandTooltip({ active, payload }: TooltipContentProps) {
+function DemandTooltip({
+  active,
+  payload,
+  mode,
+}: TooltipContentProps & { mode: DemandChartMode }) {
   if (!active || !payload?.length) {
     return null;
   }
@@ -63,9 +71,13 @@ function DemandTooltip({ active, payload }: TooltipContentProps) {
               <dd className="text-right text-zinc-300 capitalize">
                 {point.frequency}
               </dd>
-              <dt className="text-zinc-600">Index</dt>
+              <dt className="text-zinc-600">
+                {mode === "indexed" ? "Index" : "YoY change"}
+              </dt>
               <dd className="font-data text-right text-zinc-100">
-                {point.indexedValue.toFixed(1)}
+                {mode === "indexed"
+                  ? point.indexedValue.toFixed(1)
+                  : `${point.yearOverYearChange?.toFixed(1)}%`}
               </dd>
               <dt className="text-zinc-600">Published</dt>
               <dd className="font-data text-right text-zinc-300">
@@ -86,9 +98,16 @@ function DemandTooltip({ active, payload }: TooltipContentProps) {
 
 export function DemandIndexChart({
   data,
+  yearOverYearData,
   series,
   emptyMessage = "No valid observations are available for this comparison.",
 }: DemandIndexChartProps) {
+  const [mode, setMode] = useState<DemandChartMode>("indexed");
+  const chartData = useMemo(
+    () =>
+      mode === "year-over-year" && yearOverYearData ? yearOverYearData : data,
+    [data, mode, yearOverYearData],
+  );
   const availableSeries = series.filter((item) => item.points.length > 0);
 
   if (data.length === 0 || availableSeries.length === 0) {
@@ -101,6 +120,29 @@ export function DemandIndexChart({
 
   return (
     <div>
+      {yearOverYearData ? (
+        <div className="mb-4 inline-flex rounded-lg border border-zinc-800 bg-zinc-950 p-1 text-xs">
+          {(
+            [
+              ["indexed", "Indexed level"],
+              ["year-over-year", "YoY change"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              className={`rounded-md px-3 py-1.5 transition ${
+                mode === value
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div
         className="h-80 w-full"
         role="img"
@@ -108,7 +150,7 @@ export function DemandIndexChart({
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={data}
+            data={chartData}
             margin={{ top: 8, right: 14, bottom: 4, left: -8 }}
           >
             <CartesianGrid
@@ -136,7 +178,7 @@ export function DemandIndexChart({
               width={46}
             />
             <Tooltip
-              content={DemandTooltip}
+              content={(props) => <DemandTooltip {...props} mode={mode} />}
               cursor={{ stroke: "#52525b", strokeDasharray: "3 3" }}
             />
             {availableSeries.map((item) => (
@@ -186,9 +228,11 @@ export function DemandIndexChart({
         ))}
       </div>
       <p className="mt-3 text-[11px] leading-5 text-zinc-600">
-        Culture Crisis Tracker presentation-layer index. Lines connect only
+        Culture Crisis Tracker presentation-layer calculation. Indexed values
+        use the first valid 2019 observation; YoY compares each native month or
+        quarter with the same period one year earlier. Lines connect only
         published observations; no values are interpolated, forward-filled, or
-        persisted. Quarterly UK points remain quarterly.
+        persisted.
       </p>
     </div>
   );

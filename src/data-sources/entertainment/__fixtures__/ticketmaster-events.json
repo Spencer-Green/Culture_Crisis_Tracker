@@ -1,0 +1,98 @@
+{
+  "_embedded": {
+    "events": [
+      {
+        "id": "Z698xZb_Z16v7e",
+        "name": "Example Live Music Event",
+        "url": "https://www.ticketmaster.com/example-event/event/Z698xZb_Z16v7e",
+        "locale": "en-au",
+        "test": false,
+        "dates": {
+          "timezone": "Australia/Melbourne",
+          "status": { "code": "onsale" },
+          "start": {
+            "localDate": "2026-08-15",
+            "localTime": "19:30:00",
+            "dateTime": "2026-08-15T09:30:00Z"
+          }
+        },
+        "classifications": [
+          {
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvv", "name": "Alternative" },
+            "subGenre": { "id": "KZazBEonSMnZfZ7v6dl", "name": "Indie Rock" }
+          }
+        ],
+        "promoter": { "id": "494", "name": "Example Promoter" },
+        "sales": {
+          "public": {
+            "startDateTime": "2026-05-01T00:00:00Z",
+            "endDateTime": "2026-08-15T09:00:00Z"
+          }
+        },
+        "priceRanges": [
+          { "type": "standard", "currency": "AUD", "min": 55, "max": 125.5 }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "id": "KovZpZAJ6tIA",
+              "name": "Example Theatre",
+              "city": { "name": "Melbourne" },
+              "state": { "name": "Victoria" },
+              "country": { "name": "Australia", "countryCode": "AU" },
+              "timezone": "Australia/Melbourne",
+              "location": { "latitude": "-37.8136", "longitude": "144.9631" }
+            }
+          ],
+          "attractions": [{ "id": "K8vZ9178abc", "name": "Example Artist" }]
+        }
+      },
+      {
+        "id": "vvG1FZb1234",
+        "name": "Example Theatre Event",
+        "url": "https://www.ticketmaster.com/example-theatre/event/vvG1FZb1234",
+        "dates": {
+          "status": { "code": "postponed" },
+          "start": { "localDate": "2026-08-16" }
+        },
+        "classifications": [
+          {
+            "segment": { "id": "KZFzniwnSyZfZ7v7na", "name": "Arts & Theatre" },
+            "genre": { "id": "KnvZfZ7v7na", "name": "Theatre" }
+          }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "id": "KovZpZAJ6tIB",
+              "name": "Example Hall",
+              "city": { "name": "Toronto" },
+              "state": { "name": "Ontario" },
+              "country": { "name": "Canada", "countryCode": "CA" }
+            }
+          ]
+        }
+      },
+      {
+        "id": "unsafe",
+        "name": "Unsafe Link",
+        "url": "javascript:alert(1)",
+        "dates": { "start": { "localDate": "2026-08-16" } },
+        "classifications": [
+          { "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" } }
+        ],
+        "_embedded": {
+          "venues": [
+            {
+              "id": "unsafe-venue",
+              "name": "Unsafe Venue",
+              "country": { "countryCode": "US" }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "page": { "size": 200, "totalElements": 3, "totalPages": 1, "number": 0 }
+}

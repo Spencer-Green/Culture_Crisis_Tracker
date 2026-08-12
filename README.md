@@ -9,7 +9,9 @@ middle tier, normal cyclical conditions, and increasing concentration around sup
 franchises, and platforms. Active current integrations ingest Australian, UK, and US
 household-demand data from ABS, ONS, BEA, and Statistics Canada, plus US consumer-credit and
 credit-card stress data from FRED. Eurostat annual EU data is retained separately as a structural
-benchmark.
+benchmark. GDELT supplies a reviewable media-event candidate corpus and Ticketmaster supplies a
+structured forward live-event calendar for industry-viability research; neither produces an
+Industry Viability score.
 
 ## Technology
 
@@ -134,21 +136,23 @@ src/
 
 The static source catalogue is the canonical definition of supported providers and their coverage.
 The server-side runtime registry combines that metadata with safe environment readiness and mutable
-database state. ABS, ONS, BEA, FRED, Eurostat, and Statistics Canada are implemented. Eurostat is
-classified as a structural benchmark rather than an active current source. All other adapters remain inert
+database state. ABS, ONS, BEA, FRED, Eurostat, Statistics Canada, GDELT, and Ticketmaster are
+implemented.
+Eurostat is classified as a structural benchmark rather than an active current source. GDELT is an
+event-candidate source rather than a metric-observation source. All other adapters remain inert
 placeholders whose metric discovery and observation methods throw a clear `NotImplementedError`.
 
 ## Source states
 
 Source status uses four independent concepts:
 
-- **Implemented** means a functioning adapter exists. ABS, ONS, BEA, FRED, Eurostat, and Statistics
-  Canada are implemented.
+- **Implemented** means a functioning adapter exists. ABS, ONS, BEA, FRED, Eurostat, Statistics
+  Canada, GDELT, and Ticketmaster are implemented.
 - **Configured** means the required base URL is valid and all declared credentials are present.
   It does not verify credentials against a provider.
 - **Enabled** is mutable database state that explicitly permits ingestion. New ABS, ONS, BEA,
-  FRED, Eurostat, and Statistics Canada records use enabled defaults; routine seed reruns preserve
-  existing manual enablement and sync timestamps.
+  FRED, Eurostat, Statistics Canada, GDELT, and Ticketmaster records use enabled defaults; routine seed reruns
+  preserve existing manual enablement and sync timestamps.
 - **Healthy** is runtime connectivity state. Configuration or successful ingestion does not imply
   health; the registry reports `not-checked` unless a health check has actually run.
 
@@ -157,14 +161,14 @@ configured when their public base URL is present. Authenticated providers requir
 URL and all declared credentials before becoming configured. Configuration never implies that a
 source is implemented, enabled, or healthy.
 
-## ABS Monthly Household Spending Indicator
+## ABS household spending indicators
 
 The ABS integration uses the public Data API at
 `https://data.api.abs.gov.au/rest`. It does not use the authenticated ABS Indicator API and does
 not require an API key.
 
-The initial dataflow is `ABS:HSI_M(1.6.0)`, Monthly Household Spending Indicator. Its SDMX series
-dimension order is:
+The monthly nominal dataflow is `ABS:HSI_M(1.6.0)`, Monthly Household Spending Indicator. Its SDMX
+series dimension order is:
 
 ```text
 MEASURE.CATEGORY.PRICE_ADJUSTMENT.TSEST.STATE.FREQ
@@ -196,6 +200,28 @@ Implemented metrics:
     Discretionary; Current Price; Seasonally Adjusted; Australia; Monthly
   - Unit: `PCT` Percent, multiplier `0` Units
 
+Official quarterly real consumption comes from the separate ABS dataflow
+`ABS:HSI_Q(1.2.0)`, Quarterly Household Spending Indicator, under the same logical ABS provider.
+It uses the same SDMX dimension order and adds exactly two raw metrics:
+
+- `au-household-spending-total-real`
+  - Official label: Australian total household spending, chain volume measures
+  - Full series: `ABS,HSI_Q,1.2.0/7.TOT.CVM.20.AUS.Q`
+  - Codes: Household spending; Total; Chain Volume Measures; Seasonally Adjusted; Australia;
+    Quarterly
+  - Unit: `AUD` Australian Dollars, multiplier `6` Millions
+- `au-recreation-culture-spending-real`
+  - Official label: Australian recreation and culture spending, chain volume measures
+  - Full series: `ABS,HSI_Q,1.2.0/7.50.CVM.20.AUS.Q`
+  - Codes: Household spending; Recreation and culture; Chain Volume Measures; Seasonally Adjusted;
+    Australia; Quarterly
+  - Unit: `AUD` Australian Dollars, multiplier `6` Millions
+
+ABS labels these observations `Chain Volume Measures`; the HSI_Q SDMX metadata and Table 15 expose
+`$ Millions` but do not publish a fixed reference-year code in the series key. The tracker therefore
+retains the exact chain-volume wording rather than asserting a permanent base year. These official
+volume measures are used instead of constructing a monthly `nominal HSI / CPI` proxy.
+
 Inspect the current ABS structure and validate these mappings without writing to the database:
 
 ```bash
@@ -206,6 +232,13 @@ Run ABS ingestion with an inclusive `YYYY-MM` range:
 
 ```bash
 npm run ingest:abs -- --start=2021-01 --end=2026-06
+```
+
+The existing command remains monthly-only. Use the dedicated quarterly command for official real
+metrics, with strict `YYYY-Qn` periods:
+
+```bash
+npm run ingest:abs-real -- --start=2019-Q1 --end=2026-Q2
 ```
 
 Both period arguments are validated; omitting them defaults to the previous twelve complete
@@ -224,6 +257,10 @@ series contain a non-applicable July 2012 observation and begin numeric values i
 Observations through December 2018 carry a different-methodology warning, which is why the initial
 tracker history starts in January 2019. ABS responses are not assumed to be ordered; the adapter
 sorts observations chronologically.
+
+HSI_Q currently exposes both implemented series from 2014 Q3 through 2026 Q2. The tracker backfill
+starts at 2019 Q1 for the shared cross-market baseline. Quarterly observations retain exact UTC
+quarter boundaries and are never converted to monthly data, interpolated, or forward-filled.
 
 ## ONS Consumer Trends
 
@@ -612,16 +649,41 @@ Each series is independently indexed to `100` at its first valid observation on 
 converted, and indexing does not imply that the source definitions are identical. Indexed values
 are Culture Crisis Tracker presentation-layer calculations and are never persisted.
 
-The real comparison uses ONS recreation and culture CVM, BEA real recreation services in chained
-2017 dollars SAAR, and Statistics Canada recreation and culture at 2017 constant prices. The
-current ABS integration has no comparable real recreation and culture metric, so Australia is
-shown as unavailable rather than estimated. Nominal and real series remain separate.
+The real comparison uses official ABS recreation and culture chain volume measures, ONS recreation
+and culture CVM, BEA real recreation services in chained 2017 dollars SAAR, and Statistics Canada
+recreation and culture at 2017 constant prices. Nominal and real series remain separate.
 
-Native frequencies are preserved. Australia and the United States remain monthly, the United
-Kingdom and Canada remain quarterly. The chart places published observations on a shared time axis.
-It does not interpolate, forward-fill, resample, or manufacture quarterly values for intervening
-periods. Tooltips retain the native period, frequency, source value, source unit, price basis, and
-SAAR status.
+Native frequencies are preserved. Nominal Australia and the United States are monthly; real
+Australia, the United Kingdom, and Canada are quarterly. The chart places published observations on
+a shared time axis. It does not interpolate, forward-fill, resample, or manufacture quarterly values
+for intervening periods. Tooltips retain the native period, frequency, source value, source unit,
+price basis, and SAAR status. Australia's latest nominal and real periods are displayed separately,
+and no nominal-real growth gap is calculated across mismatched monthly and quarterly reference
+periods.
+
+Consumer Spending country summaries calculate movement at each source's native cadence. Monthly
+period change compares a published month with the immediately preceding calendar month; quarterly
+period change compares a published quarter with the immediately preceding calendar quarter. YoY
+compares each month or quarter with the same native period one year earlier. Missing comparison
+periods remain unavailable rather than being replaced with the nearest record. These growth rates
+are Culture Crisis Tracker presentation-layer calculations, except where the summary explicitly
+labels the official ABS recreation-and-culture monthly percentage-change series.
+
+The nominal recreation share is `nominal recreation category / nominal total household spending`
+for an exactly aligned source period. Its YoY movement is reported in percentage points. Real or
+chain-linked levels are never used as nominal wallet shares. The US calculation is labelled
+`Recreation services share of total PCE` because BEA recreation services is narrower than the
+broader recreation-and-culture categories published for Australia, the UK, and Canada.
+
+Where both nominal and real recreation series exist, the dashboard compares their YoY growth rates
+and reports a `Nominal-real growth gap`. It does not subtract nominal and real levels or label the
+gap as inflation. The chart's `YoY change` mode uses the same exact-period methodology, preserves
+each point's source metadata and native frequency, and performs no interpolation. The latest-market
+snapshot displays each country's actual latest period rather than implying synchronized releases.
+
+Raw recent observations remain available in collapsed audit disclosures beneath each country.
+Eurostat remains a collapsed annual structural benchmark and is excluded from the four current
+consumer-demand markets and their chart calculations.
 
 BEA monthly PCE values are seasonally adjusted annual rates. SAAR is the annualized spending pace
 implied by a month, not the amount spent during that month; values are not divided by twelve for
@@ -632,6 +694,173 @@ Source values published in millions use compact presentation when the resulting 
 read: USD uses `$`, AUD uses `A$`, GBP uses `£`, CAD uses `C$`, and EUR uses `€`; million, billion, and trillion
 suffixes use sensible magnitude-based precision. Persisted values and source units remain unchanged
 and visible in supporting information and chart tooltips.
+
+## GDELT cultural-industry event candidates
+
+GDELT is a public, no-key evidence-discovery source. The integration uses the official DOC 2.0
+endpoint:
+
+```text
+GET https://api.gdeltproject.org/api/v2/doc/doc
+```
+
+Requests use `mode=artlist`, `format=json`, `sort=datedesc`, explicit UTC `startdatetime` and
+`enddatetime`, and a bounded `maxrecords`. Seven-day ingestion requests at most 50 articles per
+query family; 30-day ingestion requests at most 100. The CLI refuses windows above 30 days. Query
+families run sequentially with 5.5 seconds between requests. HTTP 429 and transient 5xx responses
+receive at most two retries with bounded exponential or `Retry-After` backoff. GDELT is itself
+rate-limited, so inspection or ingestion may fail cleanly without changing the candidate corpus.
+
+Phase-one source scope is Australia, the United States, the United Kingdom, and Canada. GDELT
+`sourcecountry` filters constrain publisher geography, not event geography. Event-country
+assignment is separately inferred only when the title contains defensible country or place evidence;
+otherwise it remains unknown. A publisher country is never copied into the event-country field.
+
+The named query families are:
+
+- `venue-closure` — cultural venue closures and threatened closures
+- `festival-cancellation` — festival cancellation, collapse, and closure
+- `insolvency-bankruptcy` — bankruptcy, insolvency, administration, liquidation, and receivership
+- `layoffs` — layoffs, redundancies, staff cuts, and workforce reductions
+- `funding-cuts` — grant, subsidy, funding, and budget cuts
+- `demand-weakness` — weak ticket sales, attendance, box office, or bookings
+- `positive-signals` — openings, launches, investment, hiring, record attendance, and expansion
+
+The application taxonomy distinguishes confirmed-title candidates such as `VENUE_CLOSURE` from
+threatened events such as `VENUE_AT_RISK`, along with festival/tour cancellations, insolvency,
+closures, layoffs, funding cuts, demand weakness, consolidation, openings, launches, investment,
+hiring, attendance records, revenue growth, and capacity expansion. Classification is deterministic
+and title-based. `high`, `medium`, and `low` confidence describe candidate quality, not verified
+truth. Records begin as `unreviewed`; the application-layer review states are `unreviewed`,
+`accepted`, and `rejected`. No machine-learning classifier or causal claim is used.
+
+Each record is explicitly a `GDELT candidate`. It stores title, canonical HTTP(S) article URL,
+publisher domain, publication and retrieval timestamps, query families, candidate event types,
+sector, conservatively inferred event country, publisher source country, polarity, confidence,
+review state, and a short tracker-generated rationale. Full article text is neither fetched nor
+stored. Returned article URLs are treated as untrusted: unsafe protocols are rejected, and the
+server never follows article links. The browser may open the validated original link.
+
+Exact article deduplication canonicalizes the URL, removes common tracking parameters, and derives
+a deterministic UUID from the canonical URL. If one URL matches several queries, one record retains
+all matched query-family and event-type tags. Repeat ingestion updates that record and preserves any
+existing manual review state. Separate articles about the same real-world closure remain separate
+candidates; real-world event clustering is future work.
+
+Inspect five results per family without writing to PostgreSQL:
+
+```bash
+npm run gdelt:inspect
+npm run gdelt:inspect -- --query-family=venue-closure --country=AU
+```
+
+Run bounded candidate ingestion:
+
+```bash
+npm run ingest:gdelt -- --days=7
+npm run ingest:gdelt -- --days=30
+npm run ingest:gdelt -- --days=7 --query-family=layoffs --country=CA
+```
+
+The Industry Events page is an evidence browser with date, country, sector, event type, polarity,
+confidence, review-state, and domain filters. Overview may report raw corpus counts while Industry
+Viability remains `Collecting evidence` or `Pending`; it does not create a score. Raw article volume
+is not treated as a trend because it is affected by syndication, overall news volume, source and
+language coverage, query stability, and major-news bursts. Trend analysis requires real-event
+clustering, source normalization, stable query evaluation, and a news-volume denominator.
+
+Phase one intentionally has no multi-year backfill. It also does not scrape article bodies, infer
+confirmed events from keyword presence alone, collapse related coverage into one real-world event,
+or implement Eventbrite, Steam, IGDB, or Mediastack.
+
+## Ticketmaster structured event supply
+
+Ticketmaster integration uses the authenticated official Discovery API v2 root:
+
+```text
+https://app.ticketmaster.com/discovery/v2/
+```
+
+Phase one uses `GET /classifications.json` for live cultural classification validation,
+`GET /events.json` for forward searches, `GET /events/{id}.json` for representative inspection,
+and the venue endpoints `GET /venues.json` and `GET /venues/{id}.json` during inspection. The
+`TICKETMASTER_API_KEY` is read server-side and added as the `apikey` query parameter only when a
+request is sent. Authenticated request URLs are never persisted, logged, returned by APIs, or
+serialized into frontend data. Stored event links are Ticketmaster's separate public event URLs.
+
+The current live-validated cultural segment mappings are:
+
+- `Music` — `KZFzniwnSyZfZ7v7nJ` → project sector `music`
+- `Arts & Theatre` — `KZFzniwnSyZfZ7v7na` → project sector `theatre`
+- `Film` — `KZFzniwnSyZfZ7v7nn` → project sector `film`
+
+The initial venue-geography scope is Australia (`AU`), the United States (`US`), the United
+Kingdom (`GB`), and Canada (`CA`). Sports and unsupported classifications are excluded from the
+cultural supply corpus. Ticketmaster segment, genre, and subgenre labels remain attached to each
+event rather than being replaced by the coarser project-sector mapping. Ticketmaster Discovery is
+not a census: counts describe Ticketmaster-discovered or Ticketmaster-covered event supply, not all
+live cultural activity.
+
+Production searches always use explicit UTC `startDateTime` and `endDateTime` parameters and
+deterministic half-open date windows. Retrieval is partitioned by country, cultural segment, and
+bounded date window. A window reporting more than 1,000 results is bisected recursively before
+pagination; if even a one-hour window exceeds the safe deep-paging boundary, ingestion fails rather
+than silently truncating. Adjacent windows share an exact exclusive/inclusive boundary, results are
+filtered to that boundary again locally, and Ticketmaster event IDs remove overlap. Requests are
+sequential and locally throttled to at most two requests per second. HTTP 429 and transient 5xx
+responses receive at most two bounded retries, honoring `Retry-After` where exposed. The public
+default quota is treated conservatively as 5,000 requests per day; `rate-limit-available` is
+reported by the CLI when the API exposes it.
+
+`TicketmasterEvent` is a dedicated structured-supply record rather than a GDELT media candidate.
+The official Ticketmaster event ID is its unique source identity; repeat snapshots update the same
+row while retaining `firstSeenAt`, `lastSeenAt`, and retrieval timestamps. Venues are deduplicated
+separately using official Ticketmaster venue IDs. Venue geography defines event country. The record
+preserves local and UTC date/time, timezone, exact source status, segment/genre/subgenre, promoter,
+onsale dates, attractions metadata, public event URL, locale, test flag, and published price range.
+Missing prices remain null and are never interpreted as zero or an average.
+
+Rows that disappear from a later API response remain available for longitudinal first/last-seen
+analysis. Dashboard supply counts use the latest successful complete four-country, three-segment
+snapshot that covers at least the selected forward range, plus any later sightings for those dates,
+so retained older listings do not inflate the current forward calendar. Country- or
+segment-filtered CLI runs therefore update records without replacing the dashboard's latest
+complete snapshot.
+
+Current statuses remain source-faithful. Live validation currently returns `onsale`, `offsale`,
+`cancelled`, and `rescheduled`; any `canceled` or `postponed` variants remain separate rather than
+being rewritten. In particular, `offsale` is not cancellation. A compact
+previous status and change timestamp records the latest observed transition without creating a
+full event-sourcing system. A canceled event in one snapshot is not a cancellation rate or proof
+that the cancellation occurred during that window; robust rates require repeated comparable
+snapshots and fuller transition history.
+
+The Industry Events page separates `Live Event Supply` from `Media Event Candidates`. It reports
+raw 7-, 30-, or 90-day forward events, distinct active venues, events per venue, source status,
+cultural segment and genre mix, price-range availability, and upcoming events by week. Farther-out
+weeks may be less complete because events have not yet been listed, so the forward weekly chart is
+a calendar shape rather than a historical trend. One current snapshot does not establish supply
+growth, venue closure, ticket-price inflation, demand, or industry stress. Recurring snapshots are
+required before longitudinal interpretation.
+
+Inspect live classifications, coverage, event shapes, and venue endpoints without database writes:
+
+```bash
+npm run ticketmaster:inspect
+```
+
+Run bounded forward ingestion, optionally filtering one market or segment:
+
+```bash
+npm run ingest:ticketmaster -- --days=7
+npm run ingest:ticketmaster -- --days=30
+npm run ingest:ticketmaster -- --days=90
+npm run ingest:ticketmaster -- --days=7 --country=AU --segment=music
+```
+
+The phase-one CLI hard-caps windows to 7, 30, or 90 days. There is no past-event backfill or attempt
+to reconstruct 2019–2025 supply. Longitudinal supply, mature cancellation analysis, and price change
+must accumulate from scheduled future snapshots.
 
 ## Credential safety
 
@@ -648,20 +877,23 @@ The local `.env` uses the development-only PostgreSQL credentials defined in
 
 ## Current limitations
 
-- ABS, ONS, BEA, FRED, and Statistics Canada are active current sources; Eurostat remains enabled
-  as the EU Structural Benchmark; every other provider remains unimplemented and disabled
-- No scheduled jobs or general retry framework; ONS has only a bounded 429 retry
+- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, and Ticketmaster are active sources; Eurostat
+  remains enabled as the EU Structural Benchmark; every other provider remains unimplemented and disabled
+- No scheduled jobs or general retry framework; ONS, GDELT, and Ticketmaster use source-specific
+  bounded retries
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
-- Persisted metrics include four each from ABS, ONS, BEA, Eurostat, and Statistics Canada plus seven
-  FRED metrics; no industry events are ingested
+- Persisted metrics include six from ABS, four each from ONS, BEA, Eurostat, and Statistics Canada
+  plus seven FRED metrics; GDELT records remain article candidates, while Ticketmaster records are
+  structured forward event-supply observations rather than validated business outcomes
 - `DataSource.countryCode` and `DataSource.sectorSlug` hold only unambiguous single-value metadata.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.
 
-Consumer Demand now uses indexed persisted observations. Other Overview charts and composite
-indicators remain explicit empty states; they do not contain fabricated data.
+Consumer Demand uses indexed persisted observations. Industry Viability remains unscored while
+GDELT collects candidate evidence and Ticketmaster accumulates forward supply snapshots. Other
+composite indicators remain explicit empty states; they do not contain fabricated data.
 
 ## Planned ingestion phases
 
@@ -671,6 +903,6 @@ indicators remain explicit empty states; they do not contain fabricated data.
 4. Add news-derived industry events with provenance and confidence review.
 5. Define and validate composite indicators only after source coverage is sufficient.
 
-The recommended next task is validating a small, explicitly selected set of Statistics Canada
-cultural-detail vectors—starting with cinemas and other cultural services—without adding another
-provider.
+The recommended next task is scheduling recurring Ticketmaster snapshots and defining retention for
+status transitions, alongside manual review of the bounded GDELT corpus. No additional provider
+should be added until those evidence-quality foundations are established.

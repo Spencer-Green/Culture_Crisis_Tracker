@@ -19,8 +19,10 @@ describe("source seed metadata", () => {
       getSourceDefinition("bea"),
       getSourceDefinition("eurostat"),
       getSourceDefinition("fred"),
+      getSourceDefinition("gdelt"),
       getSourceDefinition("ons"),
       getSourceDefinition("statcan"),
+      getSourceDefinition("ticketmaster"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -35,16 +37,33 @@ describe("source seed metadata", () => {
                 }
               : source.slug === "fred"
                 ? { FRED_BASE_URL: "https://api.stlouisfed.org/fred" }
-                : source.slug === "ons"
-                  ? { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" }
-                  : { STATCAN_BASE_URL: "https://www150.statcan.gc.ca/t1/wds" },
+                : source.slug === "gdelt"
+                  ? { GDELT_BASE_URL: "https://api.gdeltproject.org" }
+                  : source.slug === "ons"
+                    ? { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" }
+                    : source.slug === "statcan"
+                      ? {
+                          STATCAN_BASE_URL:
+                            "https://www150.statcan.gc.ca/t1/wds",
+                        }
+                      : {
+                          TICKETMASTER_BASE_URL:
+                            "https://app.ticketmaster.com/discovery/v2",
+                        },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
       (source) =>
-        !["abs", "bea", "eurostat", "fred", "ons", "statcan"].includes(
-          source.slug,
-        ),
+        ![
+          "abs",
+          "bea",
+          "eurostat",
+          "fred",
+          "gdelt",
+          "ons",
+          "statcan",
+          "ticketmaster",
+        ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
     expect(operations.map((operation) => operation.where.slug)).toEqual([
@@ -52,8 +71,10 @@ describe("source seed metadata", () => {
       "bea",
       "eurostat",
       "fred",
+      "gdelt",
       "ons",
       "statcan",
+      "ticketmaster",
     ]);
     expect(
       operations.every(

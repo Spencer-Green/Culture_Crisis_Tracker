@@ -16,6 +16,25 @@ export const ABS_DATAFLOW = {
   firstAvailablePeriod: "2012-07",
 } as const;
 
+export const ABS_QUARTERLY_DATAFLOW = {
+  agency: "ABS",
+  id: "HSI_Q",
+  version: "1.2.0",
+  label: "Quarterly Household Spending Indicator",
+  dimensionOrder: [
+    "MEASURE",
+    "CATEGORY",
+    "PRICE_ADJUSTMENT",
+    "TSEST",
+    "STATE",
+    "FREQ",
+  ],
+  firstAvailablePeriod: "2014-Q3",
+} as const;
+
+export type AbsDataflowDefinition =
+  typeof ABS_DATAFLOW | typeof ABS_QUARTERLY_DATAFLOW;
+
 type DimensionCode = {
   code: string;
   label: string;
@@ -24,7 +43,7 @@ type DimensionCode = {
 export type AbsMetricDefinition = AvailableMetric & {
   countryCode: "AU";
   sectorSlug: "consumer-spending";
-  dataflow: typeof ABS_DATAFLOW;
+  dataflow: AbsDataflowDefinition;
   dimensions: {
     measure: DimensionCode;
     category: DimensionCode;
@@ -46,6 +65,13 @@ const COMMON_DIMENSIONS = {
   adjustmentType: { code: "20", label: "Seasonally Adjusted" },
   geography: { code: "AUS", label: "Australia" },
   frequency: { code: "M", label: "Monthly" },
+} as const;
+
+const QUARTERLY_REAL_DIMENSIONS = {
+  priceAdjustment: { code: "CVM", label: "Chain Volume Measures" },
+  adjustmentType: { code: "20", label: "Seasonally Adjusted" },
+  geography: { code: "AUS", label: "Australia" },
+  frequency: { code: "Q", label: "Quarterly" },
 } as const;
 
 const ABSOLUTE_UNIT = {
@@ -137,7 +163,49 @@ export const ABS_METRICS = [
     },
     unitMetadata: PERCENT_UNIT,
   },
+  {
+    slug: "au-household-spending-total-real",
+    name: "Australian total household spending, chain volume measures",
+    description:
+      "Quarterly seasonally adjusted Australian household spending using official ABS chain volume measures.",
+    unit: "AUD millions, Chain Volume Measures",
+    frequency: "quarterly",
+    countryCode: "AU",
+    sectorSlug: "consumer-spending",
+    dataflow: ABS_QUARTERLY_DATAFLOW,
+    dimensions: {
+      measure: { code: "7", label: "Household spending" },
+      category: { code: "TOT", label: "Total" },
+      ...QUARTERLY_REAL_DIMENSIONS,
+    },
+    unitMetadata: ABSOLUTE_UNIT,
+  },
+  {
+    slug: "au-recreation-culture-spending-real",
+    name: "Australian recreation and culture spending, chain volume measures",
+    description:
+      "Quarterly seasonally adjusted Australian recreation and culture spending using official ABS chain volume measures.",
+    unit: "AUD millions, Chain Volume Measures",
+    frequency: "quarterly",
+    countryCode: "AU",
+    sectorSlug: "consumer-spending",
+    dataflow: ABS_QUARTERLY_DATAFLOW,
+    dimensions: {
+      measure: { code: "7", label: "Household spending" },
+      category: { code: "50", label: "Recreation and culture" },
+      ...QUARTERLY_REAL_DIMENSIONS,
+    },
+    unitMetadata: ABSOLUTE_UNIT,
+  },
 ] as const satisfies readonly AbsMetricDefinition[];
+
+export const ABS_MONTHLY_METRICS = ABS_METRICS.filter(
+  (metric) => metric.frequency === "monthly",
+);
+
+export const ABS_REAL_METRICS = ABS_METRICS.filter(
+  (metric) => metric.dataflow.id === ABS_QUARTERLY_DATAFLOW.id,
+);
 
 export type AbsMetricSlug = (typeof ABS_METRICS)[number]["slug"];
 

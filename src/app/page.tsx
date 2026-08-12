@@ -13,6 +13,8 @@ import { getConsumerSpendingData } from "@/services/consumer-spending";
 import { isCurrentSource } from "@/data-sources/source-role";
 import type { OverviewState, SourceFreshness } from "@/services/overview-core";
 import { getOverviewState } from "@/services/overview";
+import { getGdeltCorpusOverview } from "@/services/industry-events/events";
+import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticketmaster-supply";
 
 export const dynamic = "force-dynamic";
 
@@ -166,10 +168,13 @@ function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
 }
 
 export default async function OverviewPage() {
-  const [overview, consumerSpending] = await Promise.all([
-    getOverviewState(),
-    getConsumerSpendingData(),
-  ]);
+  const [overview, consumerSpending, gdeltCorpus, ticketmasterSupply] =
+    await Promise.all([
+      getOverviewState(),
+      getConsumerSpendingData(),
+      getGdeltCorpusOverview(),
+      getTicketmasterSupplyOverview(),
+    ]);
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
   );
@@ -200,9 +205,22 @@ export default async function OverviewPage() {
     },
     {
       title: "Industry Viability",
-      status: "Pending",
-      detail: "No observations",
-      tone: "text-zinc-300",
+      status:
+        ticketmasterSupply.summary.events > 0
+          ? "Collecting supply data"
+          : gdeltCorpus.stats.total > 0
+            ? "Collecting evidence"
+            : "Pending",
+      detail:
+        ticketmasterSupply.summary.events > 0
+          ? "Ticketmaster forward supply active; no score"
+          : gdeltCorpus.stats.total > 0
+            ? "GDELT candidate corpus active; no score"
+            : "No media-event candidates",
+      tone:
+        ticketmasterSupply.summary.events > 0 || gdeltCorpus.stats.total > 0
+          ? "text-blue-300"
+          : "text-zinc-300",
     },
     {
       title: "Middle-Tier Health",
@@ -325,9 +343,71 @@ export default async function OverviewPage() {
         </DashboardCard>
         <DashboardCard
           title="Industry Viability"
-          description="Closures, cancellations, employment, and operating health"
+          description="Structured supply and media candidates; no viability score"
         >
-          <EmptyChart label="Industry viability trend" />
+          {ticketmasterSupply.summary.events > 0 ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["Events · 30d", ticketmasterSupply.summary.events],
+                  ["Venues", ticketmasterSupply.summary.venues],
+                  [
+                    "Cancelled",
+                    (ticketmasterSupply.summary.statuses.cancelled ?? 0) +
+                      (ticketmasterSupply.summary.statuses.canceled ?? 0),
+                  ],
+                  [
+                    "Price ranges",
+                    ticketmasterSupply.summary.priceCoveragePercent === null
+                      ? "N/A"
+                      : `${ticketmasterSupply.summary.priceCoveragePercent.toFixed(1)}%`,
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+                  >
+                    <p className="text-xs text-zinc-500">{label}</p>
+                    <p className="font-data mt-2 text-xl text-zinc-100">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-zinc-600">
+                Ticketmaster-covered supply is a current forward snapshot, not a
+                historical trend or market-wide census. GDELT retrieval remains
+                upstream-blocked when no candidates are present.
+              </p>
+            </div>
+          ) : gdeltCorpus.stats.total > 0 ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["Candidates · 30d", gdeltCorpus.stats.total],
+                  ["Negative", gdeltCorpus.stats.negative],
+                  ["Positive", gdeltCorpus.stats.positive],
+                  ["High confidence", gdeltCorpus.stats.highConfidence],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+                  >
+                    <p className="text-xs text-zinc-500">{label}</p>
+                    <p className="font-data mt-2 text-xl text-zinc-100">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-zinc-600">
+                Article candidates are not confirmed business outcomes. Raw
+                media volume is not treated as a trend or score.
+              </p>
+            </div>
+          ) : (
+            <EmptyChart label="Industry viability evidence corpus" />
+          )}
         </DashboardCard>
       </div>
 
@@ -353,9 +433,34 @@ export default async function OverviewPage() {
         </DashboardCard>
         <DashboardCard
           title="Latest Industry Events"
-          description="Closures, cancellations, layoffs, policy, and consolidation"
+          description="Newest unreviewed GDELT article candidates"
         >
-          <EmptyList message="No industry events have been ingested" />
+          {gdeltCorpus.latest.length > 0 ? (
+            <ul className="space-y-3">
+              {gdeltCorpus.latest.map((candidate) => (
+                <li
+                  key={candidate.id}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+                >
+                  <p className="text-xs text-blue-300">GDELT candidate</p>
+                  <a
+                    href={candidate.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 block text-sm leading-5 text-zinc-200 hover:text-blue-300"
+                  >
+                    {candidate.title}
+                  </a>
+                  <p className="mt-2 text-xs text-zinc-600">
+                    {candidate.eventType.replaceAll("_", " ").toLowerCase()} ·{" "}
+                    {candidate.confidenceLevel} confidence
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyList message="No industry-event candidates have been ingested" />
+          )}
         </DashboardCard>
       </div>
     </div>

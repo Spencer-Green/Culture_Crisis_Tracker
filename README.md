@@ -6,8 +6,8 @@ Zealand, and the European Union.
 
 The product is intended to distinguish between broad demand weakness, a shrinking industry
 middle tier, normal cyclical conditions, and increasing concentration around superstar artists,
-franchises, and platforms. The first two live integrations ingest Australian and UK household
-spending series from the public ABS and ONS APIs.
+franchises, and platforms. Live integrations ingest Australian, UK, and US household-demand data
+from ABS, ONS, and BEA, plus US consumer-credit and credit-card stress data from FRED.
 
 ## Technology
 
@@ -46,7 +46,8 @@ For local development, set:
 DATABASE_URL=postgresql://postgres:postgres@localhost:5433/culture_crisis_tracker?schema=public
 ```
 
-External API keys are optional at this stage. Leave unavailable values blank.
+Secrets belong only in the ignored local `.env` file and must never be committed. BEA and FRED
+ingestion require `BEA_API_KEY` and `FRED_API_KEY`; leave credentials for unused providers blank.
 The ABS base URL should remain:
 
 ```bash
@@ -57,6 +58,13 @@ ONS is also public and requires no API key. Its v1 base URL should remain:
 
 ```bash
 ONS_BASE_URL=https://api.beta.ons.gov.uk/v1
+```
+
+The authenticated US endpoints should remain:
+
+```bash
+BEA_BASE_URL=https://apps.bea.gov/api/data
+FRED_BASE_URL=https://api.stlouisfed.org/fred
 ```
 
 ## Database setup
@@ -123,18 +131,19 @@ src/
 
 The static source catalogue is the canonical definition of supported providers and their coverage.
 The server-side runtime registry combines that metadata with safe environment readiness and mutable
-database state. ABS and ONS are the only implemented adapters; all other adapters remain inert placeholders
-whose metric discovery and observation methods throw a clear `NotImplementedError`.
+database state. ABS, ONS, BEA, and FRED are implemented. All other adapters remain inert
+placeholders whose metric discovery and observation methods throw a clear `NotImplementedError`.
 
 ## Source states
 
 Source status uses four independent concepts:
 
-- **Implemented** means a functioning adapter exists. ABS and ONS are the implemented sources.
+- **Implemented** means a functioning adapter exists. ABS, ONS, BEA, and FRED are implemented.
 - **Configured** means the required base URL is valid and all declared credentials are present.
   It does not verify credentials against a provider.
-- **Enabled** is mutable database state that explicitly permits ingestion. ABS and ONS are the only
-  sources enabled by the seed.
+- **Enabled** is mutable database state that explicitly permits ingestion. New ABS, ONS, BEA, and
+  FRED records use enabled defaults; routine seed reruns preserve existing manual enablement and
+  sync timestamps.
 - **Healthy** is runtime connectivity state. Configuration or successful ingestion does not imply
   health; the registry reports `not-checked` unless a health check has actually run.
 
@@ -272,6 +281,101 @@ Source freshness is based on persisted successful ingestion runs and latest obse
 Successful ingestion does not change the independent health state; the Data Sources page continues
 to report `Not Checked` until an explicit health check is performed.
 
+## BEA Monthly Personal Consumption Expenditures
+
+The BEA integration uses the official Data API endpoint at
+`https://apps.bea.gov/api/data`, the authenticated `NIPA` dataset, and JSON responses. The API key
+is sent as `UserID` only in server-side requests and is removed from persisted request URLs.
+
+Live metadata inspection in August 2026 verified these monthly NIPA mappings:
+
+- `us-pce-total-current-price`
+  - Table `T20805`, line `1`, series `DPCERC`
+  - `Personal consumption expenditures (PCE)`
+  - Current dollars; `USD millions SAAR`
+- `us-pce-total-real`
+  - Table `T20806`, line `1`, series `DPCERX`
+  - `Personal consumption expenditures (PCE)`
+  - Chained 2017 dollars; `chained 2017 USD millions SAAR`
+- `us-recreation-services-pce-current-price`
+  - Table `T20805`, line `18`, series `DRCARC`
+  - `Recreation services`
+  - Current dollars; `USD millions SAAR`
+- `us-recreation-services-pce-real`
+  - Table `T20806`, line `18`, series `DRCARX`
+  - `Recreation services`
+  - Chained 2017 dollars; `chained 2017 USD millions SAAR`
+
+`T20805` is “Table 2.8.5. Personal Consumption Expenditures by Major Type of Product,
+Monthly.” `T20806` is its real chained-dollar counterpart. All four values are seasonally adjusted
+at annual rates. They are annual-rate observations published monthly, not literal monthly cash
+expenditure. Chained-dollar components are not generally additive. The adapter does not combine
+BEA's separate recreational-goods category with recreation services.
+
+The inspection command uses `GetParameterValues` for NIPA table/year availability and narrow
+`GetData` requests to verify line descriptions, codes, units, and current period coverage:
+
+```bash
+npm run bea:inspect
+```
+
+BEA reports nominal monthly table history from January 1959, real monthly table history from
+January 2007, and currently publishes both selected tables through June 2026. Ingest an inclusive
+`YYYY-MM` range with:
+
+```bash
+npm run ingest:bea -- --start=2019-01 --end=2026-06
+```
+
+BEA revises NIPA history and may update chained-dollar reference years. Re-run inspection before
+changing mappings, and repeat ingestion to apply revisions idempotently. The initial tracker
+backfill begins in January 2019.
+
+## FRED Consumer Credit and Credit-Card Stress
+
+The FRED integration uses the official base `https://api.stlouisfed.org/fred`. Metadata comes from
+`GET /series`, release attribution from `GET /series/release`, and native observations from
+`GET /series/observations` with `file_type=json`, `observation_start`, and `observation_end`.
+`FRED_API_KEY` is server-only and removed from persisted request URLs.
+
+Live metadata inspection verified these exact source series:
+
+- `TOTALSL` — `Total Consumer Credit Owned and Securitized`
+  - Monthly; Millions of U.S. Dollars; Seasonally Adjusted
+  - Release: `G.19 Consumer Credit`
+- `REVOLSL` — `Revolving Consumer Credit Owned and Securitized`
+  - Monthly; Millions of U.S. Dollars; Seasonally Adjusted
+  - Release: `G.19 Consumer Credit`
+- `DRCCLACBS` — `Delinquency Rate on Credit Card Loans, All Commercial Banks`
+  - Quarterly, End of Period; Percent; Seasonally Adjusted
+  - Release: `Charge-Off and Delinquency Rates on Loans and Leases at Commercial Banks`
+- `CORCCACBS` — `Charge-Off Rate on Credit Card Loans, All Commercial Banks`
+  - Quarterly; Percent; Seasonally Adjusted
+  - Annualized and net of recoveries
+  - Release: `Charge-Off and Delinquency Rates on Loans and Leases at Commercial Banks`
+
+Inspect current metadata without database writes:
+
+```bash
+npm run fred:inspect
+```
+
+Ingest a shared inclusive ISO date window:
+
+```bash
+npm run ingest:fred -- --start=2019-01-01 --end=2026-06-01
+```
+
+The adapter does not transform units, resample, forward-fill, or interpolate. Monthly balance
+series and quarterly stress rates keep their native frequencies and individual latest dates. As
+of the August 2026 inspection, `TOTALSL` and `REVOLSL` extend through June 2026, while
+`DRCCLACBS` and `CORCCACBS` extend through the first quarter of 2026. FRED observations and
+Federal Reserve source releases may be revised on different schedules.
+
+FRED and Federal Reserve attribution and any applicable provider terms must be reviewed before a
+public or commercial deployment. The application presents BEA consumption and FRED credit
+evidence separately and does not claim that credit availability causes entertainment spending.
+
 ## Credential safety
 
 - `.env`, `.env.local`, and environment-specific local files are ignored by Git.
@@ -287,15 +391,14 @@ The local `.env` uses the development-only PostgreSQL credentials defined in
 
 ## Current limitations
 
-- ABS HSI_M and ONS Consumer Trends are the only live sources; every other provider remains
-  unimplemented and disabled
+- ABS, ONS, BEA, and FRED are live; every other provider remains unimplemented and disabled
 - No scheduled jobs or general retry framework; ONS has only a bounded 429 retry
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
 - No real charts or charting dependency
-- Persisted metrics are limited to four ABS and four ONS consumer-spending series; no industry
-  events are ingested
+- Persisted metrics include four each from ABS, ONS, BEA, and FRED; no industry events are
+  ingested
 - `DataSource.countryCode` and `DataSource.sectorSlug` hold only unambiguous single-value metadata.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.

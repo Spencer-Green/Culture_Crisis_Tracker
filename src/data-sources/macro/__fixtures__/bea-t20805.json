@@ -1,0 +1,80 @@
+{
+  "BEAAPI": {
+    "Request": {
+      "RequestParam": [
+        { "ParameterName": "TableName", "ParameterValue": "T20805" },
+        { "ParameterName": "Frequency", "ParameterValue": "M" }
+      ]
+    },
+    "Results": {
+      "Data": [
+        {
+          "TableName": "T20805",
+          "SeriesCode": "DPCERC",
+          "LineNumber": "1",
+          "LineDescription": "Personal consumption expenditures (PCE)",
+          "TimePeriod": "2026M01",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "21,111,111",
+          "NoteRef": "T20805"
+        },
+        {
+          "TableName": "T20805",
+          "SeriesCode": "DPCERC",
+          "LineNumber": "1",
+          "LineDescription": "Personal consumption expenditures (PCE)",
+          "TimePeriod": "2026M02",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "21,222,222",
+          "NoteRef": "T20805"
+        },
+        {
+          "TableName": "T20805",
+          "SeriesCode": "DPCERC",
+          "LineNumber": "1",
+          "LineDescription": "Personal consumption expenditures (PCE)",
+          "TimePeriod": "2026M02",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "21,222,222",
+          "NoteRef": "T20805"
+        },
+        {
+          "TableName": "T20805",
+          "SeriesCode": "DRCARC",
+          "LineNumber": "18",
+          "LineDescription": "Recreation services",
+          "TimePeriod": "2026M01",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "860,001",
+          "NoteRef": "T20805"
+        },
+        {
+          "TableName": "T20805",
+          "SeriesCode": "DRCARC",
+          "LineNumber": "18",
+          "LineDescription": "Recreation services",
+          "TimePeriod": "2026M02",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "(NA)",
+          "NoteRef": "T20805"
+        }
+      ],
+      "Notes": [
+        {
+          "NoteRef": "T20805",
+          "NoteText": "Table 2.8.5. Personal Consumption Expenditures by Major Type of Product, Monthly [Billions of dollars; seasonally adjusted at annual rates]"
+        }
+      ]
+    }
+  }
+}

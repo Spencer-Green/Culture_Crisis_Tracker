@@ -49,7 +49,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ["US"],
     sectors: ["consumer-spending"],
     requiresAuthentication: true,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "fred",
@@ -60,7 +60,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ["US"],
     sectors: ["consumer-spending"],
     requiresAuthentication: true,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "ons",

@@ -1,0 +1,38 @@
+{
+  "BEAAPI": {
+    "Results": {
+      "Data": [
+        {
+          "TableName": "T20806",
+          "SeriesCode": "DPCERX",
+          "LineNumber": "1",
+          "LineDescription": "Personal consumption expenditures (PCE)",
+          "TimePeriod": "2026M01",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "16,777,777",
+          "NoteRef": "T20806"
+        },
+        {
+          "TableName": "T20806",
+          "SeriesCode": "DRCARX",
+          "LineNumber": "18",
+          "LineDescription": "Recreation services",
+          "TimePeriod": "2026M01",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "640,001",
+          "NoteRef": "T20806"
+        }
+      ],
+      "Notes": [
+        {
+          "NoteRef": "T20806",
+          "NoteText": "Table 2.8.6. Real Personal Consumption Expenditures by Major Type of Product, Monthly, Chained Dollars [Billions of chained (2017) dollars; seasonally adjusted at annual rates]"
+        }
+      ]
+    }
+  }
+}

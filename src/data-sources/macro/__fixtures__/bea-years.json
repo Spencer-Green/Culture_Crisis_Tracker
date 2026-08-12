@@ -1,0 +1,26 @@
+{
+  "BEAAPI": {
+    "Results": {
+      "ParamValue": [
+        {
+          "TableName": "T20805",
+          "FirstAnnualYear": "0",
+          "LastAnnualYear": "0",
+          "FirstQuarterlyYear": "0",
+          "LastQuarterlyYear": "0",
+          "FirstMonthlyYear": "1959",
+          "LastMonthlyYear": "2026"
+        },
+        {
+          "TableName": "T20806",
+          "FirstAnnualYear": "0",
+          "LastAnnualYear": "0",
+          "FirstQuarterlyYear": "0",
+          "LastQuarterlyYear": "0",
+          "FirstMonthlyYear": "2007",
+          "LastMonthlyYear": "2026"
+        }
+      ]
+    }
+  }
+}

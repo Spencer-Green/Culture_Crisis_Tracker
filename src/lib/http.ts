@@ -6,6 +6,7 @@ export type FetchTextOptions = {
   timeoutMs?: number;
   maxResponseBytes?: number;
   fetchImplementation?: FetchImplementation;
+  httpErrorKinds?: Readonly<Partial<Record<number, HttpErrorKind>>>;
 };
 
 export type FetchTextResult = {
@@ -16,7 +17,13 @@ export type FetchTextResult = {
 };
 
 export type HttpErrorKind =
-  "timeout" | "network" | "http" | "content-type" | "response-size";
+  | "timeout"
+  | "network"
+  | "authentication"
+  | "rate-limit"
+  | "http"
+  | "content-type"
+  | "response-size";
 
 export class HttpRequestError extends Error {
   readonly kind: HttpErrorKind;
@@ -39,7 +46,18 @@ export class HttpRequestError extends Error {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 2_000_000;
-const USER_AGENT = "Culture-Crisis-Tracker/0.1";
+const USER_AGENT = "CultureCrisisTracker/0.1.0";
+
+export function sanitiseUrl(
+  url: URL,
+  secretParameterNames: readonly string[],
+): string {
+  const safeUrl = new URL(url);
+  for (const parameterName of secretParameterNames) {
+    safeUrl.searchParams.delete(parameterName);
+  }
+  return safeUrl.toString();
+}
 
 function parseRetryAfter(value: string | null): number | undefined {
   if (!value) {
@@ -82,8 +100,15 @@ export async function fetchText(
     const latencyMs = Math.round(performance.now() - startedAt);
 
     if (!response.ok) {
+      const kind =
+        options.httpErrorKinds?.[response.status] ??
+        (response.status === 401 || response.status === 403
+          ? "authentication"
+          : response.status === 429
+            ? "rate-limit"
+            : "http");
       throw new HttpRequestError(
-        "http",
+        kind,
         `Remote service returned HTTP ${response.status}.`,
         response.status,
         parseRetryAfter(response.headers.get("retry-after")),

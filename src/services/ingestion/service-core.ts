@@ -38,7 +38,11 @@ export function sanitiseIngestionError(error: unknown): string {
   if (
     error instanceof Error &&
     (error.name === "UnsupportedAbsMetricError" ||
-      error.name === "UnsupportedOnsMetricError")
+      error.name === "UnsupportedOnsMetricError" ||
+      error.name === "UnsupportedBeaMetricError" ||
+      error.name === "UnsupportedFredMetricError" ||
+      error.name === "BeaResponseError" ||
+      error.name === "FredResponseError")
   ) {
     return error.message.slice(0, 500);
   }

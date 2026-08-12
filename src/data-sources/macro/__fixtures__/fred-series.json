@@ -1,0 +1,70 @@
+{
+  "TOTALSL": {
+    "realtime_start": "2026-08-11",
+    "realtime_end": "2026-08-11",
+    "seriess": [
+      {
+        "id": "TOTALSL",
+        "realtime_start": "2026-08-11",
+        "realtime_end": "2026-08-11",
+        "title": "Total Consumer Credit Owned and Securitized",
+        "observation_start": "1943-01-01",
+        "observation_end": "2026-06-01",
+        "frequency": "Monthly",
+        "frequency_short": "M",
+        "units": "Millions of U.S. Dollars",
+        "units_short": "Mil. of $",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "seasonal_adjustment_short": "SA",
+        "last_updated": "2026-08-07 14:01:29-05",
+        "popularity": 71,
+        "notes": "For additional information, see the source release."
+      }
+    ]
+  },
+  "REVOLSL": {
+    "seriess": [
+      {
+        "id": "REVOLSL",
+        "title": "Revolving Consumer Credit Owned and Securitized",
+        "observation_start": "1968-01-01",
+        "observation_end": "2026-06-01",
+        "frequency": "Monthly",
+        "units": "Millions of U.S. Dollars",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "last_updated": "2026-08-07 14:01:19-05",
+        "notes": "For additional information, see the source release."
+      }
+    ]
+  },
+  "DRCCLACBS": {
+    "seriess": [
+      {
+        "id": "DRCCLACBS",
+        "title": "Delinquency Rate on Credit Card Loans, All Commercial Banks",
+        "observation_start": "1991-01-01",
+        "observation_end": "2026-01-01",
+        "frequency": "Quarterly, End of Period",
+        "units": "Percent",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "last_updated": "2026-05-19 08:08:24-05",
+        "notes": "For additional information, see the source release."
+      }
+    ]
+  },
+  "CORCCACBS": {
+    "seriess": [
+      {
+        "id": "CORCCACBS",
+        "title": "Charge-Off Rate on Credit Card Loans, All Commercial Banks",
+        "observation_start": "1985-01-01",
+        "observation_end": "2026-01-01",
+        "frequency": "Quarterly",
+        "units": "Percent",
+        "seasonal_adjustment": "Seasonally Adjusted",
+        "last_updated": "2026-05-19 08:08:12-05",
+        "notes": "Rates are annualized, net of recoveries."
+      }
+    ]
+  }
+}

@@ -23,6 +23,16 @@ const METRIC_SLUGS = {
     recreationNominal: "uk-recreation-culture-spending-current-price-sa",
     recreationReal: "uk-recreation-culture-spending-cvm-sa",
   },
+  unitedStates: {
+    totalNominal: "us-pce-total-current-price",
+    totalReal: "us-pce-total-real",
+    recreationNominal: "us-recreation-services-pce-current-price",
+    recreationReal: "us-recreation-services-pce-real",
+    totalCredit: "us-total-consumer-credit-sa",
+    revolvingCredit: "us-revolving-consumer-credit-sa",
+    delinquency: "us-credit-card-delinquency-rate-sa",
+    chargeOffs: "us-credit-card-chargeoff-rate-sa",
+  },
 } as const;
 
 function latestObservation(
@@ -75,18 +85,20 @@ function MetricValue({
   emptyMessage,
   locale = "en-AU",
   provenance,
+  ingestionCommand = "the relevant ingestion command",
 }: {
   observation: ConsumerSpendingObservation | undefined;
   emptyMessage: string;
   locale?: string;
   provenance: string;
+  ingestionCommand?: string;
 }) {
   if (!observation) {
     return (
       <div className="rounded-xl border border-dashed border-zinc-800 px-5 py-10 text-center">
         <p className="text-sm text-zinc-400">{emptyMessage}</p>
         <p className="mt-1 text-xs text-zinc-600">
-          Run the ABS ingestion command to populate this metric.
+          Run {ingestionCommand} to populate this metric.
         </p>
       </div>
     );
@@ -159,6 +171,12 @@ export default async function ConsumerSpendingPage() {
   const ukObservations = data.observations.filter(
     (observation) => observation.sourceSlug === "ons",
   );
+  const beaObservations = data.observations.filter(
+    (observation) => observation.sourceSlug === "bea",
+  );
+  const fredObservations = data.observations.filter(
+    (observation) => observation.sourceSlug === "fred",
+  );
   const total = latestObservation(
     australianObservations,
     METRIC_SLUGS.australia.total,
@@ -195,6 +213,38 @@ export default async function ConsumerSpendingPage() {
     ukObservations,
     METRIC_SLUGS.unitedKingdom.totalReal,
   );
+  const usTotalNominal = latestObservation(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.totalNominal,
+  );
+  const usTotalReal = latestObservation(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.totalReal,
+  );
+  const usRecreationNominal = latestObservation(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.recreationNominal,
+  );
+  const usRecreationReal = latestObservation(
+    beaObservations,
+    METRIC_SLUGS.unitedStates.recreationReal,
+  );
+  const usTotalCredit = latestObservation(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.totalCredit,
+  );
+  const usRevolvingCredit = latestObservation(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.revolvingCredit,
+  );
+  const usDelinquency = latestObservation(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.delinquency,
+  );
+  const usChargeOffs = latestObservation(
+    fredObservations,
+    METRIC_SLUGS.unitedStates.chargeOffs,
+  );
   const recentAustralianObservations = australianObservations.slice(0, 24);
   const recentUkObservations = ukObservations.slice(0, 24);
 
@@ -209,8 +259,9 @@ export default async function ConsumerSpendingPage() {
             Household spending by market
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            Persisted monthly Australian and quarterly UK observations. No
-            synthetic fallback values or currency conversions are displayed.
+            Persisted Australian, UK, and US source observations. No synthetic
+            fallback values, resampling, interpolation, or currency conversions
+            are displayed.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -225,6 +276,18 @@ export default async function ConsumerSpendingPage() {
             className="text-xs text-blue-400 underline decoration-blue-900 underline-offset-4 hover:text-blue-300"
           >
             Office for National Statistics
+          </a>
+          <a
+            href="https://apps.bea.gov/iTable/?ReqID=19&step=2"
+            className="text-xs text-blue-400 underline decoration-blue-900 underline-offset-4 hover:text-blue-300"
+          >
+            U.S. Bureau of Economic Analysis
+          </a>
+          <a
+            href="https://fred.stlouisfed.org/"
+            className="text-xs text-blue-400 underline decoration-blue-900 underline-offset-4 hover:text-blue-300"
+          >
+            Federal Reserve Economic Data
           </a>
         </div>
       </div>
@@ -489,6 +552,134 @@ export default async function ConsumerSpendingPage() {
           </div>
         )}
       </DashboardCard>
+
+      <div className="border-b border-zinc-800 pt-4 pb-3">
+        <h2 className="text-lg font-semibold text-zinc-100">United States</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Monthly BEA consumption demand and native-frequency FRED credit
+          conditions
+        </p>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-zinc-200">
+          Household Consumption
+        </h3>
+        <p className="mt-2 max-w-4xl text-xs leading-5 text-zinc-500">
+          BEA values are monthly observations expressed as seasonally adjusted
+          annual rates. They are not literal monthly cash totals and should not
+          be directly compared with ABS AUD or ONS GBP levels.
+        </p>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <DashboardCard
+          title="Total Personal Consumption Expenditures"
+          description="BEA NIPA total PCE, nominal and real"
+        >
+          <div className="space-y-6">
+            <MetricValue
+              observation={usTotalNominal}
+              emptyMessage="No US nominal total PCE observations"
+              locale="en-US"
+              provenance="BEA published observation — current dollars, SAAR"
+              ingestionCommand="the BEA ingestion command"
+            />
+            <div className="border-t border-zinc-800 pt-5">
+              <MetricValue
+                observation={usTotalReal}
+                emptyMessage="No US real total PCE observations"
+                locale="en-US"
+                provenance="BEA published observation — chained 2017 dollars, SAAR"
+                ingestionCommand="the BEA ingestion command"
+              />
+            </div>
+          </div>
+        </DashboardCard>
+        <DashboardCard
+          title="Recreation Services"
+          description="BEA terminology; recreational goods are not combined"
+        >
+          <div className="space-y-6">
+            <MetricValue
+              observation={usRecreationNominal}
+              emptyMessage="No US nominal recreation services observations"
+              locale="en-US"
+              provenance="BEA published observation — current dollars, SAAR"
+              ingestionCommand="the BEA ingestion command"
+            />
+            <div className="border-t border-zinc-800 pt-5">
+              <MetricValue
+                observation={usRecreationReal}
+                emptyMessage="No US real recreation services observations"
+                locale="en-US"
+                provenance="BEA published observation — chained 2017 dollars, SAAR"
+                ingestionCommand="the BEA ingestion command"
+              />
+            </div>
+          </div>
+        </DashboardCard>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-zinc-200">Credit Stress</h3>
+        <p className="mt-2 max-w-4xl text-xs leading-5 text-zinc-500">
+          Raw FRED indicators are shown separately from BEA consumption demand.
+          Monthly balances and quarterly stress rates are not combined into an
+          index, scored, or treated as evidence of causation.
+        </p>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <DashboardCard
+          title="Total Consumer Credit"
+          description="Monthly seasonally adjusted balance"
+        >
+          <MetricValue
+            observation={usTotalCredit}
+            emptyMessage="No total consumer credit observations"
+            locale="en-US"
+            provenance="FRED / Federal Reserve published balance"
+            ingestionCommand="the FRED ingestion command"
+          />
+        </DashboardCard>
+        <DashboardCard
+          title="Revolving Consumer Credit"
+          description="Monthly seasonally adjusted balance"
+        >
+          <MetricValue
+            observation={usRevolvingCredit}
+            emptyMessage="No revolving consumer credit observations"
+            locale="en-US"
+            provenance="FRED / Federal Reserve published balance"
+            ingestionCommand="the FRED ingestion command"
+          />
+        </DashboardCard>
+        <DashboardCard
+          title="Credit-Card Delinquency"
+          description="Quarterly, seasonally adjusted, end of period"
+        >
+          <MetricValue
+            observation={usDelinquency}
+            emptyMessage="No credit-card delinquency observations"
+            locale="en-US"
+            provenance="FRED / Federal Reserve published rate"
+            ingestionCommand="the FRED ingestion command"
+          />
+        </DashboardCard>
+        <DashboardCard
+          title="Credit-Card Charge-Offs"
+          description="Quarterly, seasonally adjusted, annualized net rate"
+        >
+          <MetricValue
+            observation={usChargeOffs}
+            emptyMessage="No credit-card charge-off observations"
+            locale="en-US"
+            provenance="FRED / Federal Reserve published rate"
+            ingestionCommand="the FRED ingestion command"
+          />
+        </DashboardCard>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import "server-only";
 
 import { ABS_METRICS } from "@/data-sources/macro/abs-metrics";
+import { BEA_METRICS } from "@/data-sources/macro/bea-metrics";
+import { FRED_METRICS } from "@/data-sources/macro/fred-metrics";
 import { ONS_METRICS } from "@/data-sources/macro/ons-metrics";
 import { getPrisma } from "@/lib/prisma";
 import {
@@ -16,6 +18,8 @@ export type {
 export async function getConsumerSpendingData(): Promise<ConsumerSpendingData> {
   const metricSlugs = [
     ...ABS_METRICS.map((metric) => metric.slug),
+    ...BEA_METRICS.map((metric) => metric.slug),
+    ...FRED_METRICS.map((metric) => metric.slug),
     ...ONS_METRICS.map((metric) => metric.slug),
   ];
 
@@ -23,7 +27,7 @@ export async function getConsumerSpendingData(): Promise<ConsumerSpendingData> {
     getPrisma().metricDefinition.findMany({
       where: {
         slug: { in: metricSlugs },
-        source: { slug: { in: ["abs", "ons"] } },
+        source: { slug: { in: ["abs", "bea", "fred", "ons"] } },
       },
       select: {
         slug: true,

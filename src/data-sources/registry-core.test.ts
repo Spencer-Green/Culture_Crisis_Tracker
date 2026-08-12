@@ -7,12 +7,15 @@ describe("source registry", () => {
     const apiKey = "api-key-value-must-not-leak";
     const token = "token-value-must-not-leak";
     const clientSecret = "client-secret-value-must-not-leak";
+    const fredApiKey = "fred-api-key-value-must-not-leak";
     const databaseUrl = "postgresql://user:password@localhost/private";
     const sources = buildStaticSourceRegistry({
       ABS_BASE_URL: "https://data.api.abs.gov.au/rest",
       ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1",
       BEA_BASE_URL: "https://apps.bea.gov/api/data",
       BEA_API_KEY: apiKey,
+      FRED_BASE_URL: "https://api.stlouisfed.org/fred",
+      FRED_API_KEY: fredApiKey,
       EVENTBRITE_BASE_URL: "https://www.eventbriteapi.com/v3",
       EVENTBRITE_PRIVATE_TOKEN: token,
       IGDB_BASE_URL: "https://api.igdb.com/v4",
@@ -25,12 +28,18 @@ describe("source registry", () => {
     expect(sources).toHaveLength(13);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
     expect(
       sources.find((source) => source.slug === "ons")?.implementationStatus,
+    ).toBe("implemented");
+    expect(
+      sources.find((source) => source.slug === "bea")?.implementationStatus,
+    ).toBe("implemented");
+    expect(
+      sources.find((source) => source.slug === "fred")?.implementationStatus,
     ).toBe("implemented");
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,
@@ -38,6 +47,7 @@ describe("source registry", () => {
     expect(serialised).not.toContain(apiKey);
     expect(serialised).not.toContain(token);
     expect(serialised).not.toContain(clientSecret);
+    expect(serialised).not.toContain(fredApiKey);
     expect(serialised).not.toContain(databaseUrl);
   });
 
@@ -49,7 +59,7 @@ describe("source registry", () => {
     const bea = sources.find((source) => source.slug === "bea");
 
     expect(bea?.configured).toBe(true);
-    expect(bea?.implementationStatus).toBe("not-implemented");
+    expect(bea?.implementationStatus).toBe("implemented");
     expect(bea?.healthStatus).toBe("not-checked");
     expect(bea?.requiresAuthentication).toBe(true);
   });

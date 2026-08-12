@@ -69,4 +69,26 @@ describe("source configuration status", () => {
       missingConfiguration: [],
     });
   });
+
+  it.each([
+    ["bea" as const, "BEA_BASE_URL" as const, "BEA_API_KEY" as const],
+    ["fred" as const, "FRED_BASE_URL" as const, "FRED_API_KEY" as const],
+  ])("configures %s only with its URL and key", (slug, urlKey, keyName) => {
+    const source = getSourceDefinition(slug);
+    const url =
+      slug === "bea"
+        ? "https://apps.bea.gov/api/data"
+        : "https://api.stlouisfed.org/fred";
+
+    expect(getSourceConfigurationStatus(source, { [urlKey]: url })).toEqual({
+      configured: false,
+      missingConfiguration: [keyName],
+    });
+    expect(
+      getSourceConfigurationStatus(source, {
+        [urlKey]: url,
+        [keyName]: "test-only-key",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
 });

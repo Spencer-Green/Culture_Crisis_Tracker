@@ -16,21 +16,29 @@ describe("source seed metadata", () => {
   it("initialises canonical enablement only when creating sources", () => {
     const operations = [
       getSourceDefinition("abs"),
+      getSourceDefinition("bea"),
+      getSourceDefinition("fred"),
       getSourceDefinition("ons"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
         source.slug === "abs"
           ? { ABS_BASE_URL: "https://data.api.abs.gov.au/rest" }
-          : { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" },
+          : source.slug === "bea"
+            ? { BEA_BASE_URL: "https://apps.bea.gov/api/data" }
+            : source.slug === "fred"
+              ? { FRED_BASE_URL: "https://api.stlouisfed.org/fred" }
+              : { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
-      (source) => source.slug !== "abs" && source.slug !== "ons",
+      (source) => !["abs", "bea", "fred", "ons"].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
     expect(operations.map((operation) => operation.where.slug)).toEqual([
       "abs",
+      "bea",
+      "fred",
       "ons",
     ]);
     expect(

@@ -1,3 +1,5 @@
+import { isCurrentSource } from "@/data-sources/source-role";
+
 export type OverviewSourceRecord = {
   slug: string;
   name: string;
@@ -83,24 +85,26 @@ export async function buildOverviewState(
         ),
       );
 
-    const latestSuccessfulIngestionAt = sourceFreshness.reduce<string | null>(
-      (latest, source) => {
-        if (
-          !source.lastSuccessfulIngestionAt ||
-          (latest && source.lastSuccessfulIngestionAt <= latest)
-        ) {
-          return latest;
-        }
-
-        return source.lastSuccessfulIngestionAt;
-      },
-      null,
+    const currentSourceFreshness = sourceFreshness.filter((source) =>
+      isCurrentSource(source.slug),
     );
+    const latestSuccessfulIngestionAt = currentSourceFreshness.reduce<
+      string | null
+    >((latest, source) => {
+      if (
+        !source.lastSuccessfulIngestionAt ||
+        (latest && source.lastSuccessfulIngestionAt <= latest)
+      ) {
+        return latest;
+      }
+
+      return source.lastSuccessfulIngestionAt;
+    }, null);
 
     return {
       databaseStatus: "available",
       successfulSourceCount: records.length,
-      contributingSourceCount: sourceFreshness.filter(
+      contributingSourceCount: currentSourceFreshness.filter(
         (source) => source.latestObservationPeriod !== null,
       ).length,
       latestSuccessfulIngestionAt,

@@ -46,6 +46,28 @@ describe("source configuration status", () => {
     });
   });
 
+  it("configures the public Eurostat endpoint with only a valid URL", () => {
+    const eurostat = getSourceDefinition("eurostat");
+    expect(
+      getSourceConfigurationStatus(eurostat, {
+        EUROSTAT_BASE_URL:
+          "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+    expect(getSourceConfigurationStatus(eurostat, {})).toEqual({
+      configured: false,
+      missingConfiguration: ["EUROSTAT_BASE_URL"],
+    });
+  });
+
+  it("configures public Statistics Canada WDS without a credential", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("statcan"), {
+        STATCAN_BASE_URL: "https://www150.statcan.gc.ca/t1/wds",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
   it("requires both the base URL and declared authentication fields", () => {
     const ticketmaster = getSourceDefinition("ticketmaster");
     const baseEnvironment = {

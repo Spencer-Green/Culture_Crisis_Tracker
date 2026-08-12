@@ -17,8 +17,10 @@ describe("source seed metadata", () => {
     const operations = [
       getSourceDefinition("abs"),
       getSourceDefinition("bea"),
+      getSourceDefinition("eurostat"),
       getSourceDefinition("fred"),
       getSourceDefinition("ons"),
+      getSourceDefinition("statcan"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -26,20 +28,32 @@ describe("source seed metadata", () => {
           ? { ABS_BASE_URL: "https://data.api.abs.gov.au/rest" }
           : source.slug === "bea"
             ? { BEA_BASE_URL: "https://apps.bea.gov/api/data" }
-            : source.slug === "fred"
-              ? { FRED_BASE_URL: "https://api.stlouisfed.org/fred" }
-              : { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" },
+            : source.slug === "eurostat"
+              ? {
+                  EUROSTAT_BASE_URL:
+                    "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
+                }
+              : source.slug === "fred"
+                ? { FRED_BASE_URL: "https://api.stlouisfed.org/fred" }
+                : source.slug === "ons"
+                  ? { ONS_BASE_URL: "https://api.beta.ons.gov.uk/v1" }
+                  : { STATCAN_BASE_URL: "https://www150.statcan.gc.ca/t1/wds" },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
-      (source) => !["abs", "bea", "fred", "ons"].includes(source.slug),
+      (source) =>
+        !["abs", "bea", "eurostat", "fred", "ons", "statcan"].includes(
+          source.slug,
+        ),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
     expect(operations.map((operation) => operation.where.slug)).toEqual([
       "abs",
       "bea",
+      "eurostat",
       "fred",
       "ons",
+      "statcan",
     ]);
     expect(
       operations.every(

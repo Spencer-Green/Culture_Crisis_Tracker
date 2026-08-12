@@ -54,6 +54,18 @@ const METRIC_SLUGS = {
     delinquency: "us-credit-card-delinquency-rate-sa",
     chargeOffs: "us-credit-card-chargeoff-rate-sa",
   },
+  europeanUnion: {
+    totalNominal: "eu-household-spending-total-current-price",
+    totalReal: "eu-household-spending-total-real",
+    recreationNominal: "eu-recreation-culture-spending-current-price",
+    recreationReal: "eu-recreation-culture-spending-real",
+  },
+  canada: {
+    totalNominal: "ca-household-spending-total-current-price",
+    totalReal: "ca-household-spending-total-real",
+    recreationNominal: "ca-recreation-culture-spending-current-price",
+    recreationReal: "ca-recreation-culture-spending-real",
+  },
 } as const;
 
 function latestObservation(
@@ -72,6 +84,10 @@ function formatPeriod(
   const date = new Date(observation.periodStart);
   if (observation.frequency === "quarterly") {
     return `${date.getUTCFullYear()} Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
+  }
+
+  if (observation.frequency === "annual") {
+    return String(date.getUTCFullYear());
   }
 
   return new Intl.DateTimeFormat(locale, {
@@ -510,6 +526,12 @@ export default async function ConsumerSpendingPage() {
   const fredObservations = data.observations.filter(
     (observation) => observation.sourceSlug === "fred",
   );
+  const eurostatObservations = data.observations.filter(
+    (observation) => observation.sourceSlug === "eurostat",
+  );
+  const canadianObservations = data.observations.filter(
+    (observation) => observation.sourceSlug === "statcan",
+  );
   const total = latestObservation(
     australianObservations,
     METRIC_SLUGS.australia.total,
@@ -577,6 +599,38 @@ export default async function ConsumerSpendingPage() {
   const usChargeOffs = latestObservation(
     fredObservations,
     METRIC_SLUGS.unitedStates.chargeOffs,
+  );
+  const euTotalNominal = latestObservation(
+    eurostatObservations,
+    METRIC_SLUGS.europeanUnion.totalNominal,
+  );
+  const euTotalReal = latestObservation(
+    eurostatObservations,
+    METRIC_SLUGS.europeanUnion.totalReal,
+  );
+  const euRecreationNominal = latestObservation(
+    eurostatObservations,
+    METRIC_SLUGS.europeanUnion.recreationNominal,
+  );
+  const euRecreationReal = latestObservation(
+    eurostatObservations,
+    METRIC_SLUGS.europeanUnion.recreationReal,
+  );
+  const caTotalNominal = latestObservation(
+    canadianObservations,
+    METRIC_SLUGS.canada.totalNominal,
+  );
+  const caTotalReal = latestObservation(
+    canadianObservations,
+    METRIC_SLUGS.canada.totalReal,
+  );
+  const caRecreationNominal = latestObservation(
+    canadianObservations,
+    METRIC_SLUGS.canada.recreationNominal,
+  );
+  const caRecreationReal = latestObservation(
+    canadianObservations,
+    METRIC_SLUGS.canada.recreationReal,
   );
   const recentAustralianObservations = australianObservations.slice(0, 24);
   const recentUkObservations = ukObservations.slice(0, 24);
@@ -680,9 +734,10 @@ export default async function ConsumerSpendingPage() {
             Household spending by market
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            Persisted Australian, UK, and US source observations. No synthetic
-            fallback values, resampling, interpolation, or currency conversions
-            are displayed.
+            Current Australian, UK, US, and Canadian source observations. Annual
+            EU data is retained separately as a structural benchmark. No
+            synthetic fallback values, resampling, interpolation, or currency
+            conversions are displayed.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -709,6 +764,12 @@ export default async function ConsumerSpendingPage() {
             className="text-xs text-blue-400 underline decoration-blue-900 underline-offset-4 hover:text-blue-300"
           >
             Federal Reserve Economic Data
+          </a>
+          <a
+            href="https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=3610012401"
+            className="text-xs text-blue-400 underline decoration-blue-900 underline-offset-4 hover:text-blue-300"
+          >
+            Statistics Canada
           </a>
         </div>
       </div>
@@ -741,8 +802,9 @@ export default async function ConsumerSpendingPage() {
       <p className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-xs leading-5 text-zinc-500">
         Indexing makes unlike currency levels easier to compare, but source
         definitions remain distinct: ABS and ONS cover recreation and culture,
-        while BEA covers recreation services. Nominal and real measures are
-        shown separately.
+        BEA covers recreation services, and Statistics Canada covers recreation
+        and culture. Nominal and real measures are shown separately. The annual
+        EU structural benchmark is excluded from this current-demand comparison.
       </p>
 
       <div className="border-b border-zinc-800 pb-3">
@@ -853,6 +915,64 @@ export default async function ConsumerSpendingPage() {
           </div>
         )}
       </DashboardCard>
+
+      <div className="border-b border-zinc-800 pt-4 pb-3">
+        <h2 className="text-lg font-semibold text-zinc-100">Canada</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Quarterly Statistics Canada observations, seasonally adjusted at
+          quarterly rates. Latest available periods follow the official
+          quarterly release cadence.
+        </p>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <DashboardCard
+          title="Household Final Consumption Expenditure"
+          description="Current prices and 2017 constant prices"
+        >
+          <div className="space-y-6">
+            <MetricValue
+              observation={caTotalNominal}
+              emptyMessage="No Canadian nominal household spending observations"
+              locale="en-CA"
+              provenance="Statistics Canada — current prices; seasonally adjusted at quarterly rates"
+              ingestionCommand="the Statistics Canada ingestion command"
+            />
+            <div className="border-t border-zinc-800 pt-5">
+              <MetricValue
+                observation={caTotalReal}
+                emptyMessage="No Canadian real household spending observations"
+                locale="en-CA"
+                provenance="Statistics Canada — 2017 constant prices; seasonally adjusted at quarterly rates"
+                ingestionCommand="the Statistics Canada ingestion command"
+              />
+            </div>
+          </div>
+        </DashboardCard>
+        <DashboardCard
+          title="Recreation and Culture"
+          description="Published category, current and 2017 constant prices"
+        >
+          <div className="space-y-6">
+            <MetricValue
+              observation={caRecreationNominal}
+              emptyMessage="No Canadian nominal recreation and culture observations"
+              locale="en-CA"
+              provenance="Statistics Canada — current prices; seasonally adjusted at quarterly rates"
+              ingestionCommand="the Statistics Canada ingestion command"
+            />
+            <div className="border-t border-zinc-800 pt-5">
+              <MetricValue
+                observation={caRecreationReal}
+                emptyMessage="No Canadian real recreation and culture observations"
+                locale="en-CA"
+                provenance="Statistics Canada — 2017 constant prices; seasonally adjusted at quarterly rates"
+                ingestionCommand="the Statistics Canada ingestion command"
+              />
+            </div>
+          </div>
+        </DashboardCard>
+      </div>
 
       <div className="border-b border-zinc-800 pt-4 pb-3">
         <h2 className="text-lg font-semibold text-zinc-100">United Kingdom</h2>
@@ -1182,6 +1302,93 @@ export default async function ConsumerSpendingPage() {
           series establishes causation.
         </p>
       </div>
+
+      <details className="group overflow-hidden rounded-2xl border border-amber-900/30 bg-amber-950/5">
+        <summary className="cursor-pointer list-none px-5 py-5 sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-amber-100">
+                EU Structural Benchmark
+              </p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">
+                Eurostat annual EU27_2020 national-accounts history, retained
+                for structural and future historical analysis rather than
+                current demand monitoring.
+              </p>
+            </div>
+            <span className="text-xs text-amber-300/70 group-open:hidden">
+              Show annual benchmark
+            </span>
+            <span className="hidden text-xs text-amber-300/70 group-open:inline">
+              Hide benchmark
+            </span>
+          </div>
+        </summary>
+        <div className="border-t border-amber-900/20 px-5 py-6 sm:px-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <p className="max-w-4xl text-xs leading-5 text-zinc-500">
+              These observations are annual and currently end in 2024. They are
+              excluded from active current-source counts, headline freshness,
+              and current cross-market demand charts. No persisted observations
+              have been changed.
+            </p>
+            <a
+              href="https://ec.europa.eu/eurostat/databrowser/view/nama_10_cp18/default/table"
+              className="shrink-0 text-xs text-amber-300 underline decoration-amber-900 underline-offset-4 hover:text-amber-200"
+            >
+              Eurostat dataset
+            </a>
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <DashboardCard
+              title="Household Final Consumption Expenditure"
+              description="EU27_2020 annual total, nominal and chain-linked volume"
+            >
+              <div className="space-y-6">
+                <MetricValue
+                  observation={euTotalNominal}
+                  emptyMessage="No EU nominal household spending observations"
+                  locale="en-IE"
+                  provenance="Eurostat published observation — current prices"
+                  ingestionCommand="the Eurostat ingestion command"
+                />
+                <div className="border-t border-zinc-800 pt-5">
+                  <MetricValue
+                    observation={euTotalReal}
+                    emptyMessage="No EU real household spending observations"
+                    locale="en-IE"
+                    provenance="Eurostat published observation — chain-linked volume (2020)"
+                    ingestionCommand="the Eurostat ingestion command"
+                  />
+                </div>
+              </div>
+            </DashboardCard>
+            <DashboardCard
+              title="Recreation, Sport and Culture"
+              description="COICOP 2018 division 09, annual nominal and real measures"
+            >
+              <div className="space-y-6">
+                <MetricValue
+                  observation={euRecreationNominal}
+                  emptyMessage="No EU nominal recreation, sport and culture observations"
+                  locale="en-IE"
+                  provenance="Eurostat published observation — current prices"
+                  ingestionCommand="the Eurostat ingestion command"
+                />
+                <div className="border-t border-zinc-800 pt-5">
+                  <MetricValue
+                    observation={euRecreationReal}
+                    emptyMessage="No EU real recreation, sport and culture observations"
+                    locale="en-IE"
+                    provenance="Eurostat published observation — chain-linked volume (2020)"
+                    ingestionCommand="the Eurostat ingestion command"
+                  />
+                </div>
+              </div>
+            </DashboardCard>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

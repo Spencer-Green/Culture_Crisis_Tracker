@@ -45,15 +45,33 @@ describe("overview state", () => {
           },
         ],
       },
+      {
+        slug: "eurostat",
+        name: "EU Structural Benchmark",
+        lastSuccessfulSyncAt: new Date("2026-08-12T01:00:00.000Z"),
+        ingestionRuns: [{ completedAt: new Date("2026-08-12T01:05:00.000Z") }],
+        metricDefinitions: [
+          {
+            observations: [
+              {
+                periodStart: new Date("2024-01-01T00:00:00.000Z"),
+                periodEnd: new Date("2024-12-31T23:59:59.999Z"),
+              },
+            ],
+          },
+        ],
+      },
     ]);
 
     expect(state).toMatchObject({
       databaseStatus: "available",
-      successfulSourceCount: 2,
+      successfulSourceCount: 3,
       contributingSourceCount: 2,
       latestSuccessfulIngestionAt: "2026-08-11T01:05:00.000Z",
     });
-    expect(state.sourceFreshness[0]).toEqual({
+    expect(
+      state.sourceFreshness.find((source) => source.slug === "abs"),
+    ).toEqual({
       slug: "abs",
       name: "ABS",
       latestObservationPeriod: {
@@ -62,6 +80,7 @@ describe("overview state", () => {
       },
       lastSuccessfulIngestionAt: "2026-08-11T01:05:00.000Z",
     });
+    expect(state.sourceFreshness).toHaveLength(3);
   });
 
   it("returns a confirmed empty state when no successful runs exist", async () => {

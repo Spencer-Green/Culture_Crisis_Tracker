@@ -6,7 +6,7 @@ import { getOverviewState } from "@/services/overview";
 export async function AppShell({ children }: { children: ReactNode }) {
   const overview = await getOverviewState();
   const ingestionAvailable = overview.databaseStatus === "available";
-  const hasSuccessfulIngestion = overview.successfulSourceCount > 0;
+  const hasSuccessfulIngestion = overview.contributingSourceCount > 0;
   const statusLabel = ingestionAvailable
     ? hasSuccessfulIngestion
       ? "Live data"
@@ -25,7 +25,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <SidebarNavigation
         databaseStatus={overview.databaseStatus}
-        activeSourceCount={overview.successfulSourceCount}
+        activeSourceCount={overview.contributingSourceCount}
       />
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl">

@@ -10,6 +10,7 @@ import {
   type IndexedDemandSeries,
 } from "@/lib/consumer-demand";
 import { getConsumerSpendingData } from "@/services/consumer-spending";
+import { isCurrentSource } from "@/data-sources/source-role";
 import type { OverviewState, SourceFreshness } from "@/services/overview-core";
 import { getOverviewState } from "@/services/overview";
 
@@ -34,6 +35,17 @@ function formatObservationPeriod(
     return "Not available";
   }
 
+  const periodStart = new Date(period.start);
+  const periodEnd = new Date(period.end);
+  if (
+    periodStart.getUTCMonth() === 0 &&
+    periodStart.getUTCDate() === 1 &&
+    periodEnd.getUTCMonth() === 11 &&
+    periodEnd.getUTCDate() === 31
+  ) {
+    return `${periodStart.getUTCFullYear()} · annual`;
+  }
+
   const formatter = new Intl.DateTimeFormat("en-AU", {
     month: "short",
     year: "numeric",
@@ -46,6 +58,9 @@ function formatObservationPeriod(
 }
 
 function DataFreshness({ overview }: { overview: OverviewState }) {
+  const currentSources = overview.sourceFreshness.filter((source) =>
+    isCurrentSource(source.slug),
+  );
   if (overview.databaseStatus === "unavailable") {
     return (
       <div className="rounded-xl border border-dashed border-amber-900/60 px-5 py-10 text-center">
@@ -56,13 +71,13 @@ function DataFreshness({ overview }: { overview: OverviewState }) {
     );
   }
 
-  if (overview.sourceFreshness.length === 0) {
+  if (currentSources.length === 0) {
     return <EmptyList message="No sources have completed a successful sync" />;
   }
 
   return (
     <ul className="space-y-3">
-      {overview.sourceFreshness.map((source) => (
+      {currentSources.map((source) => (
         <li
           key={source.slug}
           className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4"
@@ -93,7 +108,7 @@ function DataFreshness({ overview }: { overview: OverviewState }) {
 
 function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
   const validated = series.filter((item) => item.points.length > 0);
-  const pending = ["Canada", "New Zealand", "European Union"];
+  const pending = ["New Zealand"];
 
   return (
     <div className="space-y-5">
@@ -101,7 +116,7 @@ function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
         <p className="text-xs font-medium text-zinc-300">
           Validated consumer-demand data
         </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {validated.map((item) => (
             <div
               key={item.id}
@@ -115,6 +130,18 @@ function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
               </p>
             </div>
           ))}
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-medium text-zinc-400">
+          Structural benchmark
+        </p>
+        <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/10 p-4">
+          <p className="text-sm font-medium text-amber-200">European Union</p>
+          <p className="mt-1 text-xs leading-5 text-amber-300/60">
+            Eurostat annual national-accounts data is retained for historical
+            context, not treated as a current demand signal.
+          </p>
         </div>
       </div>
       <div>
@@ -143,13 +170,16 @@ export default async function OverviewPage() {
     getOverviewState(),
     getConsumerSpendingData(),
   ]);
-  const consumerDemandActive = consumerSpending.observations.length > 0;
-  const consumerSourceCount = new Set(
-    consumerSpending.observations.map((observation) => observation.sourceSlug),
-  ).size;
-  const nominalDemandSeries = buildNominalDemandSeries(
-    consumerSpending.observations,
+  const currentObservations = consumerSpending.observations.filter(
+    (observation) => isCurrentSource(observation.sourceSlug),
   );
+  const consumerDemandActive = currentObservations.length > 0;
+  const consumerMarketCount = new Set(
+    currentObservations
+      .map((observation) => observation.countryCode)
+      .filter((countryCode) => countryCode !== null),
+  ).size;
+  const nominalDemandSeries = buildNominalDemandSeries(currentObservations);
   const nominalDemandChart = prepareMixedFrequencyChart(nominalDemandSeries);
   const indicators = [
     {
@@ -162,8 +192,8 @@ export default async function OverviewPage() {
       title: "Consumer Demand",
       status: consumerDemandActive ? "Active" : "Pending",
       detail: consumerDemandActive
-        ? `${consumerSourceCount} household-spending ${
-            consumerSourceCount === 1 ? "source" : "sources"
+        ? `${consumerMarketCount} current consumer-demand ${
+            consumerMarketCount === 1 ? "market" : "markets"
           } online`
         : "No observations",
       tone: consumerDemandActive ? "text-emerald-300" : "text-zinc-300",
@@ -304,7 +334,7 @@ export default async function OverviewPage() {
       <div className="grid gap-6 xl:grid-cols-3">
         <DashboardCard
           title="Country Comparison"
-          description="Australia, US, UK, Canada, New Zealand, and EU"
+          description="Current demand coverage with EU structural context"
           className="xl:col-span-2"
         >
           <CountryComparison series={nominalDemandSeries} />

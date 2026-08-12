@@ -22,6 +22,25 @@ describe("source value formatting", () => {
     expect(formatMillions(13_746.9, "GBP")).toBe("£13.75B");
   });
 
+  it("uses the euro symbol for Eurostat million-euro values", () => {
+    expect(formatMillions(9_339_872.8, "EUR")).toBe("€9.34T");
+    expect(
+      formatPublishedValue("870899", "EUR millions chain-linked volume (2020)")
+        .headline,
+    ).toBe("€870.9B");
+  });
+
+  it("uses the Canadian-dollar prefix for Statistics Canada millions", () => {
+    expect(formatMillions(452_296, "CAD")).toBe("C$452.3B");
+    expect(formatMillions(34_106, "CAD")).toBe("C$34.11B");
+    expect(
+      formatPublishedValue(
+        "364807",
+        "2017 constant CAD millions, quarterly rate",
+      ).headline,
+    ).toBe("C$364.8B");
+  });
+
   it("applies stable precision rules across magnitude bands", () => {
     expect(formatMillions(500, "USD")).toBe("$500M");
     expect(formatMillions(1_250, "USD")).toBe("$1.25B");
@@ -49,7 +68,7 @@ describe("source value formatting", () => {
     });
   });
 
-  it("preserves ABS, ONS, and FRED source semantics", () => {
+  it("preserves ABS, ONS, BEA, FRED, and Eurostat source semantics", () => {
     expect(formatPublishedValue("81284.5", "AUD millions").headline).toBe(
       "A$81.28B",
     );
@@ -60,5 +79,8 @@ describe("source value formatting", () => {
       "$5.17T",
     );
     expect(formatPublishedValue("3.25", "percent").headline).toBe("3.25%");
+    expect(
+      formatPublishedValue("9339872.8", "EUR millions current prices").headline,
+    ).toBe("€9.34T");
   });
 });

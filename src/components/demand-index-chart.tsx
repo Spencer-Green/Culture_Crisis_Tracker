@@ -161,7 +161,7 @@ export function DemandIndexChart({
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {series.map((item) => (
           <div
             key={item.id}

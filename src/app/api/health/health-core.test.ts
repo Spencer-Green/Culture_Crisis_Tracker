@@ -29,7 +29,7 @@ describe("health response", () => {
       sources: {
         supported: 13,
         configured: 2,
-        implemented: 4,
+        implemented: 6,
         enabled: 0,
       },
     });

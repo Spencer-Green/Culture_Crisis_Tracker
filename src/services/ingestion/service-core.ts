@@ -41,8 +41,12 @@ export function sanitiseIngestionError(error: unknown): string {
       error.name === "UnsupportedOnsMetricError" ||
       error.name === "UnsupportedBeaMetricError" ||
       error.name === "UnsupportedFredMetricError" ||
+      error.name === "UnsupportedEurostatMetricError" ||
+      error.name === "UnsupportedStatCanMetricError" ||
       error.name === "BeaResponseError" ||
-      error.name === "FredResponseError")
+      error.name === "FredResponseError" ||
+      error.name === "EurostatResponseError" ||
+      error.name === "StatCanResponseError")
   ) {
     return error.message.slice(0, 500);
   }

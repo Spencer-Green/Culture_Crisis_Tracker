@@ -16,6 +16,9 @@ describe("source registry", () => {
       BEA_API_KEY: apiKey,
       FRED_BASE_URL: "https://api.stlouisfed.org/fred",
       FRED_API_KEY: fredApiKey,
+      EUROSTAT_BASE_URL:
+        "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0",
+      STATCAN_BASE_URL: "https://www150.statcan.gc.ca/t1/wds",
       EVENTBRITE_BASE_URL: "https://www.eventbriteapi.com/v3",
       EVENTBRITE_PRIVATE_TOKEN: token,
       IGDB_BASE_URL: "https://api.igdb.com/v4",
@@ -28,7 +31,7 @@ describe("source registry", () => {
     expect(sources).toHaveLength(13);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(4);
+    ).toHaveLength(6);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -41,6 +44,22 @@ describe("source registry", () => {
     expect(
       sources.find((source) => source.slug === "fred")?.implementationStatus,
     ).toBe("implemented");
+    expect(
+      sources.find((source) => source.slug === "eurostat")
+        ?.implementationStatus,
+    ).toBe("implemented");
+    expect(sources.find((source) => source.slug === "eurostat")).toMatchObject({
+      name: "EU Structural Benchmark",
+      configured: true,
+      isPublic: true,
+      requiresAuthentication: false,
+    });
+    expect(sources.find((source) => source.slug === "statcan")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      requiresAuthentication: false,
+    });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,
     );

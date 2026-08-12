@@ -2,6 +2,8 @@ const CURRENCY_SYMBOLS = {
   USD: "$",
   AUD: "A$",
   GBP: "£",
+  EUR: "€",
+  CAD: "C$",
 } as const;
 
 export type SupportedCurrency = keyof typeof CURRENCY_SYMBOLS;

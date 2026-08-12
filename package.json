@@ -21,7 +21,11 @@
     "bea:inspect": "tsx scripts/bea-inspect.ts",
     "ingest:bea": "node --conditions=react-server --import tsx scripts/ingest-bea.ts",
     "fred:inspect": "tsx scripts/fred-inspect.ts",
-    "ingest:fred": "node --conditions=react-server --import tsx scripts/ingest-fred.ts"
+    "ingest:fred": "node --conditions=react-server --import tsx scripts/ingest-fred.ts",
+    "eurostat:inspect": "tsx scripts/eurostat-inspect.ts",
+    "ingest:eurostat": "node --conditions=react-server --import tsx scripts/ingest-eurostat.ts",
+    "statcan:inspect": "tsx scripts/statcan-inspect.ts",
+    "ingest:statcan": "node --conditions=react-server --import tsx scripts/ingest-statcan.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

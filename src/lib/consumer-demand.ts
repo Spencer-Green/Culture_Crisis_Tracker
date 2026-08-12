@@ -5,9 +5,9 @@ export const CONSUMER_DEMAND_BASELINE = "2019-01-01T00:00:00.000Z";
 export type DemandBasis = "nominal" | "real";
 
 export type DemandSeriesDefinition = {
-  id: "australia" | "united-kingdom" | "united-states";
+  id: "australia" | "united-kingdom" | "united-states" | "canada";
   country: string;
-  source: "ABS" | "ONS" | "BEA";
+  source: "ABS" | "ONS" | "BEA" | "Statistics Canada";
   metricSlug?: string;
   basis: DemandBasis;
   color: string;
@@ -69,6 +69,15 @@ const NOMINAL_DEFINITIONS = [
     color: "#34d399",
     annualized: true,
   },
+  {
+    id: "canada",
+    country: "Canada",
+    source: "Statistics Canada",
+    metricSlug: "ca-recreation-culture-spending-current-price",
+    basis: "nominal",
+    color: "#fb7185",
+    annualized: false,
+  },
 ] as const satisfies readonly DemandSeriesDefinition[];
 
 const REAL_DEFINITIONS = [
@@ -100,6 +109,15 @@ const REAL_DEFINITIONS = [
     color: "#34d399",
     annualized: true,
   },
+  {
+    id: "canada",
+    country: "Canada",
+    source: "Statistics Canada",
+    metricSlug: "ca-recreation-culture-spending-real",
+    basis: "real",
+    color: "#fb7185",
+    annualized: false,
+  },
 ] as const satisfies readonly DemandSeriesDefinition[];
 
 export function formatDemandPeriod(
@@ -109,6 +127,10 @@ export function formatDemandPeriod(
   const date = new Date(periodStart);
   if (frequency === "quarterly") {
     return `${date.getUTCFullYear()} Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
+  }
+
+  if (frequency === "annual") {
+    return String(date.getUTCFullYear());
   }
 
   return new Intl.DateTimeFormat("en", {

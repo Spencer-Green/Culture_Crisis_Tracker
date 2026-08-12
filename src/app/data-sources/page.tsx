@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { getSourceRegistry } from "@/data-sources/registry";
+import {
+  isCurrentSource,
+  isStructuralBenchmarkSource,
+} from "@/data-sources/source-role";
 import type { HealthStatus } from "@/data-sources/status";
 import { COUNTRIES, SECTORS } from "@/lib/constants";
 
@@ -70,7 +74,7 @@ export default async function DataSourcesPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Summary label="Supported" value={sources.length.toString()} />
         <Summary
           label="Configured"
@@ -85,9 +89,22 @@ export default async function DataSourcesPage() {
             .length.toString()}
         />
         <Summary
-          label="Enabled"
+          label="Active Current"
           value={sources
-            .filter((source) => source.enabled === true)
+            .filter(
+              (source) =>
+                source.enabled === true && isCurrentSource(source.slug),
+            )
+            .length.toString()}
+        />
+        <Summary
+          label="Structural Benchmarks"
+          value={sources
+            .filter(
+              (source) =>
+                source.enabled === true &&
+                isStructuralBenchmarkSource(source.slug),
+            )
             .length.toString()}
         />
       </div>
@@ -179,6 +196,9 @@ export default async function DataSourcesPage() {
                       ) : (
                         <Badge tone="warning">Not Implemented</Badge>
                       )}
+                      {isStructuralBenchmarkSource(source.slug) ? (
+                        <Badge tone="warning">Structural Benchmark</Badge>
+                      ) : null}
                       {source.enabled === true ? (
                         <Badge tone="success">Enabled</Badge>
                       ) : source.enabled === false ? (

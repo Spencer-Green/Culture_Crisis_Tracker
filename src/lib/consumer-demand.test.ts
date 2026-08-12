@@ -157,7 +157,7 @@ describe("consumer-demand analysis", () => {
     expect(observations).toEqual(before);
   });
 
-  it("selects the established ABS, ONS, and BEA metrics without using FRED spending", () => {
+  it("selects current ABS, ONS, and BEA metrics without FRED or Eurostat", () => {
     const observations = [
       observation(
         "2019-01-01T00:00:00.000Z",
@@ -177,6 +177,28 @@ describe("consumer-demand analysis", () => {
         "monthly",
         "us-recreation-services-pce-current-price",
       ),
+      {
+        ...observation(
+          "2019-01-01T00:00:00.000Z",
+          "40",
+          "quarterly",
+          "ca-recreation-culture-spending-current-price",
+        ),
+        sourceSlug: "statcan",
+        countryCode: "CA",
+        unit: "CAD millions current prices, quarterly rate",
+      },
+      {
+        ...observation(
+          "2019-01-01T00:00:00.000Z",
+          "35",
+          "quarterly",
+          "ca-recreation-culture-spending-real",
+        ),
+        sourceSlug: "statcan",
+        countryCode: "CA",
+        unit: "2017 constant CAD millions, quarterly rate",
+      },
       observation(
         "2019-01-01T00:00:00.000Z",
         "999",
@@ -192,12 +214,22 @@ describe("consumer-demand analysis", () => {
       "ABS",
       "ONS",
       "BEA",
+      "Statistics Canada",
     ]);
-    expect(nominal.map((series) => series.points.length)).toEqual([1, 1, 1]);
+    expect(nominal.map((series) => series.points.length)).toEqual([1, 1, 1, 1]);
+    expect(nominal[3].points[0]).toMatchObject({
+      country: "Canada",
+      frequency: "quarterly",
+      originalPeriod: "2019 Q1",
+    });
     expect(real[0]).toMatchObject({
       country: "Australia",
       baselinePeriod: null,
       points: [],
+    });
+    expect(real[3]).toMatchObject({
+      country: "Canada",
+      baselinePeriod: "2019-01-01T00:00:00.000Z",
     });
   });
 });

@@ -1,0 +1,18 @@
+[
+  {
+    "status": "SUCCESS",
+    "object": {
+      "responseStatusCode": 0,
+      "productId": 36100124,
+      "coordinate": "1.1.1.1.0.0.0.0.0.0",
+      "vectorId": 62700456,
+      "frequencyCode": 9,
+      "scalarFactorCode": 6,
+      "decimals": 0,
+      "terminated": 0,
+      "SeriesTitleEn": "Canada;Current prices;Seasonally adjusted at quarterly rates;Household final consumption expenditure",
+      "SeriesTitleFr": "Canada;Aux prix courants;Désaisonnalisées au taux trimestriel;Dépenses de consommation finale des ménages",
+      "memberUomCode": 81
+    }
+  }
+]

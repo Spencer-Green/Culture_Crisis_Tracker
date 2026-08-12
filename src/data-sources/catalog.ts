@@ -75,14 +75,14 @@ export const SOURCE_DEFINITIONS = [
   },
   {
     slug: "eurostat",
-    name: "Eurostat",
+    name: "EU Structural Benchmark",
     provider: "European Commission",
     baseUrlEnvironmentKey: "EUROSTAT_BASE_URL",
     requiredCredentialEnvironmentKeys: [],
     countries: ["EU"],
     sectors: ["consumer-spending"],
     requiresAuthentication: false,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "statcan",
@@ -93,7 +93,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ["CA"],
     sectors: ["consumer-spending"],
     requiresAuthentication: false,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "stats-nz",

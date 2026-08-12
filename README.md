@@ -6,8 +6,10 @@ Zealand, and the European Union.
 
 The product is intended to distinguish between broad demand weakness, a shrinking industry
 middle tier, normal cyclical conditions, and increasing concentration around superstar artists,
-franchises, and platforms. Live integrations ingest Australian, UK, and US household-demand data
-from ABS, ONS, and BEA, plus US consumer-credit and credit-card stress data from FRED.
+franchises, and platforms. Active current integrations ingest Australian, UK, and US
+household-demand data from ABS, ONS, BEA, and Statistics Canada, plus US consumer-credit and
+credit-card stress data from FRED. Eurostat annual EU data is retained separately as a structural
+benchmark.
 
 ## Technology
 
@@ -58,6 +60,7 @@ ONS is also public and requires no API key. Its v1 base URL should remain:
 
 ```bash
 ONS_BASE_URL=https://api.beta.ons.gov.uk/v1
+EUROSTAT_BASE_URL=https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0
 ```
 
 The authenticated US endpoints should remain:
@@ -131,19 +134,21 @@ src/
 
 The static source catalogue is the canonical definition of supported providers and their coverage.
 The server-side runtime registry combines that metadata with safe environment readiness and mutable
-database state. ABS, ONS, BEA, and FRED are implemented. All other adapters remain inert
+database state. ABS, ONS, BEA, FRED, Eurostat, and Statistics Canada are implemented. Eurostat is
+classified as a structural benchmark rather than an active current source. All other adapters remain inert
 placeholders whose metric discovery and observation methods throw a clear `NotImplementedError`.
 
 ## Source states
 
 Source status uses four independent concepts:
 
-- **Implemented** means a functioning adapter exists. ABS, ONS, BEA, and FRED are implemented.
+- **Implemented** means a functioning adapter exists. ABS, ONS, BEA, FRED, Eurostat, and Statistics
+  Canada are implemented.
 - **Configured** means the required base URL is valid and all declared credentials are present.
   It does not verify credentials against a provider.
-- **Enabled** is mutable database state that explicitly permits ingestion. New ABS, ONS, BEA, and
-  FRED records use enabled defaults; routine seed reruns preserve existing manual enablement and
-  sync timestamps.
+- **Enabled** is mutable database state that explicitly permits ingestion. New ABS, ONS, BEA,
+  FRED, Eurostat, and Statistics Canada records use enabled defaults; routine seed reruns preserve
+  existing manual enablement and sync timestamps.
 - **Healthy** is runtime connectivity state. Configuration or successful ingestion does not imply
   health; the registry reports `not-checked` unless a health check has actually run.
 
@@ -469,6 +474,126 @@ FRED and Federal Reserve attribution and any applicable provider terms must be r
 public or commercial deployment. The application presents BEA consumption and FRED credit
 evidence separately and does not claim that credit availability causes entertainment spending.
 
+## EU Structural Benchmark (Eurostat)
+
+The EU Structural Benchmark integration uses Eurostat's public, unauthenticated dissemination
+statistics API at
+`https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0`. It makes filtered JSON-stat 2.0
+requests to `GET /data/nama_10_cp18`; no API key or other credential is required.
+
+Dataset `nama_10_cp18` is `Household final consumption expenditure by purpose (COICOP 2018)`.
+Live inspection in August 2026 returned dimension order `freq → unit → coicop18 → geo → time`.
+The parser validates the response-declared order and category indexes rather than relying on that
+observed order. The initial integration uses geography `EU27_2020`, labelled `European Union - 27
+countries (from 2020)`, and annual frequency code `A`.
+
+Implemented mappings:
+
+- `eu-household-spending-total-current-price`
+  - Purpose `TOTAL` — `Total`
+  - Unit `CP_MEUR` — `Current prices, million euro`
+- `eu-household-spending-total-real`
+  - Purpose `TOTAL` — `Total`
+  - Unit `CLV20_MEUR` — `Chain linked volumes (2020), million euro`
+- `eu-recreation-culture-spending-current-price`
+  - Purpose `CP09` — `Recreation, sport and culture`
+  - Unit `CP_MEUR` — `Current prices, million euro`
+- `eu-recreation-culture-spending-real`
+  - Purpose `CP09` — `Recreation, sport and culture`
+  - Unit `CLV20_MEUR` — `Chain linked volumes (2020), million euro`
+
+Inspect dataset structure, aggregate/member-state coverage, category codes, units, and target
+availability without database writes:
+
+```bash
+npm run eurostat:inspect
+```
+
+Ingest an inclusive annual `YYYY` range:
+
+```bash
+npm run ingest:eurostat -- --start=2019 --end=2024
+```
+
+All four EU27_2020 target series contain compatible observations from 1995 through 2024. The
+tracker currently persists 2019–2024, six annual observations per metric. Eurostat national
+accounts can be revised, and annual publication has a longer expected lag than monthly ABS or BEA
+data. It is excluded from active current-source counts, headline freshness, and current cross-market
+demand charts. The Consumer Spending page retains it in a collapsed secondary section for future
+historical and structural analysis.
+
+The integration uses only the COICOP-2018 dataset and does not stitch older ECOICOP or COICOP-1999
+series onto it. Eurostat supplies the selected dataset as a backcast series through 1995, which
+makes the persisted 2019 baseline classification-compatible within this dataset. This does not
+eliminate all conceptual differences between national accounting systems, and `EU27_2020` is an
+aggregate for the current 27-country composition rather than a single member state. Current-price
+and chain-linked-volume measures remain separate, and euro values are never converted to another
+currency in persistence.
+
+## Statistics Canada quarterly household consumption
+
+Statistics Canada is a public, no-key current-demand source. The integration uses the official Web
+Data Service base `https://www150.statcan.gc.ca/t1/wds` and table `36-10-0124-01`, PID `36100124`,
+`Detailed household final consumption expenditure, Canada, quarterly`. It validates cube metadata
+with `POST /rest/getCubeMetadata`, validates each coordinate/vector mapping with `POST
+/rest/getSeriesInfoFromCubePidCoord`, and retrieves narrow date ranges with `GET
+/rest/getDataFromVectorByReferencePeriodRange`.
+
+Implemented headline series:
+
+- `ca-household-spending-total-current-price`
+  - `Household final consumption expenditure`; `Current prices`
+  - Coordinate `1.1.1.1.0.0.0.0.0.0`; vector `V62700456`
+- `ca-household-spending-total-real`
+  - `Household final consumption expenditure`; `2017 constant prices`
+  - Coordinate `1.2.1.1.0.0.0.0.0.0`; vector `V62700682`
+- `ca-recreation-culture-spending-current-price`
+  - `Recreation and culture`; `Current prices`
+  - Coordinate `1.1.1.70.0.0.0.0.0.0`; vector `V62700517`
+- `ca-recreation-culture-spending-real`
+  - `Recreation and culture`; `2017 constant prices`
+  - Coordinate `1.2.1.70.0.0.0.0.0.0`; vector `V62700751`
+
+All four are Canada geography, quarterly frequency code `9`, and `Seasonally adjusted at
+quarterly rates`. The tracker preserves the published quarterly-rate values exactly: it does not
+annualize, divide, or multiply them. WDS reports unit code `81` (`Dollars`) and scalar-factor code
+`6` (`millions`), so stored source values use `CAD millions` with current- or constant-2017-price
+and quarterly-rate semantics. Compact UI values use `C$`; raw values and units remain unchanged.
+
+The four vectors have a common live history from 1981 Q1 through 2026 Q1, released most recently on
+May 29, 2026. The initial tracker backfill deliberately begins at 2019 Q1 to align with the existing
+cross-market baseline and contains 29 observations per metric. Inspect live cube, series, range,
+and future cultural-detail metadata without database writes:
+
+```bash
+npm run statcan:inspect
+```
+
+Ingest an inclusive quarter range using strict `YYYY-Qn` syntax:
+
+```bash
+npm run ingest:statcan -- --start=2019-Q1 --end=2026-Q1
+```
+
+Statistics Canada can revise national-accounts history. Repeat ingestion updates the same metric
+and UTC quarter boundaries idempotently. No monthly observations are created, and quarterly gaps
+are not interpolated or forward-filled. The nominal and real recreation series enter the existing
+2019-indexed charts as quarterly Canadian points; indexing compares relative trajectories rather
+than asserting identical national-account baskets.
+
+Useful current-price cultural detail discovered but intentionally not ingested in this pass:
+
+- `Recording media`: member `73`, `V62700520`, coordinate `1.1.1.73.0.0.0.0.0.0`
+- `Musical instruments and major durables for indoor recreation`: member `75`, `V62700522`,
+  coordinate `1.1.1.75.0.0.0.0.0.0`
+- `Games, toys and hobbies`: member `76`, `V62700523`, coordinate `1.1.1.76.0.0.0.0.0.0`
+- `Recreational and sporting services`: member `81`, `V62700528`, coordinate
+  `1.1.1.81.0.0.0.0.0.0`
+- `Cinemas`: member `83`, `V62700530`, coordinate `1.1.1.83.0.0.0.0.0.0`
+- `Other cultural services`: member `85`, `V62700532`, coordinate `1.1.1.85.0.0.0.0.0.0`
+- `Audio-visual and photographic equipment`: member `71`, `V62700518`
+- `Books`: member `87`, `V62700534`; `Newspapers and periodicals`: member `88`, `V62700535`
+
 ## Cross-market demand presentation
 
 The Overview and Consumer Spending pages use Recharts for local, client-rendered time-series
@@ -480,22 +605,23 @@ The nominal recreation and culture comparison uses these persisted source series
 - Australia: ABS recreation and culture spending, current prices, monthly
 - United Kingdom: ONS `09 Recreation and culture CP SA £m`, quarterly
 - United States: BEA recreation services, current dollars, monthly, SAAR
+- Canada: Statistics Canada `Recreation and culture`, current prices, quarterly rates
 
 Each series is independently indexed to `100` at its first valid observation on or after
-`2019-01-01`. Raw currencies are not compared directly: AUD, GBP, and USD levels are not converted,
-and indexing does not imply that the source definitions are identical. Indexed values are Culture
-Crisis Tracker presentation-layer calculations and are never persisted.
+`2019-01-01`. Raw currencies are not compared directly: AUD, GBP, USD, CAD, and EUR levels are not
+converted, and indexing does not imply that the source definitions are identical. Indexed values
+are Culture Crisis Tracker presentation-layer calculations and are never persisted.
 
-The real comparison uses ONS recreation and culture CVM and BEA real recreation services in chained
-2017 dollars, SAAR. The current ABS integration has no comparable real recreation and culture
-metric, so Australia is shown as unavailable rather than estimated. Nominal and real series remain
-separate.
+The real comparison uses ONS recreation and culture CVM, BEA real recreation services in chained
+2017 dollars SAAR, and Statistics Canada recreation and culture at 2017 constant prices. The
+current ABS integration has no comparable real recreation and culture metric, so Australia is
+shown as unavailable rather than estimated. Nominal and real series remain separate.
 
-Native frequencies are preserved. Australia and the United States remain monthly; the United
-Kingdom remains quarterly. The chart places published observations on a shared time axis and draws
-lines between them, but does not interpolate, forward-fill, resample, or manufacture quarterly UK
-values for intervening months. Tooltips retain the native period, frequency, source value, source
-unit, price basis, and SAAR status.
+Native frequencies are preserved. Australia and the United States remain monthly, the United
+Kingdom and Canada remain quarterly. The chart places published observations on a shared time axis.
+It does not interpolate, forward-fill, resample, or manufacture quarterly values for intervening
+periods. Tooltips retain the native period, frequency, source value, source unit, price basis, and
+SAAR status.
 
 BEA monthly PCE values are seasonally adjusted annual rates. SAAR is the annualized spending pace
 implied by a month, not the amount spent during that month; values are not divided by twelve for
@@ -503,9 +629,9 @@ display. Headline values therefore include `annualized` and retain current-dolla
 dollar labels.
 
 Source values published in millions use compact presentation when the resulting number is easier to
-read: USD uses `$`, AUD uses `A$`, and GBP uses `£`; million, billion, and trillion suffixes use
-sensible magnitude-based precision. Persisted values and source units remain unchanged and visible
-in supporting information and chart tooltips.
+read: USD uses `$`, AUD uses `A$`, GBP uses `£`, CAD uses `C$`, and EUR uses `€`; million, billion, and trillion
+suffixes use sensible magnitude-based precision. Persisted values and source units remain unchanged
+and visible in supporting information and chart tooltips.
 
 ## Credential safety
 
@@ -522,13 +648,14 @@ The local `.env` uses the development-only PostgreSQL credentials defined in
 
 ## Current limitations
 
-- ABS, ONS, BEA, and FRED are live; every other provider remains unimplemented and disabled
+- ABS, ONS, BEA, FRED, and Statistics Canada are active current sources; Eurostat remains enabled
+  as the EU Structural Benchmark; every other provider remains unimplemented and disabled
 - No scheduled jobs or general retry framework; ONS has only a bounded 429 retry
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
-- Persisted metrics include four each from ABS, ONS, and BEA plus seven FRED metrics; no industry
-  events are ingested
+- Persisted metrics include four each from ABS, ONS, BEA, Eurostat, and Statistics Canada plus seven
+  FRED metrics; no industry events are ingested
 - `DataSource.countryCode` and `DataSource.sectorSlug` hold only unambiguous single-value metadata.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.
@@ -544,5 +671,6 @@ indicators remain explicit empty states; they do not contain fabricated data.
 4. Add news-derived industry events with provenance and confidence review.
 5. Define and validate composite indicators only after source coverage is sufficient.
 
-The recommended next source is Eurostat because it can extend public, no-key consumer-spending
-coverage to the European Union. It remains unimplemented and disabled.
+The recommended next task is validating a small, explicitly selected set of Statistics Canada
+cultural-detail vectors—starting with cinemas and other cultural services—without adding another
+provider.

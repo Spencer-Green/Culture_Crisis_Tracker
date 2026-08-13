@@ -14,6 +14,7 @@ import { isCurrentSource } from "@/data-sources/source-role";
 import type { OverviewState, SourceFreshness } from "@/services/overview-core";
 import { getOverviewState } from "@/services/overview";
 import { getGdeltCorpusOverview } from "@/services/industry-events/events";
+import { getTicketmasterCrossSectorTrends } from "@/services/industry-events/ticketmaster-longitudinal";
 import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticketmaster-supply";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,11 @@ function formatTimestamp(value: string | null, emptyMessage: string): string {
     timeStyle: "short",
     timeZone: "UTC",
   }).format(new Date(value));
+}
+
+function formatSupplyDelta(value: number | null): string {
+  if (value === null) return "Insufficient history";
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
 function formatObservationPeriod(
@@ -168,13 +174,19 @@ function CountryComparison({ series }: { series: IndexedDemandSeries[] }) {
 }
 
 export default async function OverviewPage() {
-  const [overview, consumerSpending, gdeltCorpus, ticketmasterSupply] =
-    await Promise.all([
-      getOverviewState(),
-      getConsumerSpendingData(),
-      getGdeltCorpusOverview(),
-      getTicketmasterSupplyOverview(),
-    ]);
+  const [
+    overview,
+    consumerSpending,
+    gdeltCorpus,
+    ticketmasterSupply,
+    crossSectorTrends,
+  ] = await Promise.all([
+    getOverviewState(),
+    getConsumerSpendingData(),
+    getGdeltCorpusOverview(),
+    getTicketmasterSupplyOverview(),
+    getTicketmasterCrossSectorTrends(),
+  ]);
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
   );
@@ -429,7 +441,64 @@ export default async function OverviewPage() {
           title="Sector Comparison"
           description="Demand and viability signals by cultural sector"
         >
-          <EmptyChart label="Cross-sector comparison" />
+          {crossSectorTrends.hasComparableHistory ? (
+            <div className="space-y-3">
+              {crossSectorTrends.sectors.map((sector) => (
+                <div
+                  key={sector.segmentName}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-zinc-200">
+                      {sector.segmentName}
+                    </p>
+                    <span className="font-data text-xs text-zinc-500">90D</span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <dt className="text-zinc-600">Supply</dt>
+                      <dd className="font-data mt-1 text-zinc-300">
+                        {formatSupplyDelta(
+                          sector.comparison?.eventCountPctChange ?? null,
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-600">Venues</dt>
+                      <dd className="font-data mt-1 text-zinc-300">
+                        {formatSupplyDelta(
+                          sector.comparison?.activeVenuePctChange ?? null,
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-600">Events / venue</dt>
+                      <dd className="font-data mt-1 text-zinc-300">
+                        {formatSupplyDelta(
+                          sector.comparison?.eventsPerVenuePctChange ?? null,
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              ))}
+              <p className="text-xs leading-5 text-zinc-600">
+                Equivalent Ticketmaster 90-day snapshots only. These are supply
+                changes, not an Industry Viability score.
+              </p>
+            </div>
+          ) : (
+            <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-950/50 px-6 text-center">
+              <p className="text-sm font-medium text-zinc-300">
+                Cross-sector comparison
+              </p>
+              <p className="mt-2 text-xs text-zinc-600">
+                Collecting longitudinal history. Comparable Music, Arts &amp;
+                Theatre, and Film changes will appear after another complete
+                90-day snapshot.
+              </p>
+            </div>
+          )}
         </DashboardCard>
         <DashboardCard
           title="Latest Industry Events"

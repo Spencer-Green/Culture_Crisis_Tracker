@@ -829,11 +829,8 @@ complete snapshot.
 
 Current statuses remain source-faithful. Live validation currently returns `onsale`, `offsale`,
 `cancelled`, and `rescheduled`; any `canceled` or `postponed` variants remain separate rather than
-being rewritten. In particular, `offsale` is not cancellation. A compact
-previous status and change timestamp records the latest observed transition without creating a
-full event-sourcing system. A canceled event in one snapshot is not a cancellation rate or proof
-that the cancellation occurred during that window; robust rates require repeated comparable
-snapshots and fuller transition history.
+being rewritten. In particular, `offsale` is not cancellation. A canceled event in one snapshot is
+not a cancellation rate or proof that the cancellation occurred during that window.
 
 The Industry Events page separates `Live Event Supply` from `Media Event Candidates`. It reports
 raw 7-, 30-, or 90-day forward events, distinct active venues, events per venue, source status,
@@ -861,6 +858,58 @@ npm run ingest:ticketmaster -- --days=7 --country=AU --segment=music
 The phase-one CLI hard-caps windows to 7, 30, or 90 days. There is no past-event backfill or attempt
 to reconstruct 2019–2025 supply. Longitudinal supply, mature cancellation analysis, and price change
 must accumulate from scheduled future snapshots.
+
+### Ticketmaster longitudinal methodology
+
+Ticketmaster longitudinal storage deliberately separates three concepts:
+
+1. `TicketmasterEvent` is the latest known source state for one official event ID. It retains
+   `firstSeenAt` and `lastSeenAt`, but is not itself a historical snapshot.
+2. `TicketmasterEventStatusChange` is append-only evidence that a previously persisted exact source
+   status changed during a specific ingestion run. First observation does not create a synthetic
+   `null → onsale` transition. Unchanged repeat ingestion creates no transition. The unique event
+   and ingestion-run identity prevents retry duplicates while allowing the same transition to recur
+   in a genuinely later run.
+3. `TicketmasterSupplySnapshot` is a point-in-time aggregate of a completed forward calendar. It
+   stores event and venue counts, events per venue, exact current-status counts, and price-range
+   availability. Percentage changes are calculated later and are not persisted.
+
+Complete unfiltered runs create snapshots only after all four countries and all three cultural
+segments have been fetched and current event persistence has succeeded. A 7-day run creates 7D
+snapshots; a 30-day run creates 7D and 30D snapshots; a 90-day run creates 7D, 30D, and 90D
+snapshots. Each window contains 16 rows: AU, US, GB, and CA crossed with `ALL CULTURAL`, `Music`,
+`Arts & Theatre`, and `Film`. Partial country or segment runs update current event state but do not
+create final market snapshots. Snapshot creation and successful ingestion-run completion share a
+transaction, so snapshot failure cannot be reported as analytical success.
+
+Snapshot comparisons require the same country, segment, and window. `Latest vs previous` uses the
+immediately preceding complete comparable capture. Approximately seven- and 30-day comparisons use
+only captures within two and three days of their targets respectively; missing history remains
+`Insufficient history`. Available neutral calculations are forward supply change, active venue
+change, calendar-density change, and exact status-count change. They are not stress scores.
+
+Transition queries support exact `previousStatus → newStatus` counts by observation interval,
+country, and segment. Current `cancelled` listings and newly observed `onsale → cancelled`
+transitions are different measures. A future cancellation-transition rate requires a documented
+eligible-event denominator, such as events previously active and still observable in a comparable
+window; no such rate is published yet.
+
+Disappearance is never converted to cancellation. A listing may age out of 7D, 30D, or 90D, move
+dates, leave API coverage, or complete normally. Rows remain available for first/last-seen analysis,
+but only explicit status changes create transition records. Historical trends begin with the first
+stored baseline; no synthetic pre-history is generated. The one-time baseline command uses a stored
+retrieval timestamp or, for older completed runs, the maximum event retrieval timestamp inside that
+run. It only backfills an existing latest transition when `previousStatus`,
+current status, and `statusChangedAt` all identify an actual observed change:
+
+```bash
+npm run ticketmaster:baseline
+```
+
+The Supply Trends UI reuses current country, segment, and 7D/30D/90D filters. Until a second
+comparable capture exists it says `Collecting longitudinal history`; Overview uses the same honest
+state for cross-sector comparison. Ticketmaster remains coverage-limited and is not the full
+live-event market.
 
 ## Credential safety
 

@@ -8,6 +8,7 @@ import {
   type IndustryEventFilters,
 } from "@/services/industry-events/events-core";
 import { getIndustryEventCandidates } from "@/services/industry-events/events";
+import { getTicketmasterSupplyTrends } from "@/services/industry-events/ticketmaster-longitudinal";
 import { getTicketmasterSupply } from "@/services/industry-events/ticketmaster-supply";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,12 @@ function label(value: string): string {
   return value.replaceAll("_", " ").replaceAll("-", " ").toLowerCase();
 }
 
+function formatTrend(value: number | null): string {
+  if (value === null) return "Insufficient history";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)}%`;
+}
+
 function Select({
   labelText,
   name,
@@ -103,10 +110,15 @@ export default async function IndustryEventsPage({
     supplyDaysValue === "7" ? 7 : supplyDaysValue === "90" ? 90 : 30;
   const supplyCountry = first(resolvedSearchParams.supplyCountry) || undefined;
   const supplySegment = first(resolvedSearchParams.supplySegment) || undefined;
-  const [candidates, supply] = await Promise.all([
+  const [candidates, supply, trends] = await Promise.all([
     getIndustryEventCandidates(filters),
     getTicketmasterSupply({
       days: supplyDays,
+      countryCode: supplyCountry,
+      segmentName: supplySegment,
+    }),
+    getTicketmasterSupplyTrends({
+      windowDays: supplyDays,
       countryCode: supplyCountry,
       segmentName: supplySegment,
     }),
@@ -342,6 +354,104 @@ export default async function IndustryEventsPage({
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-5">
+        <div>
+          <p className="font-data text-xs tracking-[0.16em] text-violet-400 uppercase">
+            Supply Trends
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-zinc-100">
+            {trends.hasComparableHistory
+              ? `${supplyDays}-day forward supply change`
+              : "Collecting longitudinal history"}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
+            Changes appear only after equivalent country, Ticketmaster segment,
+            and forward-window snapshots have accumulated. Missing listings and
+            events aging out are not cancellations.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {trends.entries.map((entry) => {
+            const countryName =
+              COUNTRIES.find((country) => country.code === entry.countryCode)
+                ?.name ?? entry.countryCode;
+            const transitions = entry.transitionCounts ?? {};
+            return (
+              <div
+                key={entry.countryCode}
+                className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+              >
+                <p className="text-sm font-medium text-zinc-200">
+                  {countryName}
+                </p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  {trends.segmentName} · {supplyDays}D
+                </p>
+                <dl className="mt-4 space-y-2 text-xs">
+                  {[
+                    [
+                      "Forward supply",
+                      formatTrend(
+                        entry.comparison?.eventCountPctChange ?? null,
+                      ),
+                    ],
+                    [
+                      "Active venues",
+                      formatTrend(
+                        entry.comparison?.activeVenuePctChange ?? null,
+                      ),
+                    ],
+                    [
+                      "Events / venue",
+                      formatTrend(
+                        entry.comparison?.eventsPerVenuePctChange ?? null,
+                      ),
+                    ],
+                    ["New listings", "Insufficient history"],
+                    [
+                      "Cancellation transitions",
+                      entry.comparison
+                        ? (transitions["onsale → cancelled"] ?? 0) +
+                          (transitions["onsale → canceled"] ?? 0)
+                        : "Insufficient history",
+                    ],
+                    [
+                      "Postponement transitions",
+                      entry.comparison
+                        ? (transitions["onsale → postponed"] ?? 0)
+                        : "Insufficient history",
+                    ],
+                    [
+                      "Reschedule transitions",
+                      entry.comparison
+                        ? (transitions["postponed → rescheduled"] ?? 0)
+                        : "Insufficient history",
+                    ],
+                  ].map(([name, value]) => (
+                    <div key={name} className="flex justify-between gap-3">
+                      <dt className="text-zinc-600">{name}</dt>
+                      <dd className="font-data text-right text-zinc-300">
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
+        </div>
+        {!trends.hasSnapshots ? (
+          <p className="text-xs text-zinc-600">
+            No persisted longitudinal baseline is available yet.
+          </p>
+        ) : !trends.hasComparableHistory ? (
+          <p className="text-xs text-zinc-600">
+            One baseline exists. A later comparable snapshot is required before
+            change metrics can be calculated.
+          </p>
+        ) : null}
       </section>
 
       <div className="pt-3">

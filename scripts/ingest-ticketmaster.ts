@@ -40,6 +40,7 @@ async function main() {
   console.log(`Created: ${result.recordsCreated}`);
   console.log(`Updated: ${result.recordsUpdated}`);
   console.log(`Status changes observed: ${result.statusChanges}`);
+  console.log(`Supply snapshot rows created: ${result.snapshotsCreated}`);
   console.log(`Unique venues: ${result.uniqueVenues}`);
   console.log(`Events with price ranges: ${result.priceRangeEvents}`);
   distribution("Countries", result.countryDistribution);

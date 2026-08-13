@@ -15,6 +15,10 @@ import {
   IngestionPolicyError,
   sanitiseIngestionError,
 } from "@/services/ingestion/service-core";
+import {
+  buildTicketmasterSupplySnapshots,
+  type TicketmasterSupplySnapshotData,
+} from "@/services/industry-events/ticketmaster-longitudinal-core";
 
 export interface TicketmasterIngestionStore {
   findSource(
@@ -27,6 +31,7 @@ export interface TicketmasterIngestionStore {
   }): Promise<string>;
   markSourceAttempted(sourceId: string, attemptedAt: Date): Promise<void>;
   persistEvents(input: {
+    runId: string;
     sourceId: string;
     events: readonly TicketmasterEventRecord[];
     retrievedAt: Date;
@@ -42,6 +47,7 @@ export interface TicketmasterIngestionStore {
     recordsRead: number;
     recordsCreated: number;
     recordsUpdated: number;
+    snapshots: readonly TicketmasterSupplySnapshotData[];
     metadata: Record<string, unknown>;
   }): Promise<void>;
   failRun(input: {
@@ -70,6 +76,7 @@ export type TicketmasterIngestionResult = {
   recordsCreated: number;
   recordsUpdated: number;
   statusChanges: number;
+  snapshotsCreated: number;
   uniqueVenues: number;
   priceRangeEvents: number;
   statusDistribution: Record<string, number>;
@@ -182,10 +189,23 @@ export async function runTicketmasterIngestion(input: {
     const events = [...unique.values()];
     const retrievedAt = now();
     const persisted = await input.store.persistEvents({
+      runId,
       sourceId: source.id,
       events,
       retrievedAt,
     });
+    const completeCoverage =
+      countries.length === TICKETMASTER_COUNTRIES.length &&
+      segments.length === TICKETMASTER_SEGMENTS.length;
+    const snapshots = completeCoverage
+      ? buildTicketmasterSupplySnapshots({
+          ingestionRunId: runId,
+          capturedAt: retrievedAt,
+          startDate: input.startDate,
+          runWindowDays: input.days,
+          events,
+        })
+      : [];
     const completedAt = now();
     const result = {
       runId,
@@ -205,6 +225,7 @@ export async function runTicketmasterIngestion(input: {
       recordsCreated: persisted.recordsCreated,
       recordsUpdated: persisted.recordsUpdated,
       statusChanges: persisted.statusChanges,
+      snapshotsCreated: snapshots.length,
       uniqueVenues: new Set(
         events.map((event) => event.venue?.ticketmasterId).filter(Boolean),
       ).size,
@@ -225,6 +246,7 @@ export async function runTicketmasterIngestion(input: {
       recordsRead,
       recordsCreated: persisted.recordsCreated,
       recordsUpdated: persisted.recordsUpdated,
+      snapshots,
       metadata: result,
     });
     return result;

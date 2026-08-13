@@ -7,10 +7,13 @@ import {
   runTicketmasterIngestion,
   type TicketmasterIngestionStore,
 } from "@/services/industry-events/ticketmaster-ingestion-core";
+import type { TicketmasterSupplySnapshotData } from "@/services/industry-events/ticketmaster-longitudinal-core";
 
 class MemoryStore implements TicketmasterIngestionStore {
   enabled = true;
   events = new Map<string, TicketmasterEventRecord>();
+  transitions: { runId: string; from: string; to: string }[] = [];
+  snapshots: TicketmasterSupplySnapshotData[] = [];
   completed: Record<string, unknown>[] = [];
   failed: string[] = [];
 
@@ -21,7 +24,10 @@ class MemoryStore implements TicketmasterIngestionStore {
     return `run-${this.completed.length + 1}`;
   }
   async markSourceAttempted() {}
-  async persistEvents(input: { events: readonly TicketmasterEventRecord[] }) {
+  async persistEvents(input: {
+    runId: string;
+    events: readonly TicketmasterEventRecord[];
+  }) {
     let created = 0;
     let updated = 0;
     let statusChanges = 0;
@@ -29,7 +35,14 @@ class MemoryStore implements TicketmasterIngestionStore {
       const current = this.events.get(event.ticketmasterId);
       if (current) {
         updated += 1;
-        if (current.status !== event.status) statusChanges += 1;
+        if (current.status !== event.status) {
+          statusChanges += 1;
+          this.transitions.push({
+            runId: input.runId,
+            from: current.status,
+            to: event.status,
+          });
+        }
       } else created += 1;
       this.events.set(event.ticketmasterId, event);
     }
@@ -39,6 +52,7 @@ class MemoryStore implements TicketmasterIngestionStore {
     input: Parameters<TicketmasterIngestionStore["completeRun"]>[0],
   ) {
     this.completed.push(input.metadata);
+    this.snapshots.push(...input.snapshots);
   }
   async failRun(input: Parameters<TicketmasterIngestionStore["failRun"]>[0]) {
     this.failed.push(input.errorMessage);
@@ -125,6 +139,11 @@ describe("Ticketmaster structured-event ingestion", () => {
     const repeat = await runTicketmasterIngestion(input);
     status = "canceled";
     const changed = await runTicketmasterIngestion(input);
+    const unchangedRepeat = await runTicketmasterIngestion(input);
+    status = "onsale";
+    const recovered = await runTicketmasterIngestion(input);
+    status = "canceled";
+    const changedAgain = await runTicketmasterIngestion(input);
 
     expect(first).toMatchObject({
       recordsReturned: 1,
@@ -132,6 +151,7 @@ describe("Ticketmaster structured-event ingestion", () => {
       recordsCreated: 1,
       recordsUpdated: 0,
       statusChanges: 0,
+      snapshotsCreated: 0,
       uniqueVenues: 1,
       statusDistribution: { onsale: 1 },
     });
@@ -142,7 +162,56 @@ describe("Ticketmaster structured-event ingestion", () => {
       statusChanges: 1,
       statusDistribution: { canceled: 1 },
     });
+    expect(unchangedRepeat.statusChanges).toBe(0);
+    expect(recovered.statusChanges).toBe(1);
+    expect(changedAgain.statusChanges).toBe(1);
     expect(store.events).toHaveLength(1);
+    expect(store.transitions).toEqual([
+      { runId: "run-3", from: "onsale", to: "canceled" },
+      { runId: "run-5", from: "canceled", to: "onsale" },
+      { runId: "run-6", from: "onsale", to: "canceled" },
+    ]);
+    expect(store.snapshots).toEqual([]);
+  });
+
+  it("creates snapshots only after a complete all-market all-segment run", async () => {
+    const store = new MemoryStore();
+    const fetchImplementation = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(payload(), {
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    let observedAt = new Date("2026-08-12T00:00:01Z");
+    const input = {
+      sourceDefinition: getSourceDefinition("ticketmaster"),
+      adapter: adapter(fetchImplementation),
+      store,
+      ...range,
+      now: () => observedAt,
+    };
+    const result = await runTicketmasterIngestion(input);
+    observedAt = new Date("2026-08-19T00:00:01Z");
+    const later = await runTicketmasterIngestion(input);
+
+    expect(result.snapshotsCreated).toBe(16);
+    expect(later.snapshotsCreated).toBe(16);
+    expect(store.snapshots).toHaveLength(32);
+    expect(
+      new Set(store.snapshots.map((snapshot) => snapshot.ingestionRunId)),
+    ).toEqual(new Set(["run-1", "run-2"]));
+    expect(
+      store.snapshots.find(
+        (snapshot) =>
+          snapshot.countryCode === "AU" &&
+          snapshot.segmentName === "ALL CULTURAL",
+      ),
+    ).toMatchObject({
+      windowDays: 7,
+      uniqueEventCount: 1,
+      activeVenueCount: 1,
+      onsaleCount: 1,
+    });
   });
 
   it("keeps implemented, configured, and enabled state independent", async () => {
@@ -178,5 +247,6 @@ describe("Ticketmaster structured-event ingestion", () => {
       }),
     ).rejects.not.toThrow(secret);
     expect(store.failed.join(" ")).not.toContain(secret);
+    expect(store.snapshots).toEqual([]);
   });
 });

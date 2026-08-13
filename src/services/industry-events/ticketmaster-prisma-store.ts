@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { TicketmasterEventRecord } from "@/data-sources/entertainment/ticketmaster-types";
 import type { TicketmasterIngestionStore } from "@/services/industry-events/ticketmaster-ingestion-core";
+import { deriveTicketmasterStatusTransition } from "@/services/industry-events/ticketmaster-longitudinal-core";
 
 function chunks<T>(values: readonly T[], size: number): T[][] {
   const result: T[][] = [];
@@ -96,6 +97,7 @@ export class PrismaTicketmasterIngestionStore implements TicketmasterIngestionSt
   }
 
   async persistEvents(input: {
+    runId: string;
     sourceId: string;
     events: readonly TicketmasterEventRecord[];
     retrievedAt: Date;
@@ -175,20 +177,53 @@ export class PrismaTicketmasterIngestionStore implements TicketmasterIngestionSt
         : null;
       const data = eventData(event, input.sourceId, venueId, input.retrievedAt);
       if (current) {
-        const statusChanged = current.status !== event.status;
-        if (statusChanged) statusChanges += 1;
-        await this.prisma.ticketmasterEvent.update({
-          where: { id: current.id },
-          data: {
-            ...data,
-            previousStatus: statusChanged
-              ? current.status
-              : current.previousStatus,
-            statusChangedAt: statusChanged
-              ? input.retrievedAt
-              : current.statusChangedAt,
-          },
+        const transition = deriveTicketmasterStatusTransition({
+          sourceEventId: event.ticketmasterId,
+          countryCode: event.countryCode,
+          segmentName: event.segmentName,
+          previousStatus: current.status,
+          newStatus: event.status,
+          observedAt: input.retrievedAt,
         });
+        if (transition) {
+          statusChanges += await this.prisma.$transaction(
+            async (transaction) => {
+              await transaction.ticketmasterEvent.update({
+                where: { id: current.id },
+                data: {
+                  ...data,
+                  previousStatus: current.status,
+                  statusChangedAt: input.retrievedAt,
+                },
+              });
+              const created =
+                await transaction.ticketmasterEventStatusChange.createMany({
+                  data: [
+                    {
+                      ticketmasterEventId: current.id,
+                      ingestionRunId: input.runId,
+                      ...transition,
+                      metadata: {
+                        sourcePlatform: event.sourcePlatform,
+                        disappearanceTransition: false,
+                      },
+                    },
+                  ],
+                  skipDuplicates: true,
+                });
+              return created.count;
+            },
+          );
+        } else {
+          await this.prisma.ticketmasterEvent.update({
+            where: { id: current.id },
+            data: {
+              ...data,
+              previousStatus: current.previousStatus,
+              statusChangedAt: current.statusChangedAt,
+            },
+          });
+        }
       } else {
         await this.prisma.ticketmasterEvent.create({
           data: {
@@ -209,8 +244,17 @@ export class PrismaTicketmasterIngestionStore implements TicketmasterIngestionSt
   async completeRun(
     input: Parameters<TicketmasterIngestionStore["completeRun"]>[0],
   ): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.ingestionRun.update({
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.ticketmasterSupplySnapshot.createMany({
+        data: input.snapshots.map((snapshot) => ({
+          ...snapshot,
+          eventsPerVenue: snapshot.eventsPerVenue,
+          priceCoveragePct: snapshot.priceCoveragePct,
+          statusCounts: snapshot.statusCounts,
+        })),
+        skipDuplicates: true,
+      });
+      await transaction.ingestionRun.update({
         where: { id: input.runId },
         data: {
           status: "succeeded",
@@ -221,12 +265,12 @@ export class PrismaTicketmasterIngestionStore implements TicketmasterIngestionSt
           errorMessage: null,
           metadata: input.metadata as Prisma.InputJsonValue,
         },
-      }),
-      this.prisma.dataSource.update({
+      });
+      await transaction.dataSource.update({
         where: { id: input.sourceId },
         data: { lastSuccessfulSyncAt: input.completedAt },
-      }),
-    ]);
+      });
+    });
   }
 
   async failRun(

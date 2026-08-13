@@ -144,22 +144,22 @@ model TicketmasterVenue {
 }
 
 model TicketmasterEvent {
-  id                  String             @id @default(uuid()) @db.Uuid
-  ticketmasterId      String             @unique
-  sourceId            String             @db.Uuid
-  venueId             String?            @db.Uuid
+  id                  String                          @id @default(uuid()) @db.Uuid
+  ticketmasterId      String                          @unique
+  sourceId            String                          @db.Uuid
+  venueId             String?                         @db.Uuid
   name                String
   sourceUrl           String
   sourcePlatform      String
-  countryCode         String             @db.VarChar(3)
+  countryCode         String                          @db.VarChar(3)
   sectorSlug          String
   localDate           String
   localTime           String?
-  eventDateTime       DateTime?          @db.Timestamptz(3)
+  eventDateTime       DateTime?                       @db.Timestamptz(3)
   timezone            String?
   status              String
   previousStatus      String?
-  statusChangedAt     DateTime?          @db.Timestamptz(3)
+  statusChangedAt     DateTime?                       @db.Timestamptz(3)
   segmentId           String
   segmentName         String
   genreId             String?
@@ -168,24 +168,25 @@ model TicketmasterEvent {
   subGenreName        String?
   promoterId          String?
   promoterName        String?
-  publicOnsaleStartAt DateTime?          @db.Timestamptz(3)
-  publicOnsaleEndAt   DateTime?          @db.Timestamptz(3)
-  priceMin            Decimal?           @db.Decimal(12, 2)
-  priceMax            Decimal?           @db.Decimal(12, 2)
-  priceCurrency       String?            @db.VarChar(3)
+  publicOnsaleStartAt DateTime?                       @db.Timestamptz(3)
+  publicOnsaleEndAt   DateTime?                       @db.Timestamptz(3)
+  priceMin            Decimal?                        @db.Decimal(12, 2)
+  priceMax            Decimal?                        @db.Decimal(12, 2)
+  priceCurrency       String?                         @db.VarChar(3)
   priceType           String?
   locale              String?
-  testEvent           Boolean            @default(false)
-  firstSeenAt         DateTime           @db.Timestamptz(3)
-  lastSeenAt          DateTime           @db.Timestamptz(3)
-  retrievedAt         DateTime           @db.Timestamptz(3)
-  metadata            Json               @default("{}")
-  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
-  source              DataSource         @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  venue               TicketmasterVenue? @relation(fields: [venueId], references: [id], onDelete: SetNull)
-  country             Country            @relation(fields: [countryCode], references: [code], onDelete: Restrict, onUpdate: Cascade)
-  sector              Sector             @relation(fields: [sectorSlug], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+  testEvent           Boolean                         @default(false)
+  firstSeenAt         DateTime                        @db.Timestamptz(3)
+  lastSeenAt          DateTime                        @db.Timestamptz(3)
+  retrievedAt         DateTime                        @db.Timestamptz(3)
+  metadata            Json                            @default("{}")
+  createdAt           DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                        @updatedAt @db.Timestamptz(3)
+  source              DataSource                      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  venue               TicketmasterVenue?              @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  country             Country                         @relation(fields: [countryCode], references: [code], onDelete: Restrict, onUpdate: Cascade)
+  sector              Sector                          @relation(fields: [sectorSlug], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+  statusChanges       TicketmasterEventStatusChange[]
 
   @@index([eventDateTime])
   @@index([countryCode, sectorSlug, eventDateTime])
@@ -194,19 +195,71 @@ model TicketmasterEvent {
   @@index([sourceId])
 }
 
+model TicketmasterEventStatusChange {
+  id                  String            @id @default(uuid()) @db.Uuid
+  ticketmasterEventId String            @db.Uuid
+  ingestionRunId      String            @db.Uuid
+  sourceEventId       String
+  countryCode         String            @db.VarChar(3)
+  segmentName         String
+  previousStatus      String
+  newStatus           String
+  changedAt           DateTime          @db.Timestamptz(3)
+  observedAt          DateTime          @db.Timestamptz(3)
+  metadata            Json              @default("{}")
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  ticketmasterEvent   TicketmasterEvent @relation(fields: [ticketmasterEventId], references: [id], onDelete: Cascade)
+  ingestionRun        IngestionRun      @relation(fields: [ingestionRunId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketmasterEventId, ingestionRunId])
+  @@index([observedAt])
+  @@index([countryCode, segmentName, observedAt])
+  @@index([previousStatus, newStatus, observedAt])
+  @@index([sourceEventId])
+}
+
+model TicketmasterSupplySnapshot {
+  id                       String       @id @default(uuid()) @db.Uuid
+  ingestionRunId           String       @db.Uuid
+  capturedAt               DateTime     @db.Timestamptz(3)
+  windowDays               Int
+  countryCode              String       @db.VarChar(3)
+  segmentName              String
+  uniqueEventCount         Int
+  activeVenueCount         Int
+  eventsPerVenue           Decimal?     @db.Decimal(14, 6)
+  onsaleCount              Int
+  offsaleCount             Int
+  cancelledCount           Int
+  canceledCount            Int
+  postponedCount           Int
+  rescheduledCount         Int
+  priceRangeAvailableCount Int
+  priceCoveragePct         Decimal?     @db.Decimal(7, 4)
+  statusCounts             Json         @default("{}")
+  createdAt                DateTime     @default(now()) @db.Timestamptz(3)
+  ingestionRun             IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Cascade)
+
+  @@unique([ingestionRunId, windowDays, countryCode, segmentName])
+  @@index([countryCode, segmentName, windowDays, capturedAt])
+  @@index([capturedAt])
+}
+
 model IngestionRun {
-  id             String     @id @default(uuid()) @db.Uuid
-  sourceId       String     @db.Uuid
-  status         String
-  startedAt      DateTime   @db.Timestamptz(3)
-  completedAt    DateTime?  @db.Timestamptz(3)
-  recordsRead    Int        @default(0)
-  recordsCreated Int        @default(0)
-  recordsUpdated Int        @default(0)
-  errorMessage   String?
-  metadata       Json       @default("{}")
-  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
-  source         DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  id                          String                          @id @default(uuid()) @db.Uuid
+  sourceId                    String                          @db.Uuid
+  status                      String
+  startedAt                   DateTime                        @db.Timestamptz(3)
+  completedAt                 DateTime?                       @db.Timestamptz(3)
+  recordsRead                 Int                             @default(0)
+  recordsCreated              Int                             @default(0)
+  recordsUpdated              Int                             @default(0)
+  errorMessage                String?
+  metadata                    Json                            @default("{}")
+  createdAt                   DateTime                        @default(now()) @db.Timestamptz(3)
+  source                      DataSource                      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  ticketmasterStatusChanges   TicketmasterEventStatusChange[]
+  ticketmasterSupplySnapshots TicketmasterSupplySnapshot[]
 
   @@index([sourceId, startedAt])
   @@index([status])

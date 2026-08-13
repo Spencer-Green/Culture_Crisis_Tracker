@@ -1,0 +1,62 @@
+[
+  {
+    "id": 100,
+    "name": "Fixture Main Game",
+    "slug": "fixture-main-game",
+    "first_release_date": 1767225600,
+    "game_type": { "id": 0, "type": "Main Game" },
+    "created_at": 1704067200,
+    "updated_at": 1767225600,
+    "genres": [{ "id": 12, "name": "Role-playing (RPG)" }],
+    "themes": [{ "id": 17, "name": "Fantasy" }],
+    "platforms": [{ "id": 6, "name": "PC (Microsoft Windows)" }],
+    "involved_companies": [
+      {
+        "developer": true,
+        "publisher": false,
+        "company": { "id": 50, "name": "Fixture Developer" }
+      },
+      {
+        "developer": false,
+        "publisher": true,
+        "company": { "id": 51, "name": "Fixture Publisher" }
+      }
+    ],
+    "external_games": [
+      {
+        "uid": "123456",
+        "name": "Fixture Main Game",
+        "url": "https://store.steampowered.com/app/123456",
+        "external_game_source": { "id": 1, "name": "Steam" }
+      }
+    ],
+    "release_dates": [
+      {
+        "id": 1000,
+        "date": 1767225600,
+        "date_format": 0,
+        "release_region": 8,
+        "platform": { "id": 6, "name": "PC (Microsoft Windows)" }
+      }
+    ]
+  },
+  {
+    "id": 101,
+    "name": "Fixture DLC",
+    "slug": "fixture-dlc",
+    "game_type": { "id": 1, "type": "DLC" }
+  },
+  {
+    "id": 102,
+    "name": "Fixture Collector Edition",
+    "slug": "fixture-collector-edition",
+    "game_type": { "id": 0, "type": "Main Game" },
+    "version_parent": { "id": 100 }
+  },
+  {
+    "id": 103,
+    "name": "Fixture Remake",
+    "slug": "fixture-remake",
+    "game_type": { "id": 8, "type": "Remake" }
+  }
+]

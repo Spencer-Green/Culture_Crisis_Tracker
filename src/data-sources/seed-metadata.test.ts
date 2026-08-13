@@ -23,6 +23,8 @@ describe("source seed metadata", () => {
       getSourceDefinition("ons"),
       getSourceDefinition("statcan"),
       getSourceDefinition("ticketmaster"),
+      getSourceDefinition("igdb"),
+      getSourceDefinition("steam"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -46,10 +48,14 @@ describe("source seed metadata", () => {
                           STATCAN_BASE_URL:
                             "https://www150.statcan.gc.ca/t1/wds",
                         }
-                      : {
-                          TICKETMASTER_BASE_URL:
-                            "https://app.ticketmaster.com/discovery/v2",
-                        },
+                      : source.slug === "ticketmaster"
+                        ? {
+                            TICKETMASTER_BASE_URL:
+                              "https://app.ticketmaster.com/discovery/v2",
+                          }
+                        : source.slug === "igdb"
+                          ? { IGDB_BASE_URL: "https://api.igdb.com/v4" }
+                          : { STEAM_BASE_URL: "https://api.steampowered.com/" },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -63,6 +69,8 @@ describe("source seed metadata", () => {
           "ons",
           "statcan",
           "ticketmaster",
+          "igdb",
+          "steam",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -75,6 +83,8 @@ describe("source seed metadata", () => {
       "ons",
       "statcan",
       "ticketmaster",
+      "igdb",
+      "steam",
     ]);
     expect(
       operations.every(

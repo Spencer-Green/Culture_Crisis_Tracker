@@ -3,6 +3,9 @@ export type FetchImplementation = typeof fetch;
 export type FetchTextOptions = {
   accept: string;
   acceptedContentTypes: readonly string[];
+  method?: "GET" | "POST";
+  requestHeaders?: Readonly<Record<string, string>>;
+  body?: string;
   timeoutMs?: number;
   maxResponseBytes?: number;
   fetchImplementation?: FetchImplementation;
@@ -94,7 +97,10 @@ export async function fetchText(
         headers: {
           Accept: options.accept,
           "User-Agent": USER_AGENT,
+          ...options.requestHeaders,
         },
+        method: options.method ?? "GET",
+        body: options.body,
         signal: controller.signal,
       },
     );

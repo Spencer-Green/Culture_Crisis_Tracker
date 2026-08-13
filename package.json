@@ -31,7 +31,11 @@
     "ingest:gdelt": "node --conditions=react-server --import tsx scripts/ingest-gdelt.ts",
     "ingest:ticketmaster": "node --conditions=react-server --import tsx scripts/ingest-ticketmaster.ts",
     "ticketmaster:inspect": "node --conditions=react-server --import tsx scripts/ticketmaster-inspect.ts",
-    "ticketmaster:baseline": "node --conditions=react-server --import tsx scripts/ticketmaster-baseline.ts"
+    "ticketmaster:baseline": "node --conditions=react-server --import tsx scripts/ticketmaster-baseline.ts",
+    "igdb:inspect": "node --conditions=react-server --import tsx scripts/igdb-inspect.ts",
+    "ingest:igdb": "node --conditions=react-server --import tsx scripts/ingest-igdb.ts",
+    "steam:inspect": "node --conditions=react-server --import tsx scripts/steam-inspect.ts",
+    "ingest:steam": "node --conditions=react-server --import tsx scripts/ingest-steam.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

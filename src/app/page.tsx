@@ -16,6 +16,7 @@ import { getOverviewState } from "@/services/overview";
 import { getGdeltCorpusOverview } from "@/services/industry-events/events";
 import { getTicketmasterCrossSectorTrends } from "@/services/industry-events/ticketmaster-longitudinal";
 import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticketmaster-supply";
+import { getGamingOverview } from "@/services/gaming/analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -180,12 +181,14 @@ export default async function OverviewPage() {
     gdeltCorpus,
     ticketmasterSupply,
     crossSectorTrends,
+    gamingOverview,
   ] = await Promise.all([
     getOverviewState(),
     getConsumerSpendingData(),
     getGdeltCorpusOverview(),
     getTicketmasterSupplyOverview(),
     getTicketmasterCrossSectorTrends(),
+    getGamingOverview(),
   ]);
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
@@ -239,6 +242,16 @@ export default async function OverviewPage() {
       status: "Pending",
       detail: "No observations",
       tone: "text-zinc-300",
+    },
+    {
+      title: "Gaming",
+      status:
+        gamingOverview.trackedGames > 0 ? "Collecting market data" : "Pending",
+      detail:
+        gamingOverview.trackedGames > 0
+          ? `${gamingOverview.trackedGames.toLocaleString()} releases · ${gamingOverview.steamMappedGames.toLocaleString()} Steam mapped`
+          : "No structured game records",
+      tone: gamingOverview.trackedGames > 0 ? "text-blue-300" : "text-zinc-300",
     },
     {
       title: "AI Disruption",
@@ -327,7 +340,7 @@ export default async function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {indicators.map((indicator) => (
           <section
             key={indicator.title}

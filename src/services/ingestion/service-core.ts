@@ -48,7 +48,9 @@ export function sanitiseIngestionError(error: unknown): string {
       error.name === "EurostatResponseError" ||
       error.name === "StatCanResponseError" ||
       error.name === "GdeltResponseError" ||
-      error.name === "TicketmasterResponseError")
+      error.name === "TicketmasterResponseError" ||
+      error.name === "IgdbResponseError" ||
+      error.name === "SteamResponseError")
   ) {
     return error.message.slice(0, 500);
   }

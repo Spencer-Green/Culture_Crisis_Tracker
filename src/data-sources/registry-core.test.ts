@@ -34,7 +34,7 @@ describe("source registry", () => {
     expect(sources).toHaveLength(13);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(8);
+    ).toHaveLength(10);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -78,6 +78,11 @@ describe("source registry", () => {
       isPublic: false,
       requiresAuthentication: true,
       countries: ["AU", "US", "GB", "CA"],
+    });
+    expect(sources.find((source) => source.slug === "igdb")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      requiresAuthentication: true,
     });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,

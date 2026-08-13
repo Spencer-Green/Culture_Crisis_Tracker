@@ -53,6 +53,8 @@ model DataSource {
   metricDefinitions      MetricDefinition[]
   ingestionRuns          IngestionRun[]
   ticketmasterEvents     TicketmasterEvent[]
+  games                  Game[]
+  steamGameSnapshots     SteamGameSnapshot[]
 
   @@index([countryCode])
   @@index([sectorSlug])
@@ -260,7 +262,166 @@ model IngestionRun {
   source                      DataSource                      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   ticketmasterStatusChanges   TicketmasterEventStatusChange[]
   ticketmasterSupplySnapshots TicketmasterSupplySnapshot[]
+  steamGameSnapshots          SteamGameSnapshot[]
 
   @@index([sourceId, startedAt])
   @@index([status])
+}
+
+model Game {
+  id                  String              @id @default(uuid()) @db.Uuid
+  igdbId              Int                 @unique
+  sourceId            String              @db.Uuid
+  name                String
+  slug                String
+  firstReleaseDate    DateTime?           @db.Timestamptz(3)
+  gameTypeId          Int
+  gameTypeName        String
+  gameStatusId        Int?
+  gameStatusName      String?
+  parentIgdbId        Int?
+  versionParentIgdbId Int?
+  steamAppId          Int?
+  igdbCreatedAt       DateTime?           @db.Timestamptz(3)
+  igdbUpdatedAt       DateTime?           @db.Timestamptz(3)
+  firstSeenAt         DateTime            @db.Timestamptz(3)
+  lastSeenAt          DateTime            @db.Timestamptz(3)
+  retrievedAt         DateTime            @db.Timestamptz(3)
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  source              DataSource          @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  companies           GameCompanyRole[]
+  genres              GameGenre[]
+  platforms           GamePlatform[]
+  releases            GameRelease[]
+  externalIds         GameExternalId[]
+  steamSnapshots      SteamGameSnapshot[]
+
+  @@index([firstReleaseDate])
+  @@index([gameTypeId])
+  @@index([gameStatusId])
+  @@index([sourceId])
+  @@index([steamAppId])
+}
+
+model GameCompany {
+  id          String            @id @default(uuid()) @db.Uuid
+  igdbId      Int               @unique
+  name        String
+  firstSeenAt DateTime          @db.Timestamptz(3)
+  lastSeenAt  DateTime          @db.Timestamptz(3)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+  games       GameCompanyRole[]
+
+  @@index([name])
+}
+
+model GameCompanyRole {
+  id        String      @id @default(uuid()) @db.Uuid
+  gameId    String      @db.Uuid
+  companyId String      @db.Uuid
+  developer Boolean     @default(false)
+  publisher Boolean     @default(false)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
+  game      Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  company   GameCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, companyId])
+  @@index([companyId, developer, publisher])
+}
+
+model GameGenre {
+  id          String   @id @default(uuid()) @db.Uuid
+  gameId      String   @db.Uuid
+  igdbGenreId Int
+  name        String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, igdbGenreId])
+  @@index([igdbGenreId, name])
+}
+
+model GamePlatform {
+  id             String   @id @default(uuid()) @db.Uuid
+  gameId         String   @db.Uuid
+  igdbPlatformId Int
+  name           String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, igdbPlatformId])
+  @@index([igdbPlatformId, name])
+}
+
+model GameRelease {
+  id                String    @id @default(uuid()) @db.Uuid
+  gameId            String    @db.Uuid
+  igdbReleaseDateId Int       @unique
+  releaseDate       DateTime? @db.Timestamptz(3)
+  dateCategory      Int?
+  regionId          Int?
+  platformIgdbId    Int?
+  platformName      String?
+  statusId          Int?
+  statusName        String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  game              Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, releaseDate])
+  @@index([platformIgdbId, releaseDate])
+}
+
+model GameExternalId {
+  id        String   @id @default(uuid()) @db.Uuid
+  gameId    String   @db.Uuid
+  category  Int
+  uid       String
+  name      String?
+  sourceUrl String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, category, uid])
+  @@index([gameId, category])
+}
+
+model SteamGameSnapshot {
+  id               String       @id @default(uuid()) @db.Uuid
+  gameId           String       @db.Uuid
+  sourceId         String       @db.Uuid
+  ingestionRunId   String       @db.Uuid
+  steamAppId       Int
+  capturedAt       DateTime     @db.Timestamptz(3)
+  retrievedAt      DateTime     @db.Timestamptz(3)
+  storeAvailable   Boolean
+  currentPlayers   Int?
+  totalReviews     Int?
+  positiveReviews  Int?
+  positivePercent  Decimal?     @db.Decimal(7, 4)
+  reviewScore      Int?
+  reviewScoreLabel String?
+  currentPrice     Int?
+  originalPrice    Int?
+  discountPercent  Int?
+  currency         String?      @db.VarChar(3)
+  freeToPlay       Boolean?
+  storeReleaseDate String?
+  metadata         Json         @default("{}")
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  game             Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  source           DataSource   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  ingestionRun     IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, capturedAt])
+  @@index([capturedAt])
+  @@index([steamAppId, capturedAt])
+  @@index([sourceId])
+  @@index([ingestionRunId])
 }

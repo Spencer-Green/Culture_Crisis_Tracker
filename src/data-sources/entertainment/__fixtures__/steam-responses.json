@@ -1,0 +1,36 @@
+{
+  "players": { "response": { "player_count": 4321, "result": 1 } },
+  "reviews": {
+    "success": 1,
+    "query_summary": {
+      "num_reviews": 0,
+      "review_score": 8,
+      "review_score_desc": "Very Positive",
+      "total_positive": 900,
+      "total_negative": 100,
+      "total_reviews": 1000
+    }
+  },
+  "details": {
+    "123456": {
+      "success": true,
+      "data": {
+        "type": "game",
+        "name": "Fixture Main Game",
+        "steam_appid": 123456,
+        "is_free": false,
+        "developers": ["Fixture Developer"],
+        "publishers": ["Fixture Publisher"],
+        "price_overview": {
+          "currency": "USD",
+          "initial": 4999,
+          "final": 2499,
+          "discount_percent": 50
+        },
+        "release_date": { "coming_soon": false, "date": "Jan 1, 2026" },
+        "genres": [{ "id": "3", "description": "RPG" }]
+      }
+    }
+  },
+  "unavailable": { "999999": { "success": false } }
+}

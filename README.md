@@ -11,7 +11,8 @@ household-demand data from ABS, ONS, BEA, and Statistics Canada, plus US consume
 credit-card stress data from FRED. Eurostat annual EU data is retained separately as a structural
 benchmark. GDELT supplies a reviewable media-event candidate corpus and Ticketmaster supplies a
 structured forward live-event calendar for industry-viability research; neither produces an
-Industry Viability score.
+Industry Viability score. IGDB and Steam provide a structured gaming release corpus and
+point-in-time Steam activity snapshots without creating a Gaming Stress score.
 
 ## Technology
 
@@ -52,6 +53,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/culture_crisis_tracke
 
 Secrets belong only in the ignored local `.env` file and must never be committed. BEA and FRED
 ingestion require `BEA_API_KEY` and `FRED_API_KEY`; leave credentials for unused providers blank.
+IGDB ingestion requires `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET`; Steam readiness requires
+`STEAM_WEB_API_KEY`. All three values remain server-only.
 The ABS base URL should remain:
 
 ```bash
@@ -136,8 +139,8 @@ src/
 
 The static source catalogue is the canonical definition of supported providers and their coverage.
 The server-side runtime registry combines that metadata with safe environment readiness and mutable
-database state. ABS, ONS, BEA, FRED, Eurostat, Statistics Canada, GDELT, and Ticketmaster are
-implemented.
+database state. ABS, ONS, BEA, FRED, Eurostat, Statistics Canada, GDELT, Ticketmaster, IGDB, and
+Steam are implemented.
 Eurostat is classified as a structural benchmark rather than an active current source. GDELT is an
 event-candidate source rather than a metric-observation source. All other adapters remain inert
 placeholders whose metric discovery and observation methods throw a clear `NotImplementedError`.
@@ -147,12 +150,12 @@ placeholders whose metric discovery and observation methods throw a clear `NotIm
 Source status uses four independent concepts:
 
 - **Implemented** means a functioning adapter exists. ABS, ONS, BEA, FRED, Eurostat, Statistics
-  Canada, GDELT, and Ticketmaster are implemented.
+  Canada, GDELT, Ticketmaster, IGDB, and Steam are implemented.
 - **Configured** means the required base URL is valid and all declared credentials are present.
   It does not verify credentials against a provider.
 - **Enabled** is mutable database state that explicitly permits ingestion. New ABS, ONS, BEA,
-  FRED, Eurostat, Statistics Canada, GDELT, and Ticketmaster records use enabled defaults; routine seed reruns
-  preserve existing manual enablement and sync timestamps.
+  FRED, Eurostat, Statistics Canada, GDELT, Ticketmaster, IGDB, and Steam records use enabled
+  defaults; routine seed reruns preserve existing manual enablement and sync timestamps.
 - **Healthy** is runtime connectivity state. Configuration or successful ingestion does not imply
   health; the registry reports `not-checked` unless a health check has actually run.
 
@@ -911,6 +914,108 @@ comparable capture exists it says `Collecting longitudinal history`; Overview us
 state for cross-sector comparison. Ticketmaster remains coverage-limited and is not the full
 live-event market.
 
+## IGDB and Steam gaming data
+
+### IGDB authentication and release scope
+
+IGDB uses the official v4 API root:
+
+```text
+https://api.igdb.com/v4/
+```
+
+The server obtains a Twitch app access token with the client-credentials flow at
+`POST https://id.twitch.tv/oauth2/token`. `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` are read from
+`.env`; the access token is cached in memory until shortly before its reported expiry. Client
+credentials, bearer tokens, authenticated headers, and authenticated request details are never
+persisted, logged, or serialized to the browser. The runtime does not use a user OAuth flow or the
+configured redirect URI.
+
+The release corpus uses IGDB `games` records from 2019 onward plus approximately 180 days of
+upcoming releases. The phase-one corpus also requires an involved-company record so release-supply
+and concentration attribution remain auditable. Cancelled (`6`) and Rumored (`7`) statuses are
+excluded while source records with unspecified status remain eligible. Queries are partitioned into deterministic monthly date windows, page at 500
+records, run sequentially, and use a local 275 ms minimum request interval under IGDB's documented
+four-requests-per-second limit. HTTP 429 and transient 5xx responses receive at most two bounded
+retries. The inspection command also validates `game_types`, `external_game_sources`, `genres`, and
+`platforms`:
+
+```bash
+npm run igdb:inspect
+npm run ingest:igdb -- --start=2019-01-01 --end=2027-02-09
+```
+
+Phase-one inclusion is source-defined `Main Game` (`0`), `Standalone Expansion` (`4`), `Remake`
+(`8`), and `Remaster` (`9`). Records with `version_parent` are excluded to avoid collector and
+edition duplicates. DLC, non-standalone expansions, bundles, mods, episodes, seasons, packs,
+updates, expanded editions, ports, and forks are excluded by their IGDB game type. Standalone
+remakes and remasters remain valid records. This is a conservative source-field policy rather than
+title heuristics. Requiring company attribution can omit legitimate releases with incomplete IGDB
+company metadata, and source miscoding can still affect scope.
+
+`Game` uses the IGDB ID as provider identity and preserves name, slug, first release date, exact
+game type, parent/version references, IGDB timestamps, and first/last-seen timestamps. Normalized
+relations preserve companies and developer/publisher flags, genres, platforms, release-date
+records, release region/date precision, and external identifiers. Company and release metadata is
+updated idempotently; raw macro observations and Ticketmaster/GDELT records are unaffected.
+
+Steam matching uses only IGDB `external_game_source = Steam` (live source ID `1`) and its numeric
+`uid`. There is no title fuzzy matching or catalog-wide guess. Multiple source records can retain a
+shared Steam app identity, while Steam enrichment selects one deterministic IGDB record per app ID.
+
+### Steam activity and commercial overlay
+
+Steam enrichment is limited to validated IGDB Steam mappings. It does not enumerate the entire
+Steam catalog. Phase one uses Valve-owned endpoints:
+
+- `GET https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=...` for
+  current players. This is a concurrent-player count for users currently connected to Steam, not
+  DAU, MAU, sales, or lifetime audience.
+- `GET https://store.steampowered.com/appreviews/{appid}?json=1...` for the official review summary:
+  total reviews, positive reviews/percentage, and source score label. Reviews are engagement and
+  sentiment evidence, not unit sales.
+- `GET https://store.steampowered.com/api/appdetails?appids=...` for current Valve store metadata,
+  price in source minor units, currency, discount, free-to-play status, developers, publishers, and
+  release-date text. Missing price data remains null and currencies are not converted.
+
+The modern authenticated `IStoreService/GetAppList/v1` endpoint requires a suitable Web API key.
+Local inspection currently receives HTTP 403 for the configured non-publisher key, so that endpoint
+is not used. The older all-app endpoint is deprecated and is also not used. The source remains
+configured only when the official base URL and `STEAM_WEB_API_KEY` are present, but current player,
+review, and store collection does not attach the key unnecessarily to public requests.
+
+Valve requests are sequential with a 275 ms minimum interval and bounded retry for HTTP 429 and
+transient 5xx responses. Inspect endpoints without database writes, then enrich bounded mapped
+batches:
+
+```bash
+npm run steam:inspect
+npm run ingest:steam -- --limit=100
+npm run ingest:steam -- --limit=500 --offset=500
+```
+
+`SteamGameSnapshot` separates dynamic observations from static IGDB metadata. It stores the game
+and Steam identities, capture and retrieval timestamps, current players, review summary, current
+and original price, discount, currency, free-to-play and store-availability state. The default
+capture identity is the UTC hour. Retrying a batch in that hour updates the same game/capture row;
+a later hour creates legitimate new history. No pre-ingestion Steam activity is reconstructed.
+
+The Gaming page presents tracked releases over time, 30/90/180-day upcoming supply, source genre
+and platform mix, distinct developers and publishers, top-ten release shares, Steam player/review
+coverage, and current price/discount/free-to-play coverage. Publisher/developer concentration is a
+share of attributed tracked releases, not revenue or employment concentration. A summed concurrent
+player snapshot is Steam-covered activity across collected titles, not total gaming engagement.
+
+Important limitations:
+
+- IGDB release and company metadata completeness varies by record and horizon.
+- Steam covers one platform, not the full PC or gaming market.
+- Current players are concurrent connected users, not generalized active users.
+- Reviews are not sales and discounts are not distress.
+- Farther-out upcoming release counts are less mature.
+- Longitudinal Steam interpretation begins only after multiple snapshots accumulate.
+- No Gaming Stress Index or Industry Viability score is calculated.
+
 ## Credential safety
 
 - `.env`, `.env.local`, and environment-specific local files are ignored by Git.
@@ -926,16 +1031,18 @@ The local `.env` uses the development-only PostgreSQL credentials defined in
 
 ## Current limitations
 
-- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, and Ticketmaster are active sources; Eurostat
-  remains enabled as the EU Structural Benchmark; every other provider remains unimplemented and disabled
-- No scheduled jobs or general retry framework; ONS, GDELT, and Ticketmaster use source-specific
-  bounded retries
+- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, Ticketmaster, IGDB, and Steam are active sources;
+  Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
+  unimplemented and disabled
+- No scheduled jobs or general retry framework; ONS, GDELT, Ticketmaster, IGDB, and Steam use
+  source-specific bounded retries
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
 - Persisted metrics include six from ABS, four each from ONS, BEA, Eurostat, and Statistics Canada
-  plus seven FRED metrics; GDELT records remain article candidates, while Ticketmaster records are
-  structured forward event-supply observations rather than validated business outcomes
+  plus seven FRED metrics; GDELT records remain article candidates, Ticketmaster records are
+  structured forward event-supply observations, IGDB records are tracked releases, and Steam rows
+  are point-in-time snapshots rather than reconstructed history
 - `DataSource.countryCode` and `DataSource.sectorSlug` hold only unambiguous single-value metadata.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.
@@ -948,10 +1055,10 @@ composite indicators remain explicit empty states; they do not contain fabricate
 
 1. Expand comparable consumer-spending series across the six markets.
 2. Add source-specific scheduling and operational monitoring.
-3. Add entertainment event and gaming sources.
+3. Accumulate recurring gaming and live-event snapshots.
 4. Add news-derived industry events with provenance and confidence review.
 5. Define and validate composite indicators only after source coverage is sufficient.
 
-The recommended next task is scheduling recurring Ticketmaster snapshots and defining retention for
-status transitions, alongside manual review of the bounded GDELT corpus. No additional provider
-should be added until those evidence-quality foundations are established.
+The recommended next task is scheduling recurring Steam and Ticketmaster snapshots with retention
+and capture-completeness monitoring. No additional provider should be added until those
+longitudinal evidence-quality foundations are established.

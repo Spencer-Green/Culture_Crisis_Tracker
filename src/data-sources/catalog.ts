@@ -148,7 +148,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ALL_COUNTRIES,
     sectors: ["gaming"],
     requiresAuthentication: true,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "igdb",
@@ -159,7 +159,7 @@ export const SOURCE_DEFINITIONS = [
     countries: ALL_COUNTRIES,
     sectors: ["gaming"],
     requiresAuthentication: true,
-    implementationStatus: "not-implemented",
+    implementationStatus: "implemented",
   },
   {
     slug: "mediastack",

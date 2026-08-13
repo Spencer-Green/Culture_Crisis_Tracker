@@ -51,6 +51,8 @@ export function buildSourceSeedOperation(
       "ons",
       "statcan",
       "ticketmaster",
+      "igdb",
+      "steam",
     ].includes(source.slug),
   };
 

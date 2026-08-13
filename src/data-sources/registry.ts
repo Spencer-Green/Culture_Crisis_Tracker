@@ -14,6 +14,8 @@ import { statcanAdapter } from "@/data-sources/macro/statcan";
 import { statsNzAdapter } from "@/data-sources/macro/stats-nz";
 import { gdeltAdapter } from "@/data-sources/news/gdelt";
 import { mediastackAdapter } from "@/data-sources/news/mediastack";
+import { rssAdapter } from "@/data-sources/news/rss";
+import { theNewsApiAdapter } from "@/data-sources/news/thenewsapi";
 import { buildStaticSourceRegistry } from "@/data-sources/registry-core";
 import {
   buildRuntimeSourceRegistry,
@@ -36,6 +38,8 @@ export const adapters: readonly DataSourceAdapter[] = [
   eventbriteAdapter,
   steamAdapter,
   igdbAdapter,
+  theNewsApiAdapter,
+  rssAdapter,
   mediastackAdapter,
 ];
 

@@ -13,6 +13,8 @@ benchmark. GDELT supplies a reviewable media-event candidate corpus and Ticketma
 structured forward live-event calendar for industry-viability research; neither produces an
 Industry Viability score. IGDB and Steam provide a structured gaming release corpus and
 point-in-time Steam activity snapshots without creating a Gaming Stress score.
+TheNewsAPI and a curated RSS/Atom registry provide a unified, reviewable media-article layer for
+daily culture intelligence without storing full article bodies or producing a news-derived score.
 
 ## Technology
 
@@ -54,7 +56,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/culture_crisis_tracke
 Secrets belong only in the ignored local `.env` file and must never be committed. BEA and FRED
 ingestion require `BEA_API_KEY` and `FRED_API_KEY`; leave credentials for unused providers blank.
 IGDB ingestion requires `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET`; Steam readiness requires
-`STEAM_WEB_API_KEY`. All three values remain server-only.
+`STEAM_WEB_API_KEY`. TheNewsAPI ingestion requires `THENEWSAPI_API_KEY`. All credentials remain
+server-only.
 The ABS base URL should remain:
 
 ```bash
@@ -73,6 +76,12 @@ The authenticated US endpoints should remain:
 ```bash
 BEA_BASE_URL=https://apps.bea.gov/api/data
 FRED_BASE_URL=https://api.stlouisfed.org/fred
+```
+
+The media endpoint should remain:
+
+```bash
+THENEWSAPI_BASE_URL=https://api.thenewsapi.com/v1
 ```
 
 ## Database setup
@@ -1015,6 +1024,102 @@ Important limitations:
 - Farther-out upcoming release counts are less mature.
 - Longitudinal Steam interpretation begins only after multiple snapshots accumulate.
 - No Gaming Stress Index or Industry Viability score is calculated.
+
+## Culture Intelligence media layer
+
+### Unified article model
+
+`MediaArticle` is a raw article/story candidate, not a validated real-world event. It remains
+separate from GDELT's candidate-event records and Ticketmaster's structured events. The record
+stores a headline, API/feed snippet, publisher, safe canonical URL, publication/retrieval dates,
+tracker-derived sector/theme/polarity/confidence/importance/AI-impact tags, review state, and
+compact provenance. `MediaArticleSourceMatch` preserves every NewsAPI query-family or RSS-feed
+match without duplicating the article. Full article bodies are neither fetched nor stored.
+
+Canonical identity is the normalized HTTPS article URL. Host casing, fragments, trailing slashes,
+and common tracking parameters (`utm_*`, `gclid`, `fbclid`, and `mc_*`) are normalized while
+meaningful query identifiers remain. A repeated or cross-source canonical URL updates
+`lastSeenAt` and adds provenance rather than creating another article. A conservative normalized
+headline/time-window helper flags possible duplicate stories from different publishers; it does
+not merge them automatically.
+
+Classification is deterministic and uses only title, supplied description/snippet, source
+metadata, and a query/feed sector hint. Confidence is `LOW`, `MEDIUM`, or `HIGH`. Importance is a
+transparent tracker-derived 1–5 heuristic based on concrete named developments, rights/policy or
+labor implications, explicit scale terms, and cross-sector breadth; it is not an objective impact
+score. AI impact is tracked separately from general polarity so licensing, rights, labor,
+regulation, adoption, and creator-tool developments remain distinguishable.
+
+### TheNewsAPI
+
+The authenticated source uses only:
+
+```text
+GET https://api.thenewsapi.com/v1/news/all
+```
+
+The token is attached as `api_token` only at request time and removed from safe provenance URLs,
+errors, logs, and frontend data. Queries use the documented phrase, prefix, grouping, AND (`+`),
+OR (`|`), and exclusion syntax and are restricted to title, description, and keywords to reduce
+main-text false positives. Named families cover AI/creative work, closures, layoffs, insolvency,
+cancellations, demand weakness, funding cuts, consolidation, openings, investment, attendance or
+revenue growth, and expansion. Counter-signals are deliberately collected alongside stress
+candidates.
+
+The free-plan operating policy assumes 100 requests/day and three articles/request. A run defaults
+to 15 sequential targeted requests, has a hard application cap of 25, and reports usage. HTTP 429
+and transient 5xx responses receive at most two bounded retries. The source accepts UTC date-times
+in `YYYY-MM-DDTHH:mm:ss` format. Inspection uses only three representative requests and never
+writes to the database:
+
+```bash
+npm run media:newsapi:inspect
+npm run ingest:media:newsapi -- --hours=24 --max-requests=15
+npm run ingest:media:newsapi -- --hours=72 --family=ai-music
+```
+
+### Curated RSS and Atom
+
+RSS ingestion uses publisher-exposed RSS 2.0 or Atom endpoints, not manufactured feeds or
+third-party mirrors. The parser retains GUID, title, HTTPS link, published/updated time, a short
+HTML-stripped snippet, feed identity, and retrieval time. Source tiers (`PRIMARY_TRADE`,
+`MAJOR_GENERAL`, `SPECIALIST`, `OFFICIAL`) guide presentation priority; they are not truth scores.
+
+The live-validated registry has 18 enabled feeds:
+
+- Music: Music Business Worldwide, Billboard, NME Music, and Pitchfork News.
+- Film: Variety Film, Deadline Film, The Hollywood Reporter Movies, and IndieWire Film.
+- Theatre/arts: Playbill and ArtsHub Australia.
+- Gaming: GamesIndustry.biz, Game Developer, PC Gamer, and Polygon.
+- AI/policy: TechCrunch AI, Ars Technica Technology Lab, and Electronic Frontier Foundation.
+- Cross-sector: The Guardian Culture.
+
+BroadwayWorld is disabled because its publisher endpoint returned HTTP 403 during validation;
+TheaterMania is disabled because its endpoint returned no parseable items. Broken feeds are not
+silently counted healthy. Inspect and ingest with:
+
+```bash
+npm run media:rss:inspect
+npm run ingest:media:rss -- --hours=72
+npm run ingest:media:rss -- --hours=24 --sector=gaming
+```
+
+`/media` is the Culture Intelligence view with 24H/3D/7D and sector/AI filters, high-signal views,
+and a chronological feed. Music, Film, Theatre, and Gaming pages show complementary Recent
+Developments without replacing structured analytics. Overview shows factual 24-hour article
+counts and significant candidates; it does not generate a Daily Brief, sentiment score, AI
+Disruption score, Industry Viability score, or Culture Stress Index.
+
+Important media-methodology limits:
+
+- News coverage is not real-world event incidence, and absence of coverage is not absence of an
+  event.
+- Multiple outlets can cover one underlying story; possible-story flags are not validated event
+  clusters.
+- Publisher and feed coverage varies by country and sector.
+- Polarity describes the candidate article, not overall industry health.
+- Importance is tracker-derived, reviewable, and deliberately conservative.
+- No article URL is fetched server-side and no paywall or publisher restriction is bypassed.
 
 ## Credential safety
 

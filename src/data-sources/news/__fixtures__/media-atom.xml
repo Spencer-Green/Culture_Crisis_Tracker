@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Games Trade</title>
+  <entry>
+    <id>tag:example.com,2026:1</id>
+    <title>Game studio announces major hiring expansion</title>
+    <link rel="alternate" href="https://example.com/games/hiring" />
+    <updated>2026-08-13T03:00:00Z</updated>
+    <summary>One hundred new development roles.</summary>
+  </entry>
+</feed>

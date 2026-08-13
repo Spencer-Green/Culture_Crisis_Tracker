@@ -9,6 +9,7 @@ export const SECRET_ENVIRONMENT_KEYS = [
   "STEAM_WEB_API_KEY",
   "IGDB_CLIENT_ID",
   "IGDB_CLIENT_SECRET",
+  "THENEWSAPI_API_KEY",
   "MEDIASTACK_API_KEY",
 ] as const;
 
@@ -27,6 +28,8 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "EVENTBRITE_BASE_URL",
   "STEAM_BASE_URL",
   "IGDB_BASE_URL",
+  "THENEWSAPI_BASE_URL",
+  "RSS_BASE_URL",
   "MEDIASTACK_BASE_URL",
 ] as const;
 
@@ -57,6 +60,7 @@ export const serverEnvSchema = z.object({
   STEAM_WEB_API_KEY: optionalString,
   IGDB_CLIENT_ID: optionalString,
   IGDB_CLIENT_SECRET: optionalString,
+  THENEWSAPI_API_KEY: optionalString,
   MEDIASTACK_API_KEY: optionalString,
   ABS_BASE_URL: optionalUrl("ABS_BASE_URL"),
   BEA_BASE_URL: optionalUrl("BEA_BASE_URL"),
@@ -70,6 +74,12 @@ export const serverEnvSchema = z.object({
   EVENTBRITE_BASE_URL: optionalUrl("EVENTBRITE_BASE_URL"),
   STEAM_BASE_URL: optionalUrl("STEAM_BASE_URL"),
   IGDB_BASE_URL: optionalUrl("IGDB_BASE_URL"),
+  THENEWSAPI_BASE_URL: optionalUrl("THENEWSAPI_BASE_URL").default(
+    "https://api.thenewsapi.com/v1",
+  ),
+  RSS_BASE_URL: optionalUrl("RSS_BASE_URL").default(
+    "https://www.rssboard.org/rss-specification",
+  ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
 });
 

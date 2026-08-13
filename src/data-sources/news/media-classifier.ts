@@ -1,0 +1,372 @@
+import { getMediaQueryFamily } from "@/data-sources/news/media-queries";
+import {
+  canonicaliseMediaUrl,
+  storyFingerprint,
+} from "@/data-sources/news/media-dedup";
+import type {
+  AiImpactType,
+  ClassifiedMediaArticle,
+  MediaConfidence,
+  MediaEventType,
+  MediaPolarity,
+  MediaSectorSlug,
+  MediaSourceArticle,
+} from "@/data-sources/news/media-types";
+import type { CountryCode } from "@/lib/constants";
+
+type RuleMatch = {
+  eventType: MediaEventType;
+  polarity: MediaPolarity;
+  confidence: MediaConfidence;
+  aiImpactType: AiImpactType | null;
+  rationale: string;
+};
+
+const COUNTRY_PATTERNS: readonly [CountryCode, RegExp][] = [
+  [
+    "AU",
+    /\b(australia|australian|sydney|melbourne|brisbane|perth|adelaide)\b/i,
+  ],
+  ["US", /\b(united states|u\.s\.|american|hollywood|new york|los angeles)\b/i],
+  ["GB", /\b(united kingdom|britain|british|england|scotland|wales|london)\b/i],
+  ["CA", /\b(canada|canadian|toronto|vancouver|montreal|ottawa)\b/i],
+  ["NZ", /\b(new zealand|aotearoa|auckland|wellington)\b/i],
+  [
+    "EU",
+    /\b(european union|e\.u\.|european commission|european parliament)\b/i,
+  ],
+];
+
+export function inferMediaCountry(text: string): CountryCode | null {
+  const matches = COUNTRY_PATTERNS.filter(([, pattern]) => pattern.test(text));
+  return matches.length === 1 ? matches[0][0] : null;
+}
+
+export function classifyMediaSector(
+  text: string,
+  hint: MediaSectorSlug | null,
+): MediaSectorSlug {
+  const matches: MediaSectorSlug[] = [];
+  if (
+    /\b(music|musician|songwriter|record label|concert|festival|album)\b/i.test(
+      text,
+    )
+  )
+    matches.push("music");
+  if (
+    /\b(film|movie|cinema|television|tv|actor|screenwriter|vfx|box office|hollywood)\b/i.test(
+      text,
+    )
+  )
+    matches.push("film");
+  if (
+    /\b(theatre|theater|performing arts|playwright|stage production|broadway)\b/i.test(
+      text,
+    )
+  )
+    matches.push("theatre");
+  if (
+    /\b(video game|gaming|game studio|game developer|game publisher|steam)\b/i.test(
+      text,
+    )
+  )
+    matches.push("gaming");
+  const unique = [...new Set(matches)];
+  if (unique.length === 1) return unique[0];
+  if (hint && hint !== "industry-events") return hint;
+  if (
+    /\b(ai|artificial intelligence|generative)\b/i.test(text) &&
+    unique.length === 0
+  )
+    return "ai-policy";
+  return "industry-events";
+}
+
+function matchEvent(text: string): RuleMatch | null {
+  const ai = /\b(ai|artificial intelligence|generative ai)\b/i.test(text);
+  if (
+    ai &&
+    /\b(replace|replaced|job loss|displace|layoff|redundanc|cut jobs|eliminate roles|automation)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "AI_LABOR_DISPLACEMENT",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: "LABOR_DISPLACEMENT",
+      rationale:
+        "The title or supplied snippet explicitly links AI with workforce displacement.",
+    };
+  if (
+    ai &&
+    /\b(copyright|training data|fair use|infringement|lawsuit)\b/i.test(text)
+  )
+    return {
+      eventType: "AI_COPYRIGHT",
+      polarity: "neutral/ambiguous",
+      confidence: "high",
+      aiImpactType: "RIGHTS_LICENSING",
+      rationale:
+        "The article explicitly concerns AI copyright or training-data rights.",
+    };
+  if (ai && /\b(licens|royalt|rights deal|consent|compensation)\b/i.test(text))
+    return {
+      eventType: "AI_LICENSING",
+      polarity: "neutral/ambiguous",
+      confidence: "high",
+      aiImpactType: "RIGHTS_LICENSING",
+      rationale:
+        "The article explicitly concerns AI licensing or creator compensation.",
+    };
+  if (
+    ai &&
+    /\b(union|guild|strike|collective bargaining|contract)\b/i.test(text)
+  )
+    return {
+      eventType: "AI_UNION_DISPUTE",
+      polarity: "neutral/ambiguous",
+      confidence: "high",
+      aiImpactType: "POLICY_REGULATION",
+      rationale:
+        "The article explicitly links AI with a creative-worker union or guild dispute.",
+    };
+  if (
+    ai &&
+    /\b(regulat\w*|legislation|lawmakers|government|policy|rule|framework)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "AI_POLICY_REGULATION",
+      polarity: "neutral/ambiguous",
+      confidence: "high",
+      aiImpactType: "POLICY_REGULATION",
+      rationale:
+        "The article explicitly concerns AI regulation or public policy affecting creative work.",
+    };
+  if (
+    ai &&
+    /\b(tool|software|platform|launch|assistant|workflow)\b/i.test(text)
+  )
+    return {
+      eventType: "AI_CREATOR_TOOL",
+      polarity: "neutral/ambiguous",
+      confidence: "medium",
+      aiImpactType: "TOOL_ADOPTION",
+      rationale:
+        "The article reports an AI tool or workflow for creative production.",
+    };
+  if (
+    /\b(could close|may close|might close|at risk|under threat|facing closure)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "AT_RISK",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: null,
+      rationale:
+        "The article describes a cultural organisation as threatened rather than confirmed closed.",
+    };
+  if (
+    /\b(to close|closing permanently|closed permanently|shut(?:ting)? down|cease trading|studio closure|venue closure)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "CLOSURE",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: null,
+      rationale: "The article explicitly reports a closure.",
+    };
+  if (
+    /\b(bankrupt|bankruptcy|insolvent|insolvency|administration|liquidation|receivership)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "BANKRUPTCY_INSOLVENCY",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: null,
+      rationale: "The article uses explicit insolvency terminology.",
+    };
+  if (
+    /\b(layoffs?|job cuts?|redundancies|staff cuts?|workforce reduction)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "LAYOFFS",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: null,
+      rationale: "The article explicitly reports workforce reductions.",
+    };
+  if (
+    /\b(funding cut|budget cut|grant cut|subsidy cut|funding withdrawn)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "FUNDING_CUT",
+      polarity: "negative",
+      confidence: "high",
+      aiImpactType: null,
+      rationale: "The article explicitly reports a funding reduction.",
+    };
+  if (/\b(cancelled|canceled|cancellation|called off)\b/i.test(text))
+    return {
+      eventType: "CANCELLATION",
+      polarity: "negative",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale:
+        "The article reports a cancellation; supplied metadata does not establish broader impact.",
+    };
+  if (
+    /\b(ticket sales|attendance|box office|bookings|sales)\b/i.test(text) &&
+    /\b(decline|fall|slump|weak|down|poor)\b/i.test(text)
+  )
+    return {
+      eventType: "DEMAND_WEAKNESS",
+      polarity: "negative",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports weaker demand or sales.",
+    };
+  if (/\b(acquisition|acquires|merger|consolidation|takeover)\b/i.test(text))
+    return {
+      eventType: "CONSOLIDATION_ACQUISITION",
+      polarity: "neutral/ambiguous",
+      confidence: "high",
+      aiImpactType: null,
+      rationale:
+        "The article reports an acquisition or consolidation without treating it as inherently negative.",
+    };
+  if (
+    /\b(opens?|opening|reopens?|launches?)\b/i.test(text) &&
+    /\b(venue|cinema|theatre|theater|festival|studio)\b/i.test(text)
+  )
+    return {
+      eventType: "OPENING",
+      polarity: "positive",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports an opening or launch.",
+    };
+  if (/\b(investment|invests?|funding round|new funding)\b/i.test(text))
+    return {
+      eventType: "INVESTMENT",
+      polarity: "positive",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports investment or new funding.",
+    };
+  if (/\b(hiring|hires|new jobs|adds jobs)\b/i.test(text))
+    return {
+      eventType: "HIRING",
+      polarity: "positive",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports hiring or job creation.",
+    };
+  if (
+    /\b(record attendance|attendance record|record box office|record revenue|revenue growth)\b/i.test(
+      text,
+    )
+  )
+    return {
+      eventType: "REVENUE_GROWTH",
+      polarity: "positive",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports record demand or revenue growth.",
+    };
+  if (/\b(expands?|expansion|new location|capacity expansion)\b/i.test(text))
+    return {
+      eventType: "EXPANSION",
+      polarity: "positive",
+      confidence: "medium",
+      aiImpactType: null,
+      rationale: "The article reports expansion.",
+    };
+  if (ai)
+    return {
+      eventType: "AI_ADOPTION",
+      polarity: "neutral/ambiguous",
+      confidence: "low",
+      aiImpactType: "AMBIGUOUS",
+      rationale:
+        "The article concerns AI and creative work, but the supplied metadata does not establish a specific impact.",
+    };
+  return null;
+}
+
+function importanceFor(
+  match: RuleMatch | null,
+  text: string,
+): 1 | 2 | 3 | 4 | 5 {
+  let value = 1;
+  if (match) value += 1;
+  if (match?.confidence === "high") value += 1;
+  if (
+    match?.aiImpactType === "LABOR_DISPLACEMENT" ||
+    match?.aiImpactType === "RIGHTS_LICENSING" ||
+    match?.aiImpactType === "POLICY_REGULATION"
+  )
+    value += 1;
+  if (
+    /\b(court|supreme court|government|regulator|union|guild|major|global|thousands?|record)\b/i.test(
+      text,
+    )
+  )
+    value += 1;
+  return Math.min(5, value) as 1 | 2 | 3 | 4 | 5;
+}
+
+export function classifyMediaArticle(
+  article: MediaSourceArticle,
+): ClassifiedMediaArticle | null {
+  const canonicalUrl = canonicaliseMediaUrl(article.url);
+  if (!canonicalUrl) return null;
+  const text = `${article.title}. ${article.description ?? ""}`
+    .replace(/\s+/g, " ")
+    .trim();
+  const family = article.queryFamily
+    ? getMediaQueryFamily(article.queryFamily)
+    : undefined;
+  const direct = matchEvent(text);
+  const fallback: RuleMatch | null = family?.fallbackEventType
+    ? {
+        eventType: family.fallbackEventType,
+        polarity: family.fallbackPolarity,
+        confidence: "low",
+        aiImpactType: family.aiRelated ? "AMBIGUOUS" : null,
+        rationale: `The article matched the ${family.name.toLowerCase()} query, but its supplied title and snippet do not confirm the event.`,
+      }
+    : null;
+  const match = direct ?? fallback;
+  return {
+    ...article,
+    canonicalUrl,
+    countryCode: inferMediaCountry(`${text} ${article.sourceCountry ?? ""}`),
+    sectorSlug: classifyMediaSector(
+      text,
+      article.sectorHint ?? family?.sector ?? null,
+    ),
+    eventType: match?.eventType ?? null,
+    polarity: match?.polarity ?? "neutral/ambiguous",
+    confidence: match?.confidence ?? "low",
+    importance: importanceFor(match, text),
+    aiImpactType: match?.aiImpactType ?? null,
+    reviewState: "unreviewed",
+    classificationRationale:
+      match?.rationale ??
+      "No high-confidence event classification was supported by the supplied title and snippet.",
+    storyFingerprint: storyFingerprint(article.title, article.publishedAt),
+  };
+}

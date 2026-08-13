@@ -6,6 +6,9 @@ import {
   EmptyChart,
   EmptyList,
 } from "@/components/dashboard-card";
+import { MediaArticleList } from "@/components/media-article-list";
+import type { MediaSectorSlug } from "@/data-sources/news/media-types";
+import { getRecentMediaDevelopments } from "@/services/media/media";
 
 const SECTIONS = {
   "consumer-spending": {
@@ -75,6 +78,14 @@ export default async function SectionPage({
   }
 
   const content = SECTIONS[section];
+  const mediaSector = ["music", "film", "theatre", "ai-policy"].includes(
+    section,
+  )
+    ? (section as MediaSectorSlug)
+    : null;
+  const developments = mediaSector
+    ? await getRecentMediaDevelopments(mediaSector)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -90,10 +101,17 @@ export default async function SectionPage({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5 text-sm text-amber-200/80">
-        This section is ready for a future adapter. No source data has been
-        ingested.
-      </div>
+      {mediaSector ? (
+        <div className="rounded-2xl border border-blue-900/50 bg-blue-950/20 p-5 text-sm text-blue-200/80">
+          Current media developments are active. Structured sector trend series
+          remain separate and are not scored.
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-amber-900/50 bg-amber-950/20 p-5 text-sm text-amber-200/80">
+          This section is ready for a future adapter. No source data has been
+          ingested.
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard
@@ -103,12 +121,19 @@ export default async function SectionPage({
           <EmptyChart label={`${content.title} trend`} />
         </DashboardCard>
         <DashboardCard
-          title="Recent records"
-          description="Latest source-backed changes"
+          title="Recent Developments"
+          description="Latest media article candidates"
         >
-          <EmptyList
-            message={`No ${content.title.toLowerCase()} records are available`}
-          />
+          {mediaSector ? (
+            <MediaArticleList
+              articles={developments}
+              emptyMessage={`No recent ${content.title.toLowerCase()} developments are available`}
+            />
+          ) : (
+            <EmptyList
+              message={`No ${content.title.toLowerCase()} records are available`}
+            />
+          )}
         </DashboardCard>
       </div>
     </div>

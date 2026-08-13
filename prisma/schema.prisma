@@ -17,6 +17,7 @@ model Country {
   dataSources        DataSource[]
   metricDefinitions  MetricDefinition[]
   industryEvents     IndustryEvent[]
+  mediaArticles      MediaArticle[]
   ticketmasterEvents TicketmasterEvent[]
   ticketmasterVenues TicketmasterVenue[]
 }
@@ -31,30 +32,33 @@ model Sector {
   dataSources        DataSource[]
   metricDefinitions  MetricDefinition[]
   industryEvents     IndustryEvent[]
+  mediaArticles      MediaArticle[]
   ticketmasterEvents TicketmasterEvent[]
 }
 
 model DataSource {
-  id                     String              @id @default(uuid()) @db.Uuid
-  slug                   String              @unique
+  id                     String                    @id @default(uuid()) @db.Uuid
+  slug                   String                    @unique
   name                   String
   provider               String
   baseUrl                String
-  countryCode            String?             @db.VarChar(3)
+  countryCode            String?                   @db.VarChar(3)
   sectorSlug             String?
-  requiresAuthentication Boolean             @default(false)
-  enabled                Boolean             @default(false)
-  lastSuccessfulSyncAt   DateTime?           @db.Timestamptz(3)
-  lastAttemptedSyncAt    DateTime?           @db.Timestamptz(3)
-  createdAt              DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime            @updatedAt @db.Timestamptz(3)
-  country                Country?            @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
-  sector                 Sector?             @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  requiresAuthentication Boolean                   @default(false)
+  enabled                Boolean                   @default(false)
+  lastSuccessfulSyncAt   DateTime?                 @db.Timestamptz(3)
+  lastAttemptedSyncAt    DateTime?                 @db.Timestamptz(3)
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                  @updatedAt @db.Timestamptz(3)
+  country                Country?                  @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                 Sector?                   @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
   metricDefinitions      MetricDefinition[]
   ingestionRuns          IngestionRun[]
   ticketmasterEvents     TicketmasterEvent[]
   games                  Game[]
   steamGameSnapshots     SteamGameSnapshot[]
+  mediaArticles          MediaArticle[]
+  mediaArticleMatches    MediaArticleSourceMatch[]
 
   @@index([countryCode])
   @@index([sectorSlug])
@@ -123,6 +127,73 @@ model IndustryEvent {
   @@index([eventDate])
   @@index([eventType])
   @@index([countryCode, sectorSlug])
+}
+
+model MediaArticle {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  sourceId                String                    @db.Uuid
+  sourceType              String
+  externalId              String?
+  canonicalUrl            String                    @unique
+  title                   String
+  description             String?
+  publisher               String
+  sourceDomain            String
+  publishedAt             DateTime                  @db.Timestamptz(3)
+  retrievedAt             DateTime                  @db.Timestamptz(3)
+  language                String?
+  countryCode             String?                   @db.VarChar(3)
+  sectorSlug              String?
+  eventType               String?
+  polarity                String
+  confidence              String
+  importance              Int
+  aiImpactType            String?
+  reviewState             String
+  classificationRationale String
+  storyFingerprint        String?
+  possibleDuplicateStory  Boolean                   @default(false)
+  firstSeenAt             DateTime                  @db.Timestamptz(3)
+  lastSeenAt              DateTime                  @db.Timestamptz(3)
+  metadata                Json                      @default("{}")
+  createdAt               DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                  @updatedAt @db.Timestamptz(3)
+  source                  DataSource                @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  country                 Country?                  @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                  Sector?                   @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  sourceMatches           MediaArticleSourceMatch[]
+
+  @@index([publishedAt])
+  @@index([sectorSlug, publishedAt])
+  @@index([eventType, publishedAt])
+  @@index([polarity, importance, publishedAt])
+  @@index([aiImpactType, publishedAt])
+  @@index([countryCode, publishedAt])
+  @@index([storyFingerprint, publishedAt])
+  @@index([sourceId])
+}
+
+model MediaArticleSourceMatch {
+  id             String       @id @default(uuid()) @db.Uuid
+  matchKey       String       @unique
+  mediaArticleId String       @db.Uuid
+  sourceId       String       @db.Uuid
+  sourceType     String
+  externalId     String?
+  queryFamily    String?
+  feedSlug       String?
+  firstSeenAt    DateTime     @db.Timestamptz(3)
+  lastSeenAt     DateTime     @db.Timestamptz(3)
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  mediaArticle   MediaArticle @relation(fields: [mediaArticleId], references: [id], onDelete: Cascade)
+  source         DataSource   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@index([mediaArticleId])
+  @@index([sourceId, sourceType])
+  @@index([feedSlug])
+  @@index([queryFamily])
 }
 
 model TicketmasterVenue {

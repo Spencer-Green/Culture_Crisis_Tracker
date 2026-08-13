@@ -27,14 +27,17 @@ describe("source registry", () => {
       IGDB_BASE_URL: "https://api.igdb.com/v4",
       IGDB_CLIENT_ID: "test-client-id",
       IGDB_CLIENT_SECRET: clientSecret,
+      THENEWSAPI_API_KEY: apiKey,
+      THENEWSAPI_BASE_URL: "https://api.thenewsapi.com/v1",
+      RSS_BASE_URL: "https://www.rssboard.org/rss-specification",
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(13);
+    expect(sources).toHaveLength(15);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(10);
+    ).toHaveLength(12);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -83,6 +86,18 @@ describe("source registry", () => {
       configured: true,
       implementationStatus: "implemented",
       requiresAuthentication: true,
+    });
+    expect(
+      sources.find((source) => source.slug === "thenewsapi"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      requiresAuthentication: true,
+    });
+    expect(sources.find((source) => source.slug === "rss")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
     });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,

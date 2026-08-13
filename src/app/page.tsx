@@ -17,6 +17,8 @@ import { getGdeltCorpusOverview } from "@/services/industry-events/events";
 import { getTicketmasterCrossSectorTrends } from "@/services/industry-events/ticketmaster-longitudinal";
 import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticketmaster-supply";
 import { getGamingOverview } from "@/services/gaming/analytics";
+import { MediaArticleList } from "@/components/media-article-list";
+import { getMediaOverview } from "@/services/media/media";
 
 export const dynamic = "force-dynamic";
 
@@ -182,6 +184,7 @@ export default async function OverviewPage() {
     ticketmasterSupply,
     crossSectorTrends,
     gamingOverview,
+    mediaOverview,
   ] = await Promise.all([
     getOverviewState(),
     getConsumerSpendingData(),
@@ -189,6 +192,7 @@ export default async function OverviewPage() {
     getTicketmasterSupplyOverview(),
     getTicketmasterCrossSectorTrends(),
     getGamingOverview(),
+    getMediaOverview(),
   ]);
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
@@ -256,7 +260,10 @@ export default async function OverviewPage() {
     {
       title: "AI Disruption",
       status: "Pending",
-      detail: "No policy events",
+      detail:
+        mediaOverview.total > 0
+          ? `${mediaOverview.total} media candidates · no score`
+          : "No policy events",
       tone: "text-zinc-300",
     },
   ];
@@ -354,6 +361,37 @@ export default async function OverviewPage() {
           </section>
         ))}
       </div>
+
+      <DashboardCard
+        title="Culture Intelligence · Latest 24 hours"
+        description="High-signal media candidates; no narrative brief or sentiment score"
+      >
+        <div className="grid gap-5 xl:grid-cols-[14rem_1fr]">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <p className="text-xs text-zinc-500">Article candidates</p>
+              <p className="font-data mt-2 text-2xl text-zinc-100">
+                {mediaOverview.total}
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <p className="text-xs text-zinc-500">Importance 4–5</p>
+              <p className="font-data mt-2 text-2xl text-zinc-100">
+                {mediaOverview.highImportance}
+              </p>
+            </div>
+          </div>
+          <MediaArticleList
+            compact
+            articles={[
+              mediaOverview.latestAi,
+              mediaOverview.latestIndustryHealth,
+              mediaOverview.latestPositive,
+            ].filter((article) => article !== null)}
+            emptyMessage="No media developments were ingested in the latest 24-hour window."
+          />
+        </div>
+      </DashboardCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard

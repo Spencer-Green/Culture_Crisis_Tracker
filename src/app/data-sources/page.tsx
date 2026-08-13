@@ -8,6 +8,7 @@ import {
 } from "@/data-sources/source-role";
 import type { HealthStatus } from "@/data-sources/status";
 import { COUNTRIES, SECTORS } from "@/lib/constants";
+import { enabledRssFeeds } from "@/data-sources/news/rss-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -206,6 +207,11 @@ export default async function DataSourcesPage() {
                       ) : (
                         <Badge>Enablement Not Checked</Badge>
                       )}
+                      {source.slug === "rss" ? (
+                        <Badge tone="info">
+                          {enabledRssFeeds().length} feeds enabled
+                        </Badge>
+                      ) : null}
                       <HealthBadge status={source.healthStatus} />
                     </div>
                   </td>

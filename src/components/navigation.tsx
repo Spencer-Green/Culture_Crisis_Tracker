@@ -2,6 +2,7 @@ import Link from "next/link";
 
 export const NAVIGATION_ITEMS = [
   { label: "Overview", href: "/" },
+  { label: "Culture Intelligence", href: "/media" },
   { label: "Consumer Spending", href: "/consumer-spending" },
   { label: "Music", href: "/music" },
   { label: "Film", href: "/film" },

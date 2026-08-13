@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Culture Trade</title>
+    <item>
+      <guid>rss-1</guid>
+      <title>XYZ Theatre warns it could close without funding</title>
+      <link>https://example.com/theatre/xyz?utm_medium=rss</link>
+      <pubDate>Thu, 13 Aug 2026 05:00:00 GMT</pubDate>
+      <description><![CDATA[<p>The venue is seeking emergency support.</p><script>bad()</script>]]></description>
+    </item>
+    <item>
+      <title>Item without a GUID</title>
+      <link>https://example.com/theatre/other</link>
+      <pubDate>Thu, 13 Aug 2026 04:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

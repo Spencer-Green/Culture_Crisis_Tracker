@@ -35,13 +35,18 @@
     "igdb:inspect": "node --conditions=react-server --import tsx scripts/igdb-inspect.ts",
     "ingest:igdb": "node --conditions=react-server --import tsx scripts/ingest-igdb.ts",
     "steam:inspect": "node --conditions=react-server --import tsx scripts/steam-inspect.ts",
-    "ingest:steam": "node --conditions=react-server --import tsx scripts/ingest-steam.ts"
+    "ingest:steam": "node --conditions=react-server --import tsx scripts/ingest-steam.ts",
+    "media:newsapi:inspect": "node --conditions=react-server --import tsx scripts/media-newsapi-inspect.ts",
+    "ingest:media:newsapi": "node --conditions=react-server --import tsx scripts/ingest-media-newsapi.ts",
+    "media:rss:inspect": "node --conditions=react-server --import tsx scripts/media-rss-inspect.ts",
+    "ingest:media:rss": "node --conditions=react-server --import tsx scripts/ingest-media-rss.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
+    "fast-xml-parser": "^5.10.1",
     "next": "^16.2.12",
     "pg": "^8.22.0",
     "react": "^19.2.8",

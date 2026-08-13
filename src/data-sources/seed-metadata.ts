@@ -53,6 +53,8 @@ export function buildSourceSeedOperation(
       "ticketmaster",
       "igdb",
       "steam",
+      "thenewsapi",
+      "rss",
     ].includes(source.slug),
   };
 

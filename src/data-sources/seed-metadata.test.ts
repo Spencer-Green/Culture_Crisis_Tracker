@@ -25,6 +25,8 @@ describe("source seed metadata", () => {
       getSourceDefinition("ticketmaster"),
       getSourceDefinition("igdb"),
       getSourceDefinition("steam"),
+      getSourceDefinition("thenewsapi"),
+      getSourceDefinition("rss"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -55,7 +57,19 @@ describe("source seed metadata", () => {
                           }
                         : source.slug === "igdb"
                           ? { IGDB_BASE_URL: "https://api.igdb.com/v4" }
-                          : { STEAM_BASE_URL: "https://api.steampowered.com/" },
+                          : source.slug === "steam"
+                            ? {
+                                STEAM_BASE_URL: "https://api.steampowered.com/",
+                              }
+                            : source.slug === "thenewsapi"
+                              ? {
+                                  THENEWSAPI_BASE_URL:
+                                    "https://api.thenewsapi.com/v1",
+                                }
+                              : {
+                                  RSS_BASE_URL:
+                                    "https://www.rssboard.org/rss-specification",
+                                },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -71,6 +85,8 @@ describe("source seed metadata", () => {
           "ticketmaster",
           "igdb",
           "steam",
+          "thenewsapi",
+          "rss",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -85,6 +101,8 @@ describe("source seed metadata", () => {
       "ticketmaster",
       "igdb",
       "steam",
+      "thenewsapi",
+      "rss",
     ]);
     expect(
       operations.every(

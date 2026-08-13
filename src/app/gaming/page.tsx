@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
 import { GamingReleaseChart } from "@/components/gaming-release-chart";
+import { MediaArticleList } from "@/components/media-article-list";
 import { getGamingData } from "@/services/gaming/analytics";
+import { getRecentMediaDevelopments } from "@/services/media/media";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Gaming" };
@@ -41,7 +43,10 @@ function RankedList({ items }: { items: { label: string; count: number }[] }) {
 }
 
 export default async function GamingPage() {
-  const data = await getGamingData();
+  const [data, developments] = await Promise.all([
+    getGamingData(),
+    getRecentMediaDevelopments("gaming"),
+  ]);
   const analytics = data.analytics;
   return (
     <div className="space-y-6">
@@ -258,6 +263,13 @@ export default async function GamingPage() {
             when snapshots are collected; no historical activity is
             reconstructed.
           </div>
+
+          <DashboardCard
+            title="Recent Developments"
+            description="Gaming business and AI media article candidates"
+          >
+            <MediaArticleList articles={developments} />
+          </DashboardCard>
         </>
       )}
     </div>

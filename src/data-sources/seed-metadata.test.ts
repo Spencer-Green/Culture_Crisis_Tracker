@@ -27,6 +27,8 @@ describe("source seed metadata", () => {
       getSourceDefinition("steam"),
       getSourceDefinition("thenewsapi"),
       getSourceDefinition("rss"),
+      getSourceDefinition("us-box-office"),
+      getSourceDefinition("broadway-business"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -66,10 +68,20 @@ describe("source seed metadata", () => {
                                   THENEWSAPI_BASE_URL:
                                     "https://api.thenewsapi.com/v1",
                                 }
-                              : {
-                                  RSS_BASE_URL:
-                                    "https://www.rssboard.org/rss-specification",
-                                },
+                              : source.slug === "rss"
+                                ? {
+                                    RSS_BASE_URL:
+                                      "https://www.rssboard.org/rss-specification",
+                                  }
+                                : source.slug === "us-box-office"
+                                  ? {
+                                      US_BOX_OFFICE_BASE_URL:
+                                        "https://www.kaggle.com/api/v1",
+                                    }
+                                  : {
+                                      BROADWAY_BUSINESS_BASE_URL:
+                                        "https://broadwaybusiness.com/grosses",
+                                    },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -87,6 +99,8 @@ describe("source seed metadata", () => {
           "steam",
           "thenewsapi",
           "rss",
+          "us-box-office",
+          "broadway-business",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -103,6 +117,8 @@ describe("source seed metadata", () => {
       "steam",
       "thenewsapi",
       "rss",
+      "us-box-office",
+      "broadway-business",
     ]);
     expect(
       operations.every(
@@ -132,5 +148,16 @@ describe("source seed metadata", () => {
 
     expect(operation.update.countryCode).toBeNull();
     expect(operation.update.sectorSlug).toBeNull();
+  });
+
+  it("seeds the canonical public Kaggle API URL without local credentials", () => {
+    const operation = buildSourceSeedOperation(
+      getSourceDefinition("us-box-office"),
+      {},
+    );
+
+    expect(operation.create.baseUrl).toBe("https://www.kaggle.com/api/v1");
+    expect(operation.create.requiresAuthentication).toBe(false);
+    expect(operation.create.enabled).toBe(true);
   });
 });

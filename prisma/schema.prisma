@@ -59,10 +59,73 @@ model DataSource {
   steamGameSnapshots     SteamGameSnapshot[]
   mediaArticles          MediaArticle[]
   mediaArticleMatches    MediaArticleSourceMatch[]
+  usBoxOfficeWeekends    USBoxOfficeWeekend[]
+  broadwayMarketWeeks    BroadwayMarketWeek[]
 
   @@index([countryCode])
   @@index([sectorSlug])
   @@index([enabled])
+}
+
+model BroadwayMarketWeek {
+  id                    String     @id @default(uuid()) @db.Uuid
+  sourceId              String     @db.Uuid
+  sourceWeekId          Int
+  seasonWeekNumber      Int
+  weekStart             DateTime   @db.Date
+  weekEnding            DateTime   @db.Date
+  grossUsd              Decimal    @db.Decimal(18, 2)
+  attendance            Int
+  showCount             Int?
+  capacityPct           Decimal?   @db.Decimal(7, 2)
+  averageTicketPriceUsd Decimal?   @db.Decimal(12, 2)
+  performanceCount      Int?
+  previewCount          Int?
+  sourceUrl             String
+  retrievedAt           DateTime   @db.Timestamptz(3)
+  firstSeenAt           DateTime   @db.Timestamptz(3)
+  lastSeenAt            DateTime   @db.Timestamptz(3)
+  metadata              Json       @default("{}")
+  createdAt             DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
+  source                DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, weekEnding])
+  @@index([weekEnding])
+  @@index([sourceId, weekEnding])
+}
+
+model USBoxOfficeWeekend {
+  id                    String     @id @default(uuid()) @db.Uuid
+  sourceId              String     @db.Uuid
+  sourceYear            Int
+  weekNumber            Int
+  weekendStart          DateTime   @db.Date
+  weekendEnd            DateTime   @db.Date
+  sourceDateLabel       String
+  occasion              String?
+  totalGrossUsd         Decimal    @db.Decimal(18, 0)
+  top10GrossUsd         Decimal?   @db.Decimal(18, 0)
+  overallWowChangePct   Decimal?   @db.Decimal(8, 3)
+  top10WowChangePct     Decimal?   @db.Decimal(8, 3)
+  overallWowChangeLabel String?
+  top10WowChangeLabel   String?
+  releaseCount          Int?
+  topFilm               String?
+  datasetSlug           String
+  datasetUpdatedAt      DateTime?  @db.Timestamptz(3)
+  sourceUrl             String
+  retrievedAt           DateTime   @db.Timestamptz(3)
+  firstSeenAt           DateTime   @db.Timestamptz(3)
+  lastSeenAt            DateTime   @db.Timestamptz(3)
+  metadata              Json       @default("{}")
+  createdAt             DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
+  source                DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, sourceYear, weekNumber])
+  @@index([weekendEnd])
+  @@index([sourceId, weekendEnd])
 }
 
 model MetricDefinition {

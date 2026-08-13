@@ -30,6 +30,8 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "IGDB_BASE_URL",
   "THENEWSAPI_BASE_URL",
   "RSS_BASE_URL",
+  "US_BOX_OFFICE_BASE_URL",
+  "BROADWAY_BUSINESS_BASE_URL",
   "MEDIASTACK_BASE_URL",
 ] as const;
 
@@ -79,6 +81,12 @@ export const serverEnvSchema = z.object({
   ),
   RSS_BASE_URL: optionalUrl("RSS_BASE_URL").default(
     "https://www.rssboard.org/rss-specification",
+  ),
+  US_BOX_OFFICE_BASE_URL: optionalUrl("US_BOX_OFFICE_BASE_URL").default(
+    "https://www.kaggle.com/api/v1",
+  ),
+  BROADWAY_BUSINESS_BASE_URL: optionalUrl("BROADWAY_BUSINESS_BASE_URL").default(
+    "https://broadwaybusiness.com/grosses",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
 });

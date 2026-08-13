@@ -50,6 +50,8 @@ export function sanitiseIngestionError(error: unknown): string {
       error.name === "GdeltResponseError" ||
       error.name === "TheNewsApiResponseError" ||
       error.name === "RssParseError" ||
+      error.name === "USBoxOfficeParseError" ||
+      error.name === "USBoxOfficeResponseError" ||
       error.name === "TicketmasterResponseError" ||
       error.name === "IgdbResponseError" ||
       error.name === "SteamResponseError")

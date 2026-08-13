@@ -1134,9 +1134,126 @@ Important media-methodology limits:
 The local `.env` uses the development-only PostgreSQL credentials defined in
 `docker-compose.yml`. Replace them for any shared or non-local environment.
 
+## Provisional US domestic box office
+
+The Film page uses the public Kaggle community dataset **U.S. Weekend Box Office Summaries**
+(`jonbown/weekend-box-office-summaries`) as a temporary research placeholder. The dataset reports
+that its underlying figures are Box Office Mojo-derived. This project does not scrape Box Office
+Mojo or The Numbers, does not call a Box Office Mojo API, and does not claim an official or
+licensed Box Office Mojo integration. Replace this source with a licensed or primary US theatrical
+source before public production deployment.
+
+The source uses Kaggle's supported public API endpoints and currently requires no Kaggle
+credentials:
+
+```text
+GET https://www.kaggle.com/api/v1/datasets/view/jonbown/weekend-box-office-summaries
+GET https://www.kaggle.com/api/v1/datasets/download/jonbown/weekend-box-office-summaries
+```
+
+The downloaded ZIP contains annual `weekend_summary_YYYY.csv` files. Current columns are `date`,
+`occasion`, `top10_gross`, `top10_wow_change`, `overall_gross`, `overall_wow_change`,
+`num_releases`, `top_release`, and `week_no`. `USBoxOfficeWeekend` stores one canonical populated
+weekend per source year/week number, exact weekend boundaries, total and Top 10 nominal USD gross,
+source-published change labels, release count, #1 film, dataset version metadata, retrieval dates,
+and explicit provisional provenance. Repeated downloads update revised periods rather than
+duplicating them.
+
+The community files include overlapping three-, four-, and five-day holiday summaries under the
+same source week number. To avoid double-counting, ingestion selects the summary closest to the
+standard three-day weekend, prefers the unqualified row on ties, and records that policy in source
+metadata. Null future placeholders are not ingested. Missing pandemic observations are not
+interpolated or converted to zero.
+
+Inspect without persistence and ingest the research history from 2015 onward with:
+
+```bash
+npm run usboxoffice:inspect
+npm run ingest:usboxoffice -- --start=2015
+```
+
+Film analytics remain presentation-layer calculations:
+
+- Week-over-week compares consecutive published weekends only when their dates are 5–10 days
+  apart.
+- Latest year-over-year compares the same source week number one year earlier.
+- Four-week rolling gross sums four consecutive published weekends; gaps return unavailable rather
+  than being interpolated.
+- Trailing 52-week gross uses a date-bounded 364-day window ending at the latest weekend.
+- Calendar YTD sums the current source year only through the latest available source week.
+- Prior-year and 2019 YTD comparisons stop at that same week number, so a partial current year is
+  never compared with a complete historical year.
+
+All amounts are nominal US dollars. No inflation adjustment, ticket-price decomposition, or
+structural-health conclusion is made from short-term weekend volatility.
+
+## Theatre sector data
+
+### Broadway Business access review
+
+Broadway demand uses the public [Broadway Business Grosses](https://broadwaybusiness.com/grosses/)
+page. The access review found no published Terms of Use, legal notice, copyright/data-use notice,
+or `robots.txt` rule prohibiting this small automated retrieval. The page exposes structured JSON
+for the current week and calls a public same-origin aggregate endpoint:
+
+```text
+GET https://broadwaybusiness.com/grosses/api/week/stats/chart?uptodate=1
+```
+
+The project therefore classifies access as `AUTHORIZED_STRUCTURED` under the user's explicit
+authorization. It makes two sequential requests per refresh, uses no browser emulation or bypass,
+and stores no page HTML. Live headers exposed a 60-request rate limit; normal ingestion stays far
+below it. Broadway Business attributes the underlying statistics to The Broadway League. The
+tracker makes no automated request to The Broadway League and does not imply Broadway Business
+grants rights on its behalf. This integration remains **provisional/private research** and its
+licensing should be reassessed before public deployment.
+
+The public aggregate endpoint currently exposes weekly gross, attendance, and capacity from
+2019-06-02 onward. The current page additionally exposes show count, average ticket price,
+performance count, and previews for the latest week. Historical navigation on the page indicates
+older weeks exist, but the permitted public aggregate endpoint does not return the requested 2015
+history; this implementation does not scrape or synthesize it.
+
+Inspect and ingest with:
+
+```bash
+npm run broadwaybusiness:inspect
+npm run ingest:broadwaybusiness
+npm run ingest:broadwaybusiness -- --since=2019
+```
+
+`BroadwayMarketWeek` uses source plus week-ending date as deterministic identity. Repeat runs
+update revised weeks without duplication. Raw fields remain source-published; WoW, season-week
+YoY, 4- and 13-week rolling sums, per-show values, calendar YTD, and equivalent-period comparisons
+are presentation-layer calculations. Rolling values require consecutive published weeks and do
+not bridge shutdown or missing-week gaps. Equivalent YTD comparisons use the same Broadway season
+week in the comparison year and require that year's January coverage. Because the endpoint begins
+in June 2019, full 2019 calendar-YTD comparison remains unavailable rather than comparing a partial
+2019 year.
+
+Broadway gross is nominal revenue, not audience demand. The Theatre page therefore shows gross,
+attendance, capacity, and average ticket context together. Broadway covers Broadway NYC only; it
+does not represent all US theatre.
+
+### Ticketmaster theatre supply
+
+The Theatre page reuses persisted Ticketmaster `Arts & Theatre` events, venues, 30D/90D supply
+snapshots, and append-only status transitions for AU, US, GB, and CA. It creates no second
+Ticketmaster ingestion path and never queries Ticketmaster during page rendering. Current forward
+events, active venues, calendar density, and comparable-snapshot changes are kept semantically
+separate from realized Broadway demand. Missing listings or events aging out of a forward window
+are not cancellations; `offsale` is also not cancellation. Insufficient comparable history is
+shown explicitly rather than replaced with zero or a fabricated trend.
+
+Theatre Recent Developments continues to use the separate MediaArticle candidate layer. No
+Broadway, Ticketmaster, or media values are combined into a Theatre Health or Industry Viability
+score.
+
 ## Current limitations
 
-- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, Ticketmaster, IGDB, and Steam are active sources;
+- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
+  RSS, the provisional US box-office dataset, and provisional Broadway Business data are active
+  sources;
   Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
   unimplemented and disabled
 - No scheduled jobs or general retry framework; ONS, GDELT, Ticketmaster, IGDB, and Steam use

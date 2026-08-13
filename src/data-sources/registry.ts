@@ -5,6 +5,7 @@ import { eventbriteAdapter } from "@/data-sources/entertainment/eventbrite";
 import { igdbAdapter } from "@/data-sources/entertainment/igdb";
 import { steamAdapter } from "@/data-sources/entertainment/steam";
 import { ticketmasterAdapter } from "@/data-sources/entertainment/ticketmaster";
+import { usBoxOfficeAdapter } from "@/data-sources/film/us-box-office";
 import { absAdapter } from "@/data-sources/macro/abs";
 import { beaAdapter } from "@/data-sources/macro/bea";
 import { eurostatAdapter } from "@/data-sources/macro/eurostat";
@@ -16,6 +17,7 @@ import { gdeltAdapter } from "@/data-sources/news/gdelt";
 import { mediastackAdapter } from "@/data-sources/news/mediastack";
 import { rssAdapter } from "@/data-sources/news/rss";
 import { theNewsApiAdapter } from "@/data-sources/news/thenewsapi";
+import { broadwayBusinessAdapter } from "@/data-sources/theatre/broadway-business";
 import { buildStaticSourceRegistry } from "@/data-sources/registry-core";
 import {
   buildRuntimeSourceRegistry,
@@ -41,6 +43,8 @@ export const adapters: readonly DataSourceAdapter[] = [
   theNewsApiAdapter,
   rssAdapter,
   mediastackAdapter,
+  usBoxOfficeAdapter,
+  broadwayBusinessAdapter,
 ];
 
 export function getStaticSourceRegistry() {

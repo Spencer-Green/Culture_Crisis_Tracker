@@ -30,14 +30,16 @@ describe("source registry", () => {
       THENEWSAPI_API_KEY: apiKey,
       THENEWSAPI_BASE_URL: "https://api.thenewsapi.com/v1",
       RSS_BASE_URL: "https://www.rssboard.org/rss-specification",
+      US_BOX_OFFICE_BASE_URL: "https://www.kaggle.com/api/v1",
+      BROADWAY_BUSINESS_BASE_URL: "https://broadwaybusiness.com/grosses",
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(15);
+    expect(sources).toHaveLength(17);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(12);
+    ).toHaveLength(14);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -98,6 +100,24 @@ describe("source registry", () => {
       configured: true,
       implementationStatus: "implemented",
       isPublic: true,
+    });
+    expect(
+      sources.find((source) => source.slug === "us-box-office"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      countries: ["US"],
+      sectors: ["film"],
+    });
+    expect(
+      sources.find((source) => source.slug === "broadway-business"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      countries: ["US"],
+      sectors: ["theatre"],
     });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,

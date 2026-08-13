@@ -208,6 +208,28 @@ export const SOURCE_DEFINITIONS = [
     requiresAuthentication: true,
     implementationStatus: "not-implemented",
   },
+  {
+    slug: "us-box-office",
+    name: "US Box Office — Provisional",
+    provider: "Kaggle community dataset",
+    baseUrlEnvironmentKey: "US_BOX_OFFICE_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["film"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+  },
+  {
+    slug: "broadway-business",
+    name: "Broadway Business",
+    provider: "Broadway Business",
+    baseUrlEnvironmentKey: "BROADWAY_BUSINESS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["theatre"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+  },
 ] as const satisfies readonly SourceDefinitionShape[];
 
 export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number];

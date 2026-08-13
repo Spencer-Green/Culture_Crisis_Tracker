@@ -212,6 +212,10 @@ export default async function DataSourcesPage() {
                           {enabledRssFeeds().length} feeds enabled
                         </Badge>
                       ) : null}
+                      {source.slug === "us-box-office" ||
+                      source.slug === "broadway-business" ? (
+                        <Badge tone="warning">Provisional / Research</Badge>
+                      ) : null}
                       <HealthBadge status={source.healthStatus} />
                     </div>
                   </td>

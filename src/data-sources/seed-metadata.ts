@@ -35,7 +35,13 @@ export function buildSourceSeedOperation(
   const metadata = {
     name: source.name,
     provider: source.provider,
-    baseUrl: environment[source.baseUrlEnvironmentKey] ?? "",
+    baseUrl:
+      environment[source.baseUrlEnvironmentKey] ??
+      (source.slug === "us-box-office"
+        ? "https://www.kaggle.com/api/v1"
+        : source.slug === "broadway-business"
+          ? "https://broadwaybusiness.com/grosses"
+          : ""),
     countryCode,
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
@@ -55,6 +61,8 @@ export function buildSourceSeedOperation(
       "steam",
       "thenewsapi",
       "rss",
+      "us-box-office",
+      "broadway-business",
     ].includes(source.slug),
   };
 

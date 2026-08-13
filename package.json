@@ -39,7 +39,11 @@
     "media:newsapi:inspect": "node --conditions=react-server --import tsx scripts/media-newsapi-inspect.ts",
     "ingest:media:newsapi": "node --conditions=react-server --import tsx scripts/ingest-media-newsapi.ts",
     "media:rss:inspect": "node --conditions=react-server --import tsx scripts/media-rss-inspect.ts",
-    "ingest:media:rss": "node --conditions=react-server --import tsx scripts/ingest-media-rss.ts"
+    "ingest:media:rss": "node --conditions=react-server --import tsx scripts/ingest-media-rss.ts",
+    "usboxoffice:inspect": "node --conditions=react-server --import tsx scripts/us-box-office-inspect.ts",
+    "ingest:usboxoffice": "node --conditions=react-server --import tsx scripts/ingest-us-box-office.ts",
+    "broadwaybusiness:inspect": "node --conditions=react-server --import tsx scripts/broadway-business-inspect.ts",
+    "ingest:broadwaybusiness": "node --conditions=react-server --import tsx scripts/ingest-broadway-business.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -47,6 +51,7 @@
     "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "fast-xml-parser": "^5.10.1",
+    "fflate": "^0.8.3",
     "next": "^16.2.12",
     "pg": "^8.22.0",
     "react": "^19.2.8",

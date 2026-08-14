@@ -1,0 +1,2 @@
+ALTER TABLE "BEAACPSASoundRecordingYear"
+ALTER COLUMN "sourceTables" SET NOT NULL;

@@ -20,7 +20,9 @@
     "ons:inspect": "tsx scripts/ons-inspect.ts",
     "ingest:ons": "node --conditions=react-server --import tsx scripts/ingest-ons.ts",
     "bea:inspect": "tsx scripts/bea-inspect.ts",
+    "bea:music:inspect": "tsx scripts/bea-music-inspect.ts",
     "ingest:bea": "node --conditions=react-server --import tsx scripts/ingest-bea.ts",
+    "ingest:bea:music": "node --conditions=react-server --import tsx scripts/ingest-bea-music.ts",
     "fred:inspect": "tsx scripts/fred-inspect.ts",
     "ingest:fred": "node --conditions=react-server --import tsx scripts/ingest-fred.ts",
     "eurostat:inspect": "tsx scripts/eurostat-inspect.ts",
@@ -45,7 +47,13 @@
     "broadwaybusiness:inspect": "node --conditions=react-server --import tsx scripts/broadway-business-inspect.ts",
     "ingest:broadwaybusiness": "node --conditions=react-server --import tsx scripts/ingest-broadway-business.ts",
     "bfi:inspect": "node --conditions=react-server --import tsx scripts/bfi-inspect.ts",
-    "ingest:bfi": "node --conditions=react-server --import tsx scripts/ingest-bfi.ts"
+    "ingest:bfi": "node --conditions=react-server --import tsx scripts/ingest-bfi.ts",
+    "mvt:inspect": "node --conditions=react-server --import tsx scripts/mvt-inspect.ts",
+    "ingest:mvt": "node --conditions=react-server --import tsx scripts/ingest-mvt.ts",
+    "census:music:inspect": "node --conditions=react-server --import tsx scripts/census-music-inspect.ts",
+    "ingest:census:music": "node --conditions=react-server --import tsx scripts/ingest-census-music.ts",
+    "bea:acpsa:music:inspect": "node --conditions=react-server --import tsx scripts/bea-acpsa-music-inspect.ts",
+    "ingest:bea:acpsa:music": "node --conditions=react-server --import tsx scripts/ingest-bea-acpsa-music.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

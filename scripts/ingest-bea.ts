@@ -8,6 +8,7 @@ import {
   getCommonBeaAvailability,
   inspectBeaMetrics,
 } from "../src/data-sources/macro/bea-inspection";
+import { BEA_MACRO_METRICS } from "../src/data-sources/macro/bea-metrics";
 import { validateBeaMonthRange } from "../src/data-sources/macro/bea-period";
 import { parseServerEnv } from "../src/lib/env-schema";
 import { disconnectPrisma } from "../src/lib/prisma";
@@ -26,7 +27,9 @@ async function main() {
       : resolveBeaCliRange(
           options,
           getCommonBeaAvailability(
-            await inspectBeaMetrics(env.BEA_BASE_URL, env.BEA_API_KEY),
+            await inspectBeaMetrics(env.BEA_BASE_URL, env.BEA_API_KEY, {
+              metrics: BEA_MACRO_METRICS,
+            }),
           ),
         );
 
@@ -38,7 +41,8 @@ async function main() {
     endDate: range.endDate,
     startPeriod: range.startPeriod,
     endPeriod: range.endPeriod,
-    metricSlugs: options.metricSlugs,
+    metricSlugs:
+      options.metricSlugs ?? BEA_MACRO_METRICS.map((metric) => metric.slug),
   });
   console.log(`Metrics processed: ${result.metricsProcessed.join(", ")}`);
   console.log(`Records read: ${result.recordsRead}`);

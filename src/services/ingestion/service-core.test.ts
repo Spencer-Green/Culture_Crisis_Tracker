@@ -70,6 +70,7 @@ class FakeStore implements IngestionStore {
   readonly persistedKeys = new Set<string>();
   readonly failedMessages: string[] = [];
   runNumber = 0;
+  persistedContext: { countryCode: string; sectorSlug: string } | null = null;
 
   async findSource() {
     return { id: "source-id", slug: "abs", enabled: this.enabled };
@@ -85,6 +86,10 @@ class FakeStore implements IngestionStore {
   async persistMetricObservations(
     input: Parameters<IngestionStore["persistMetricObservations"]>[0],
   ) {
+    this.persistedContext = {
+      countryCode: input.countryCode,
+      sectorSlug: input.sectorSlug,
+    };
     let recordsCreated = 0;
     let recordsUpdated = 0;
 
@@ -135,6 +140,32 @@ describe("ingestion service", () => {
       recordsUpdated: 1,
     });
     expect(store.persistedKeys.size).toBe(1);
+  });
+
+  it("uses metric-specific country and sector provenance when provided", async () => {
+    const store = new FakeStore();
+    const musicMetric = {
+      ...metric,
+      countryCode: "US" as const,
+      sectorSlug: "music" as const,
+    };
+    class MusicAdapter extends FakeAdapter {
+      override async fetchAvailableMetrics() {
+        return [musicMetric];
+      }
+    }
+
+    await runIngestion({
+      ...baseInput,
+      sourceDefinition: getSourceDefinition("bea"),
+      store,
+      adapter: new MusicAdapter(),
+    });
+
+    expect(store.persistedContext).toEqual({
+      countryCode: "US",
+      sectorSlug: "music",
+    });
   });
 
   it("keeps implementation, configuration, and enablement independent", async () => {

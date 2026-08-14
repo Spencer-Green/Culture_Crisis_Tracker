@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ABS_METRICS } from "@/data-sources/macro/abs-metrics";
-import { BEA_METRICS } from "@/data-sources/macro/bea-metrics";
+import { BEA_MACRO_METRICS } from "@/data-sources/macro/bea-metrics";
 import { EUROSTAT_METRICS } from "@/data-sources/macro/eurostat-metrics";
 import { FRED_METRICS } from "@/data-sources/macro/fred-metrics";
 import { ONS_METRICS } from "@/data-sources/macro/ons-metrics";
@@ -20,7 +20,7 @@ export type {
 export async function getConsumerSpendingData(): Promise<ConsumerSpendingData> {
   const metricSlugs = [
     ...ABS_METRICS.map((metric) => metric.slug),
-    ...BEA_METRICS.map((metric) => metric.slug),
+    ...BEA_MACRO_METRICS.map((metric) => metric.slug),
     ...EUROSTAT_METRICS.map((metric) => metric.slug),
     ...FRED_METRICS.map((metric) => metric.slug),
     ...ONS_METRICS.map((metric) => metric.slug),

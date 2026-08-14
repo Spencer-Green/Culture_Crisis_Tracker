@@ -63,10 +63,106 @@ model DataSource {
   broadwayMarketWeeks    BroadwayMarketWeek[]
   bfiWeekendBoxOffice    BFIWeekendBoxOffice[]
   bfiFilmMarketYears     BFIFilmMarketYear[]
+  mvtGrassrootsYears     MVTGrassrootsMusicYear[]
+  censusRecordYears      CensusRecordIndustryYear[]
+  beaAcpsaSoundYears     BEAACPSASoundRecordingYear[]
 
   @@index([countryCode])
   @@index([sectorSlug])
   @@index([enabled])
+}
+
+model BEAACPSASoundRecordingYear {
+  id                           String     @id @default(uuid()) @db.Uuid
+  sourceId                     String     @db.Uuid
+  year                         Int
+  categoryLabel                String
+  acpsaOutputUsd               Decimal?   @db.Decimal(20, 0)
+  acpsaValueAddedUsd           Decimal?   @db.Decimal(20, 0)
+  acpsaEmployment              Int?
+  acpsaEmployeeCompensationUsd Decimal?   @db.Decimal(20, 0)
+  sourceArchiveUrl             String
+  sourceWorkbook               String
+  sourceTables                 String[]
+  unitMetadata                 Json       @default("{}")
+  retrievedAt                  DateTime   @db.Timestamptz(3)
+  firstSeenAt                  DateTime   @db.Timestamptz(3)
+  lastSeenAt                   DateTime   @db.Timestamptz(3)
+  metadata                     Json       @default("{}")
+  createdAt                    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                    DateTime   @updatedAt @db.Timestamptz(3)
+  source                       DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, year])
+  @@index([year])
+  @@index([sourceId, year])
+}
+
+model CensusRecordIndustryYear {
+  id                     String     @id @default(uuid()) @db.Uuid
+  sourceId               String     @db.Uuid
+  year                   Int
+  naicsCode              String     @db.VarChar(6)
+  industryLabel          String
+  revenueUsd             Decimal?   @db.Decimal(20, 0)
+  payrollUsd             Decimal?   @db.Decimal(20, 0)
+  employment             Int?
+  operatingExpensesUsd   Decimal?   @db.Decimal(20, 0)
+  revenueFlag            String?
+  payrollFlag            String?
+  employmentFlag         String?
+  operatingExpensesFlag  String?
+  revenueCvPct           Decimal?   @db.Decimal(7, 2)
+  payrollCvPct           Decimal?   @db.Decimal(7, 2)
+  employmentCvPct        Decimal?   @db.Decimal(7, 2)
+  operatingExpensesCvPct Decimal?   @db.Decimal(7, 2)
+  sourceTable            String
+  sourceVintage          String
+  retrievedAt            DateTime   @db.Timestamptz(3)
+  firstSeenAt            DateTime   @db.Timestamptz(3)
+  lastSeenAt             DateTime   @db.Timestamptz(3)
+  metadata               Json       @default("{}")
+  createdAt              DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime   @updatedAt @db.Timestamptz(3)
+  source                 DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, year, naicsCode, sourceVintage])
+  @@index([year])
+  @@index([sourceId, year])
+  @@index([naicsCode])
+}
+
+model MVTGrassrootsMusicYear {
+  id                         String     @id @default(uuid()) @db.Uuid
+  sourceId                   String     @db.Uuid
+  year                       Int
+  venueCount                 Int?
+  permanentClosures          Int?
+  venuesNoLongerOperating    Int?
+  venuesUnprofitablePct      Decimal?   @db.Decimal(7, 2)
+  averageProfitMarginPct     Decimal?   @db.Decimal(7, 2)
+  eventCount                 Int?
+  ticketedLiveMusicEvents    Int?
+  audienceVisits             Int?
+  totalSectorRevenueGbp      Decimal?   @db.Decimal(18, 0)
+  liveMusicIncomeGbp         Decimal?   @db.Decimal(18, 0)
+  employment                 Int?
+  jobsLost                   Int?
+  townsWithoutRegularTouring Int?
+  sourceReportUrl            String
+  sourceReleaseUrl           String
+  sourcePublishedAt          DateTime?  @db.Timestamptz(3)
+  retrievedAt                DateTime   @db.Timestamptz(3)
+  firstSeenAt                DateTime   @db.Timestamptz(3)
+  lastSeenAt                 DateTime   @db.Timestamptz(3)
+  metadata                   Json       @default("{}")
+  createdAt                  DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime   @updatedAt @db.Timestamptz(3)
+  source                     DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, year])
+  @@index([year])
+  @@index([sourceId, year])
 }
 
 model BFIWeekendBoxOffice {

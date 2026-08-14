@@ -8,7 +8,11 @@ import {
   type BeaRequestOptions,
 } from "@/data-sources/macro/bea-api";
 import { BEA_METRICS, getBeaMetric } from "@/data-sources/macro/bea-metrics";
-import { formatBeaMonth, getBeaYears } from "@/data-sources/macro/bea-period";
+import {
+  formatBeaMonth,
+  getBeaYears,
+  parseBeaMonth,
+} from "@/data-sources/macro/bea-period";
 import { parseBeaObservations } from "@/data-sources/macro/bea-response";
 import type {
   AvailableMetric,
@@ -36,7 +40,8 @@ export class BeaDataSourceAdapter implements DataSourceAdapter {
   readonly slug = "bea";
   readonly name = "BEA";
   readonly countries = ["US"] as const;
-  readonly sectors = ["consumer-spending"] as const;
+  readonly sectors = ["consumer-spending", "music"] as const;
+  private readonly responseCache = new Map<string, Promise<unknown>>();
 
   constructor(private readonly options: BeaAdapterOptions) {}
 
@@ -68,7 +73,7 @@ export class BeaDataSourceAdapter implements DataSourceAdapter {
         status: "healthy",
         checkedAt: checkedAt.toISOString(),
         latencyMs: result.latencyMs,
-        message: "BEA NIPA metadata endpoint responded successfully.",
+        message: "BEA metadata endpoint responded successfully.",
       };
     } catch (error) {
       const degraded =
@@ -86,13 +91,25 @@ export class BeaDataSourceAdapter implements DataSourceAdapter {
   }
 
   async fetchAvailableMetrics(): Promise<AvailableMetric[]> {
-    return BEA_METRICS.map(({ slug, name, description, unit, frequency }) => ({
-      slug,
-      name,
-      description,
-      unit,
-      frequency,
-    }));
+    return BEA_METRICS.map(
+      ({
+        slug,
+        name,
+        description,
+        unit,
+        frequency,
+        countryCode,
+        sectorSlug,
+      }) => ({
+        slug,
+        name,
+        description,
+        unit,
+        frequency,
+        countryCode,
+        sectorSlug,
+      }),
+    );
   }
 
   async fetchObservations(
@@ -104,7 +121,7 @@ export class BeaDataSourceAdapter implements DataSourceAdapter {
       throw new Error("BEA API configuration is incomplete.");
     }
     if (request.countryCode && request.countryCode !== "US") {
-      throw new Error("BEA NIPA metrics currently support the US only.");
+      throw new Error("BEA metrics currently support the US only.");
     }
     if (request.endDate < request.startDate) {
       throw new Error(
@@ -114,22 +131,51 @@ export class BeaDataSourceAdapter implements DataSourceAdapter {
     const metric = getBeaMetric(request.metricSlug);
     if (!metric) throw new UnsupportedBeaMetricError(request.metricSlug);
 
-    const url = buildBeaDataUrl(
-      baseUrl,
-      apiKey,
-      metric.tableName,
-      getBeaYears(request.startDate, request.endDate),
-    );
-    const requestUrl = sanitiseBeaUrl(url);
+    const firstAvailableDate = parseBeaMonth(metric.firstAvailablePeriod);
+    if (request.endDate < firstAvailableDate) return [];
+    const effectiveStartDate =
+      request.startDate < firstAvailableDate
+        ? firstAvailableDate
+        : request.startDate;
+
     const retrievedAt = (this.options.now ?? (() => new Date()))();
-    const response = await fetchBeaJson(url, this.options);
-    return parseBeaObservations(
-      response.payload,
-      metric,
-      requestUrl,
-      retrievedAt,
-      request.startDate,
-      request.endDate,
+    const years = getBeaYears(effectiveStartDate, request.endDate);
+    const observations: NormalisedObservation[] = [];
+    for (let index = 0; index < years.length; index += 3) {
+      const yearBatch = years.slice(index, index + 3);
+      const url = buildBeaDataUrl(
+        baseUrl,
+        apiKey,
+        metric.dataset,
+        metric.tableName,
+        yearBatch,
+      );
+      const requestUrl = sanitiseBeaUrl(url);
+      let responsePromise = this.responseCache.get(requestUrl);
+      if (!responsePromise) {
+        responsePromise = fetchBeaJson(url, this.options).then(
+          (response) => response.payload,
+        );
+        this.responseCache.set(requestUrl, responsePromise);
+      }
+      try {
+        observations.push(
+          ...parseBeaObservations(
+            await responsePromise,
+            metric,
+            requestUrl,
+            retrievedAt,
+            effectiveStartDate,
+            request.endDate,
+          ),
+        );
+      } catch (error) {
+        this.responseCache.delete(requestUrl);
+        throw error;
+      }
+    }
+    return observations.sort(
+      (left, right) => left.periodStart.getTime() - right.periodStart.getTime(),
     );
   }
 }

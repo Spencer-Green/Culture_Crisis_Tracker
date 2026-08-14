@@ -1,0 +1,52 @@
+{
+  "BEAAPI": {
+    "Results": {
+      "Data": [
+        {
+          "TableName": "U20406",
+          "SeriesCode": "DRTDRX",
+          "LineNumber": "45",
+          "LineDescription": "Audio discs, tapes, vinyl, and permanent digital downloads",
+          "TimePeriod": "2007M01",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "11,951"
+        },
+        {
+          "TableName": "U20406",
+          "SeriesCode": "LB000232",
+          "LineNumber": "225",
+          "LineDescription": "Audio streaming and radio services (including satellite radio)",
+          "TimePeriod": "2007M01",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "1,351"
+        },
+        {
+          "TableName": "U20406",
+          "SeriesCode": "DRTDRX",
+          "LineNumber": "45",
+          "LineDescription": "Audio discs, tapes, vinyl, and permanent digital downloads",
+          "TimePeriod": "2026M06",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "2,970"
+        },
+        {
+          "TableName": "U20406",
+          "SeriesCode": "LB000232",
+          "LineNumber": "225",
+          "LineDescription": "Audio streaming and radio services (including satellite radio)",
+          "TimePeriod": "2026M06",
+          "METRIC_NAME": "Chained Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "12,219"
+        }
+      ]
+    }
+  }
+}

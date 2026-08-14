@@ -33,6 +33,8 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "US_BOX_OFFICE_BASE_URL",
   "BROADWAY_BUSINESS_BASE_URL",
   "BFI_BASE_URL",
+  "MVT_BASE_URL",
+  "CENSUS_BASE_URL",
   "MEDIASTACK_BASE_URL",
 ] as const;
 
@@ -91,6 +93,12 @@ export const serverEnvSchema = z.object({
   ),
   BFI_BASE_URL: optionalUrl("BFI_BASE_URL").default(
     "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+  ),
+  MVT_BASE_URL: optionalUrl("MVT_BASE_URL").default(
+    "https://www.musicvenuetrust.com/resources/",
+  ),
+  CENSUS_BASE_URL: optionalUrl("CENSUS_BASE_URL").default(
+    "https://www2.census.gov/programs-surveys/aies/data",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
 });

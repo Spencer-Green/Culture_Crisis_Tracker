@@ -163,8 +163,8 @@ export async function runIngestion(
       const persisted = await input.store.persistMetricObservations({
         sourceId: source.id,
         metric,
-        countryCode: input.sourceDefinition.countries[0],
-        sectorSlug: input.sourceDefinition.sectors[0],
+        countryCode: metric.countryCode ?? input.sourceDefinition.countries[0],
+        sectorSlug: metric.sectorSlug ?? input.sourceDefinition.sectors[0],
         observations: fetched.observations,
       });
       recordsCreated += persisted.recordsCreated;

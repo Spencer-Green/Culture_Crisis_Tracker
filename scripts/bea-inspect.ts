@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import { inspectBeaMetrics } from "../src/data-sources/macro/bea-inspection";
+import { BEA_MACRO_METRICS } from "../src/data-sources/macro/bea-metrics";
 import { parseServerEnv } from "../src/lib/env-schema";
 
 async function main() {
@@ -8,7 +9,9 @@ async function main() {
   if (!env.BEA_BASE_URL || !env.BEA_API_KEY) {
     throw new Error("BEA_BASE_URL and BEA_API_KEY are required.");
   }
-  const metrics = await inspectBeaMetrics(env.BEA_BASE_URL, env.BEA_API_KEY);
+  const metrics = await inspectBeaMetrics(env.BEA_BASE_URL, env.BEA_API_KEY, {
+    metrics: BEA_MACRO_METRICS,
+  });
   for (const metric of metrics) {
     console.log(`${metric.lineDescription} (${metric.seriesCode})`);
     console.log(`  Dataset: ${metric.dataset}`);

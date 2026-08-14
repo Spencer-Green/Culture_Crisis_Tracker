@@ -77,6 +77,22 @@ describe("source configuration status", () => {
     ).toEqual({ configured: true, missingConfiguration: [] });
   });
 
+  it("configures public MVT reports without credentials", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("mvt"), {
+        MVT_BASE_URL: "https://www.musicvenuetrust.com/resources/",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
+  it("configures public Census AIES downloads without credentials", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("census"), {
+        CENSUS_BASE_URL: "https://www2.census.gov/programs-surveys/aies/data",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
   it("requires both the base URL and declared authentication fields", () => {
     const ticketmaster = getSourceDefinition("ticketmaster");
     const baseEnvironment = {

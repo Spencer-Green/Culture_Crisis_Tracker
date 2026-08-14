@@ -385,6 +385,49 @@ BEA revises NIPA history and may update chained-dollar reference years. Re-run i
 changing mappings, and repeat ingestion to apply revisions idempotently. The initial tracker
 backfill begins in January 2019.
 
+### BEA detailed recorded-music consumer demand
+
+The Music page also uses BEA's official `NIUnderlyingDetail` dataset. These measures describe US
+household Personal Consumption Expenditures, not RIAA retail value, record-company wholesale
+revenue, label revenue, artist income, or royalties. Live metadata inspection verified:
+
+- `us-audio-streaming-radio-pce-current-price`
+  - Table `U20405` (`2.4.5U`), line `225`, series `LA000232`
+  - `Audio streaming and radio services (including satellite radio)`
+  - Current dollars; `USD millions SAAR`; monthly from January 2007
+- `us-audio-streaming-radio-pce-real`
+  - Table `U20406` (`2.4.6U`), line `225`, series `LB000232`
+  - The same official category in chained 2017 dollars; monthly from January 2007
+- `us-owned-recorded-music-pce-current-price`
+  - Table `U20405`, line `45`, series `DRTDRC`
+  - `Audio discs, tapes, vinyl, and permanent digital downloads`
+  - Current dollars; `USD millions SAAR`; monthly from January 1959
+- `us-owned-recorded-music-pce-real`
+  - Table `U20406`, line `45`, series `DRTDRX`
+  - The same official category in chained 2017 dollars; monthly from January 2007
+
+`U20405` is “Table 2.4.5U. Personal Consumption Expenditures by Type of Product.” `U20406` is its
+official real chained-dollar counterpart. The tracker preserves both rather than constructing a CPI
+proxy. All monthly levels are seasonally adjusted annual rates: the UI labels them `annualized` and
+does not divide them by twelve. Chained-dollar series are not used to calculate nominal wallet
+shares.
+
+The streaming label must not be shortened to imply on-demand subscriptions alone because BEA
+explicitly includes radio and satellite radio. The displayed streaming/radio share uses only the
+two compatible current-dollar PCE categories and is a share of tracked recorded-music consumption,
+not a share of the complete music industry.
+
+Inspect the exact lines without persistence, then ingest an inclusive monthly range:
+
+```bash
+npm run bea:music:inspect
+npm run ingest:bea:music -- --start=2019-01 --end=2026-06
+```
+
+With no range, the dedicated command maximizes available official history for the selected metrics;
+metric-specific start dates prevent synthetic pre-history. Missing observations are skipped, never
+interpolated, and repeated runs update the same raw observations.
+
 ## FRED Consumer Credit and Credit-Card Stress
 
 The FRED integration uses the official base `https://api.stlouisfed.org/fred`. Metadata comes from
@@ -1308,9 +1351,9 @@ score.
 
 ## Current limitations
 
-- ABS, ONS, BEA, FRED, Statistics Canada, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
-  RSS, the provisional US box-office dataset, BFI, and provisional Broadway Business data are active
-  sources;
+- ABS, ONS, BEA, FRED, Statistics Canada, Census AIES, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
+  RSS, the provisional US box-office dataset, BFI, Music Venue Trust, and provisional Broadway
+  Business data are active sources;
   Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
   unimplemented and disabled
 - No scheduled jobs or general retry framework; ONS, GDELT, Ticketmaster, IGDB, and Steam use
@@ -1318,7 +1361,8 @@ score.
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
-- Persisted metrics include six from ABS, four each from ONS, BEA, Eurostat, and Statistics Canada
+- Persisted metrics include six from ABS, four from ONS, eight from BEA, four
+  each from Eurostat and Statistics Canada
   plus seven FRED metrics; GDELT records remain article candidates, Ticketmaster records are
   structured forward event-supply observations, IGDB records are tracked releases, and Steam rows
   are point-in-time snapshots rather than reconstructed history
@@ -1341,3 +1385,160 @@ composite indicators remain explicit empty states; they do not contain fabricate
 The recommended next task is scheduling recurring Steam and Ticketmaster snapshots with retention
 and capture-completeness monitoring. No additional provider should be added until those
 longitudinal evidence-quality foundations are established.
+
+## Music sector data
+
+The Music page keeps five analytically distinct concepts separate:
+
+- **Recorded-music consumer demand:** BEA detailed PCE provides official monthly
+  current-dollar and chained-dollar household spending for audio streaming and
+  radio services (including satellite radio), plus audio discs, tapes, vinyl,
+  and permanent digital downloads. These are consumer-spending measures rather
+  than music-industry revenue. RIAA remains unimplemented.
+- **Record-industry business activity:** Census AIES provides annual employer-
+  firm revenue, payroll, March 12 employment, and operating expenses for NAICS
+  `512250`, `Record production and distribution`. These business statistics do
+  not reconcile directly to BEA household PCE.
+- **Long-run national-accounting structure:** BEA ACPSA provides historical
+  Sound Recording output, value added, employment, and employee compensation
+  for 1998–2023. It is a structural benchmark, not a current live-market feed.
+- **Live-event supply:** the existing Ticketmaster `Music` segment supplies
+  persisted 30-day and 90-day forward-event, active-venue, calendar-density,
+  status, and longitudinal snapshot measures for AU, US, GB, and CA. No second
+  Ticketmaster ingestion path exists.
+- **Grassroots viability:** Music Venue Trust annual reports provide official UK
+  Grassroots Music Venue structural statistics. These do not represent all UK
+  live music, arena/stadium touring, or global live music.
+
+### Music Venue Trust
+
+Access classification: `OFFICIAL_DOWNLOAD`. The tracker uses a small versioned
+mapping of statistical fields published in official MVT annual-report PDFs:
+
+- 2023: `https://www.musicvenuetrust.com/wp-content/uploads/2024/01/MVT_2023-Annual-Report_Digital.pdf`
+- 2024: `https://www.musicvenuetrust.com/wp-content/uploads/2025/01/MVT_2024-Annual-Report.pdf`
+- 2025: `https://www.musicvenuetrust.com/wp-content/uploads/2026/01/MVT_2025-Annual-Report_Digital-Spreads.pdf`
+
+Only numeric/statistical fields are persisted; report text is not stored. The
+versioned mapping is preferred over fragile PDF visual extraction. Each value
+retains its official report and release URL. The current MVT edge protection
+returns HTTP 401 to bounded automated HEAD requests, so the tracker does not
+bypass that control. `mvt:inspect` reports live reachability and the registered
+fields, while `ingest:mvt` upserts the reviewed mappings without fetching or
+scraping report content.
+
+```bash
+npm run mvt:inspect
+npm run ingest:mvt
+npm run ingest:mvt -- --year=2025
+```
+
+Available annual fields vary and remain nullable: trading venue count,
+permanent closures, venues no longer operating as GMVs, venues reporting a
+loss/no profit, average profit margin, event and ticketed-event counts,
+audience visits, sector revenue, live-music income, employment, jobs lost, and
+towns without regular touring. Source gaps are preserved.
+
+The 2023 and 2024 reports describe the percentage of venues reporting a loss;
+the 2025 report describes venues reporting no profit. The application retains
+that definition change and withholds a direct percentage-point comparison.
+Likewise, the 2023 release headline and detailed membership-review closure
+figures are preserved as distinct concepts rather than silently merged.
+
+### Census AIES record production and distribution
+
+The tracker uses official, no-key Census downloadable files rather than
+scraping `data.census.gov` HTML or adding a Census API credential:
+
+- `https://www2.census.gov/programs-surveys/aies/data/2023/AIES00BASIC.zip`
+  supplies national employer-firm revenue, annual payroll, and March 12
+  employment.
+- `https://www2.census.gov/programs-surveys/aies/data/2023/AIES00EXP01.zip`
+  supplies operating expenses for the same national industry row.
+
+Both ZIPs contain official pipe-delimited tables. Monetary source values are in
+USD thousands and are normalized to whole USD without changing their nominal
+basis. The importer requires the exact United States, all-establishments row for
+NAICS `512250` and its exact label, `Record production and distribution`.
+Disclosure/status flags and coefficients of variation are retained. A
+suppressed or unavailable value is stored as `null`, never zero.
+
+Inspect and ingest with:
+
+```bash
+npm run census:music:inspect
+npm run ingest:census:music
+```
+
+The 2023 AIES release is currently the only comparable annual AIES observation
+in the public employer tables. AIES replaced the Service Annual Survey and six
+other annual programs beginning with reference year 2023. The tracker does not
+silently stitch predecessor SAS observations into AIES: survey integration,
+linking, and operating-expense scope changes require a separate comparability
+study. Until another comparable AIES year exists, the UI reports insufficient
+history rather than fabricating YoY growth.
+
+### BEA ACPSA Sound Recording history
+
+The historical Music section uses BEA's official national Arts and Cultural
+Production Satellite Account archive:
+
+`https://apps.bea.gov/regional/zip/acpsanational.zip`
+
+The ZIP contains 26 annual XLSX workbooks, `ACPSA_1998.xlsx` through
+`ACPSA_2023.xlsx`. The importer discovers and validates these exact source
+fields for the exact `Sound Recording` row:
+
+- `Table2_Industry_Output_VA`: `ACPSA Output` and `ACPSA Value Added`, published
+  in millions of current dollars.
+- `Table4_Employment`: `ACPSA employment (thousands of employees)` and `ACPSA
+compensation (millions of dollars)`.
+
+Monetary values are normalized to whole nominal USD and employment to employee
+counts. The tracker deliberately uses the ACPSA contribution columns rather
+than the workbook's broader total-industry columns. Separate real value-added
+and real commodity-output workbooks are not mixed into this nominal industry
+series. Supply and consumption are also omitted because the source table is a
+commodity account rather than the same industry concept.
+
+Inspect and ingest the complete official archive with:
+
+```bash
+npm run bea:acpsa:music:inspect
+npm run ingest:bea:acpsa:music
+```
+
+This subresource reuses the existing BEA provider identity. It is labelled
+`Historical / structural`, with latest official observation `2023`. BEA states
+that it will no longer regularly produce these statistics, so the terminal year
+is not treated as a failed or stale live feed. The importer never extrapolates
+post-2023 values and uses a deterministic `source + year` identity for
+revision-safe idempotency.
+
+ACPSA output is a national-accounting production concept, not Census AIES
+business revenue. ACPSA value added is not output. ACPSA employment is not live
+event supply, and ACPSA measures do not replace BEA household PCE. The long-run
+chart presents nominal dollar levels plus descriptive 1998-indexed output and
+employment; output/labor divergence is not attributed to AI, labor practices,
+or industry health.
+
+### Music methodology caveats
+
+- MVT annual survey membership and definitions can change; YoY calculations
+  require comparable adjacent fields.
+- Ticketmaster coverage is not the complete live-music market, and events aging
+  out of a forward window are not cancellations.
+- Current Ticketmaster status counts differ from observed status transitions;
+  `offsale` is not treated as cancellation.
+- BEA recorded-music PCE is household spending, not creator income, royalties,
+  label revenue, or venue profitability.
+- Census AIES NAICS `512250` measures activity of classified employer
+  businesses, not household consumption or an RIAA-equivalent retail market.
+- BEA ACPSA is a discontinued historical national-accounting benchmark; its
+  output and value-added concepts are not interchangeable with Census revenue.
+- Establishment counts are not included because the selected official 2023
+  AIES employer ZIPs do not publish that field for this row.
+- Nominal sector revenue is affected by prices and activity mix.
+- Monthly BEA household demand, annual Census business activity, historical BEA
+  ACPSA structure, annual MVT viability, and current Ticketmaster supply data
+  are never combined into a Music Health or Crisis score.

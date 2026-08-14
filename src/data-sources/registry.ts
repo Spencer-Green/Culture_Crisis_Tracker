@@ -7,6 +7,8 @@ import { steamAdapter } from "@/data-sources/entertainment/steam";
 import { ticketmasterAdapter } from "@/data-sources/entertainment/ticketmaster";
 import { usBoxOfficeAdapter } from "@/data-sources/film/us-box-office";
 import { bfiAdapter } from "@/data-sources/film/bfi";
+import { mvtAdapter } from "@/data-sources/music/mvt";
+import { censusAdapter } from "@/data-sources/music/census";
 import { absAdapter } from "@/data-sources/macro/abs";
 import { beaAdapter } from "@/data-sources/macro/bea";
 import { eurostatAdapter } from "@/data-sources/macro/eurostat";
@@ -47,6 +49,8 @@ export const adapters: readonly DataSourceAdapter[] = [
   usBoxOfficeAdapter,
   broadwayBusinessAdapter,
   bfiAdapter,
+  mvtAdapter,
+  censusAdapter,
 ];
 
 export function getStaticSourceRegistry() {

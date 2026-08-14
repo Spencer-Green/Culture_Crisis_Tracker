@@ -18,6 +18,10 @@ const realFixture = readFileSync(
   new URL("./__fixtures__/bea-t20806.json", import.meta.url),
   "utf8",
 );
+const musicNominalFixture = readFileSync(
+  new URL("./__fixtures__/bea-u20405.json", import.meta.url),
+  "utf8",
+);
 
 describe("BEA adapter", () => {
   it("requires both a valid base URL and API key", () => {
@@ -50,7 +54,7 @@ describe("BEA adapter", () => {
       now: () => new Date("2026-08-12T00:00:00.000Z"),
     });
 
-    await expect(adapter.fetchAvailableMetrics()).resolves.toHaveLength(4);
+    await expect(adapter.fetchAvailableMetrics()).resolves.toHaveLength(8);
     const total = await adapter.fetchObservations({
       metricSlug: "us-pce-total-current-price",
       countryCode: "US",
@@ -81,6 +85,38 @@ describe("BEA adapter", () => {
     expect(recreation).toHaveLength(1);
     expect(total[0].sourceUrl).not.toContain("test-key");
     expect(total[0].sourceUrl).not.toContain("UserID");
+  });
+
+  it("parses exact detailed PCE mappings with music sector provenance", async () => {
+    const adapter = new BeaDataSourceAdapter({
+      getBaseUrl: () => "https://apps.bea.gov/api/data",
+      getApiKey: () => "test-key",
+      fetchImplementation: async () =>
+        new Response(musicNominalFixture, {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      now: () => new Date("2026-08-14T00:00:00.000Z"),
+    });
+    const observations = await adapter.fetchObservations({
+      metricSlug: "us-audio-streaming-radio-pce-current-price",
+      countryCode: "US",
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      endDate: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(observations).toHaveLength(1);
+    expect(observations[0]).toMatchObject({
+      value: "13131",
+      sectorSlug: "music",
+      metadata: {
+        dataset: "NIUnderlyingDetail",
+        tableName: "U20405",
+        lineNumber: "225",
+        seriesCode: "LA000232",
+        adjustment: "Seasonally adjusted at annual rates (SAAR)",
+      },
+    });
   });
 
   it("keeps real chained-dollar semantics distinct", () => {

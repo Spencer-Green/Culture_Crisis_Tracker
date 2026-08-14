@@ -4,7 +4,14 @@ import {
   fetchBeaJson,
   type BeaRequestOptions,
 } from "@/data-sources/macro/bea-api";
-import { BEA_DATASET, BEA_METRICS } from "@/data-sources/macro/bea-metrics";
+import {
+  BEA_METRICS,
+  type BeaMetricDefinition,
+} from "@/data-sources/macro/bea-metrics";
+
+export type BeaInspectionOptions = BeaRequestOptions & {
+  metrics?: readonly BeaMetricDefinition[];
+};
 
 export type BeaMetricInspection = {
   dataset: string;
@@ -18,6 +25,8 @@ export type BeaMetricInspection = {
   adjustment: string;
   firstAvailablePeriod: string;
   latestAvailablePeriod: string;
+  firstValue: string;
+  latestValue: string;
 };
 
 type BeaYearRecord = {
@@ -70,37 +79,60 @@ function parseDataRows(payload: unknown): Record<string, string>[] {
 export async function inspectBeaMetrics(
   baseUrl: string,
   apiKey: string,
-  options: BeaRequestOptions = {},
+  options: BeaInspectionOptions = {},
 ): Promise<BeaMetricInspection[]> {
-  const yearUrl = buildBeaUrl(baseUrl, apiKey, {
-    method: "GetParameterValues",
-    DatasetName: BEA_DATASET,
-    ParameterName: "Year",
-  });
-  const years = parseYearRecords(
-    (await fetchBeaJson(yearUrl, options)).payload,
-  );
+  const metrics = options.metrics ?? BEA_METRICS;
+  const yearsByDataset = new Map<string, BeaYearRecord[]>();
+  for (const dataset of new Set(metrics.map((metric) => metric.dataset))) {
+    const yearUrl = buildBeaUrl(baseUrl, apiKey, {
+      method: "GetParameterValues",
+      DatasetName: dataset,
+      ParameterName: "Year",
+    });
+    yearsByDataset.set(
+      dataset,
+      parseYearRecords((await fetchBeaJson(yearUrl, options)).payload),
+    );
+  }
   const rowsByTable = new Map<string, Record<string, string>[]>();
 
-  for (const tableName of new Set(
-    BEA_METRICS.map((metric) => metric.tableName),
-  )) {
-    const availability = years.find((item) => item.TableName === tableName);
+  for (const metric of metrics) {
+    const tableKey = `${metric.dataset}:${metric.tableName}`;
+    if (rowsByTable.has(tableKey)) continue;
+    const availability = (yearsByDataset.get(metric.dataset) ?? []).find(
+      (item) => item.TableName === metric.tableName,
+    );
     if (!availability) {
       throw new Error("BEA table availability metadata was incomplete.");
     }
-    const url = buildBeaDataUrl(baseUrl, apiKey, tableName, [
+    const requestedYears = [
       availability.FirstMonthlyYear,
+      ...metrics
+        .filter(
+          (candidate) =>
+            candidate.dataset === metric.dataset &&
+            candidate.tableName === metric.tableName,
+        )
+        .map((candidate) => candidate.firstAvailablePeriod.slice(0, 4)),
       availability.LastMonthlyYear,
-    ]);
+    ];
+    const url = buildBeaDataUrl(
+      baseUrl,
+      apiKey,
+      metric.dataset,
+      metric.tableName,
+      [...new Set(requestedYears)],
+    );
     rowsByTable.set(
-      tableName,
+      tableKey,
       parseDataRows((await fetchBeaJson(url, options)).payload),
     );
   }
 
-  return BEA_METRICS.map((metric) => {
-    const rows = (rowsByTable.get(metric.tableName) ?? [])
+  return metrics.map((metric) => {
+    const rows = (
+      rowsByTable.get(`${metric.dataset}:${metric.tableName}`) ?? []
+    )
       .filter(
         (row) =>
           row.LineNumber === metric.lineNumber &&
@@ -124,6 +156,8 @@ export async function inspectBeaMetrics(
       adjustment: metric.adjustment,
       firstAvailablePeriod: toMonth(rows[0].TimePeriod),
       latestAvailablePeriod: toMonth(rows.at(-1)!.TimePeriod),
+      firstValue: rows[0].DataValue,
+      latestValue: rows.at(-1)!.DataValue,
     };
   });
 }
@@ -140,6 +174,30 @@ export function getCommonBeaAvailability(
         metric.firstAvailablePeriod > latest
           ? metric.firstAvailablePeriod
           : latest,
+      inspections[0].firstAvailablePeriod,
+    ),
+    latestPeriod: inspections.reduce(
+      (earliest, metric) =>
+        metric.latestAvailablePeriod < earliest
+          ? metric.latestAvailablePeriod
+          : earliest,
+      inspections[0].latestAvailablePeriod,
+    ),
+  };
+}
+
+export function getFullBeaAvailability(
+  inspections: readonly BeaMetricInspection[],
+) {
+  if (inspections.length === 0) {
+    throw new Error("No BEA metrics are available.");
+  }
+  return {
+    earliestPeriod: inspections.reduce(
+      (earliest, metric) =>
+        metric.firstAvailablePeriod < earliest
+          ? metric.firstAvailablePeriod
+          : earliest,
       inspections[0].firstAvailablePeriod,
     ),
     latestPeriod: inspections.reduce(

@@ -30,6 +30,8 @@ describe("source seed metadata", () => {
       getSourceDefinition("us-box-office"),
       getSourceDefinition("broadway-business"),
       getSourceDefinition("bfi"),
+      getSourceDefinition("mvt"),
+      getSourceDefinition("census"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -84,10 +86,20 @@ describe("source seed metadata", () => {
                                         BROADWAY_BUSINESS_BASE_URL:
                                           "https://broadwaybusiness.com/grosses",
                                       }
-                                    : {
-                                        BFI_BASE_URL:
-                                          "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
-                                      },
+                                    : source.slug === "bfi"
+                                      ? {
+                                          BFI_BASE_URL:
+                                            "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+                                        }
+                                      : source.slug === "mvt"
+                                        ? {
+                                            MVT_BASE_URL:
+                                              "https://www.musicvenuetrust.com/resources/",
+                                          }
+                                        : {
+                                            CENSUS_BASE_URL:
+                                              "https://www2.census.gov/programs-surveys/aies/data",
+                                          },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -108,6 +120,8 @@ describe("source seed metadata", () => {
           "us-box-office",
           "broadway-business",
           "bfi",
+          "mvt",
+          "census",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -127,6 +141,8 @@ describe("source seed metadata", () => {
       "us-box-office",
       "broadway-business",
       "bfi",
+      "mvt",
+      "census",
     ]);
     expect(
       operations.every(

@@ -43,7 +43,11 @@ export function buildSourceSeedOperation(
           ? "https://broadwaybusiness.com/grosses"
           : source.slug === "bfi"
             ? "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures"
-            : ""),
+            : source.slug === "mvt"
+              ? "https://www.musicvenuetrust.com/resources/"
+              : source.slug === "census"
+                ? "https://www2.census.gov/programs-surveys/aies/data"
+                : ""),
     countryCode,
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
@@ -66,6 +70,8 @@ export function buildSourceSeedOperation(
       "us-box-office",
       "broadway-business",
       "bfi",
+      "mvt",
+      "census",
     ].includes(source.slug),
   };
 

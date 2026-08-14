@@ -1,4 +1,4 @@
-import { BEA_DATASET } from "@/data-sources/macro/bea-metrics";
+import { BEA_DATASET, type BeaDataset } from "@/data-sources/macro/bea-metrics";
 import {
   fetchText,
   HttpRequestError,
@@ -95,12 +95,13 @@ export async function fetchBeaJson(
 export function buildBeaDataUrl(
   baseUrl: string,
   apiKey: string,
+  dataset: BeaDataset,
   tableName: string,
   years: readonly string[],
 ): URL {
   return buildBeaUrl(baseUrl, apiKey, {
     method: "GetData",
-    DatasetName: BEA_DATASET,
+    DatasetName: dataset,
     TableName: tableName,
     Frequency: "M",
     Year: years.join(","),

@@ -16,6 +16,8 @@ export type AvailableMetric = {
   description: string;
   unit: string;
   frequency: string;
+  countryCode?: CountryCode;
+  sectorSlug?: SectorSlug;
 };
 
 export type ObservationRequest = {

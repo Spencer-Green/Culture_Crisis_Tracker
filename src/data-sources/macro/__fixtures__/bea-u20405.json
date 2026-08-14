@@ -1,0 +1,52 @@
+{
+  "BEAAPI": {
+    "Results": {
+      "Data": [
+        {
+          "TableName": "U20405",
+          "SeriesCode": "DRTDRC",
+          "LineNumber": "45",
+          "LineDescription": "Audio discs, tapes, vinyl, and permanent digital downloads",
+          "TimePeriod": "1959M01",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "174"
+        },
+        {
+          "TableName": "U20405",
+          "SeriesCode": "LA000232",
+          "LineNumber": "225",
+          "LineDescription": "Audio streaming and radio services (including satellite radio)",
+          "TimePeriod": "2007M01",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "1,614"
+        },
+        {
+          "TableName": "U20405",
+          "SeriesCode": "DRTDRC",
+          "LineNumber": "45",
+          "LineDescription": "Audio discs, tapes, vinyl, and permanent digital downloads",
+          "TimePeriod": "2026M06",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "3,189"
+        },
+        {
+          "TableName": "U20405",
+          "SeriesCode": "LA000232",
+          "LineNumber": "225",
+          "LineDescription": "Audio streaming and radio services (including satellite radio)",
+          "TimePeriod": "2026M06",
+          "METRIC_NAME": "Current Dollars",
+          "CL_UNIT": "Level",
+          "UNIT_MULT": "6",
+          "DataValue": "13,131"
+        }
+      ]
+    }
+  }
+}

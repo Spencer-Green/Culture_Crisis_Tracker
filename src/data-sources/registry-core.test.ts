@@ -32,14 +32,16 @@ describe("source registry", () => {
       RSS_BASE_URL: "https://www.rssboard.org/rss-specification",
       US_BOX_OFFICE_BASE_URL: "https://www.kaggle.com/api/v1",
       BROADWAY_BUSINESS_BASE_URL: "https://broadwaybusiness.com/grosses",
+      BFI_BASE_URL:
+        "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(17);
+    expect(sources).toHaveLength(18);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(14);
+    ).toHaveLength(15);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -118,6 +120,13 @@ describe("source registry", () => {
       isPublic: true,
       countries: ["US"],
       sectors: ["theatre"],
+    });
+    expect(sources.find((source) => source.slug === "bfi")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      countries: ["GB"],
+      sectors: ["film"],
     });
     expect(sources.find((source) => source.slug === "ons")?.isPublic).toBe(
       true,

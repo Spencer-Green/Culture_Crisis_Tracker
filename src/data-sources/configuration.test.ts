@@ -68,6 +68,15 @@ describe("source configuration status", () => {
     ).toEqual({ configured: true, missingConfiguration: [] });
   });
 
+  it("configures the public BFI report index without credentials", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("bfi"), {
+        BFI_BASE_URL:
+          "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
   it("requires both the base URL and declared authentication fields", () => {
     const ticketmaster = getSourceDefinition("ticketmaster");
     const baseEnvironment = {

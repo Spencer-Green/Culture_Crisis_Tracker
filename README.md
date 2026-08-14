@@ -1187,6 +1187,63 @@ Film analytics remain presentation-layer calculations:
 All amounts are nominal US dollars. No inflation adjustment, ticket-price decomposition, or
 structural-health conclusion is made from short-term weekend volatility.
 
+## British Film Institute UK film data
+
+The Film page uses official public BFI resources rather than a commercial box-office API. Weekly
+reports are discovered from the [BFI weekend box-office figures](https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures)
+page and its annual index pages, then downloaded from BFI's `core-cms.bfi.org.uk` file host. The
+access review found no `robots.txt` file and no main-site term expressly prohibiting this bounded,
+low-frequency retrieval. BFI's general terms limit use to personal/non-commercial contexts, so the
+integration is suitable for private research and licensing/data-reuse should be reassessed before
+public or commercial deployment. No access control, CAPTCHA, browser emulation, or third-party
+box-office source is used.
+
+The public weekly archive uses several spreadsheet formats:
+
+- 2019–2025 include legacy XLS and newer XLSX files.
+- 2026 reports are currently ODS.
+- Each report covers Friday–Sunday nominal GBP and contains the BFI top 15, other reported UK
+  films, and other newly released films.
+
+`BFIWeekendBoxOffice` stores a deterministic weekend identity, the explicit source-published top-15
+total, a broader sum of every film row present in the workbook, reported release count, top-film
+detail, source file provenance, and retrieval/publication timestamps. Because the additional
+sections are not a complete census of every non-UK holdover outside the top 15, the broader measure
+is always labelled **reported weekend gross**, not total UK box office. Concentration calculations
+(#1, Top 3, and Top 5 share) use that same reported denominator and remain presentation-layer
+calculations.
+
+Inspect and ingest with:
+
+```bash
+npm run bfi:inspect
+npm run ingest:bfi
+npm run ingest:bfi -- --since=2019
+```
+
+Routine ingestion defaults to the current year. Historical files are cached outside the repository
+under the operating-system temporary directory and are not committed. Repeated ingestion upserts
+revised weekends by source/weekend end date. Missing and pandemic-closure weekends remain gaps;
+the tracker never interpolates them.
+
+Weekly analysis uses consecutive published reports for WoW, equivalent ISO weekends for YoY,
+four consecutive observations for the four-week rolling sum, and equivalent elapsed ISO weeks for
+prior-year and 2019 YTD comparisons. The Film page compares US and UK only through each market's
+own percentage change relative to 2019; it does not compare or convert raw USD and GBP levels.
+
+Annual structural context comes from clean ODS tables published through the
+[BFI Statistical Yearbook](https://www.bfi.org.uk/industry-data-insights/statistical-yearbook):
+
+- annual UK cinema admissions;
+- annual UK box-office gross;
+- UK and Republic of Ireland release count (stored with its wider scope documented);
+- feature-film UK production spend and production count;
+- HETV production spend and count stored separately from film.
+
+The current structured Yearbook tables cover through 2023. Admissions are not inferred from gross,
+and nominal box office is not treated as audience volume. Film production activity is presented
+separately from theatrical demand, and HETV is never relabelled as film production.
+
 ## Theatre sector data
 
 ### Broadway Business access review
@@ -1252,7 +1309,7 @@ score.
 ## Current limitations
 
 - ABS, ONS, BEA, FRED, Statistics Canada, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
-  RSS, the provisional US box-office dataset, and provisional Broadway Business data are active
+  RSS, the provisional US box-office dataset, BFI, and provisional Broadway Business data are active
   sources;
   Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
   unimplemented and disabled

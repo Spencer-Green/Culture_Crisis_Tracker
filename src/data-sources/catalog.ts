@@ -230,6 +230,17 @@ export const SOURCE_DEFINITIONS = [
     requiresAuthentication: false,
     implementationStatus: "implemented",
   },
+  {
+    slug: "bfi",
+    name: "British Film Institute",
+    provider: "British Film Institute",
+    baseUrlEnvironmentKey: "BFI_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["GB"],
+    sectors: ["film"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+  },
 ] as const satisfies readonly SourceDefinitionShape[];
 
 export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number];

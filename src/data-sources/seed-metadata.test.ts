@@ -29,6 +29,7 @@ describe("source seed metadata", () => {
       getSourceDefinition("rss"),
       getSourceDefinition("us-box-office"),
       getSourceDefinition("broadway-business"),
+      getSourceDefinition("bfi"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -78,10 +79,15 @@ describe("source seed metadata", () => {
                                       US_BOX_OFFICE_BASE_URL:
                                         "https://www.kaggle.com/api/v1",
                                     }
-                                  : {
-                                      BROADWAY_BUSINESS_BASE_URL:
-                                        "https://broadwaybusiness.com/grosses",
-                                    },
+                                  : source.slug === "broadway-business"
+                                    ? {
+                                        BROADWAY_BUSINESS_BASE_URL:
+                                          "https://broadwaybusiness.com/grosses",
+                                      }
+                                    : {
+                                        BFI_BASE_URL:
+                                          "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+                                      },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -101,6 +107,7 @@ describe("source seed metadata", () => {
           "rss",
           "us-box-office",
           "broadway-business",
+          "bfi",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -119,6 +126,7 @@ describe("source seed metadata", () => {
       "rss",
       "us-box-office",
       "broadway-business",
+      "bfi",
     ]);
     expect(
       operations.every(

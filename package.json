@@ -43,7 +43,9 @@
     "usboxoffice:inspect": "node --conditions=react-server --import tsx scripts/us-box-office-inspect.ts",
     "ingest:usboxoffice": "node --conditions=react-server --import tsx scripts/ingest-us-box-office.ts",
     "broadwaybusiness:inspect": "node --conditions=react-server --import tsx scripts/broadway-business-inspect.ts",
-    "ingest:broadwaybusiness": "node --conditions=react-server --import tsx scripts/ingest-broadway-business.ts"
+    "ingest:broadwaybusiness": "node --conditions=react-server --import tsx scripts/ingest-broadway-business.ts",
+    "bfi:inspect": "node --conditions=react-server --import tsx scripts/bfi-inspect.ts",
+    "ingest:bfi": "node --conditions=react-server --import tsx scripts/ingest-bfi.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -58,6 +60,7 @@
     "react-dom": "^19.2.8",
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.4.3"
   },
   "devDependencies": {

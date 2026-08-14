@@ -61,10 +61,70 @@ model DataSource {
   mediaArticleMatches    MediaArticleSourceMatch[]
   usBoxOfficeWeekends    USBoxOfficeWeekend[]
   broadwayMarketWeeks    BroadwayMarketWeek[]
+  bfiWeekendBoxOffice    BFIWeekendBoxOffice[]
+  bfiFilmMarketYears     BFIFilmMarketYear[]
 
   @@index([countryCode])
   @@index([sectorSlug])
   @@index([enabled])
+}
+
+model BFIWeekendBoxOffice {
+  id                    String     @id @default(uuid()) @db.Uuid
+  sourceId              String     @db.Uuid
+  weekendStart          DateTime   @db.Date
+  weekendEnd            DateTime   @db.Date
+  sourceDateLabel       String
+  reportedGrossGbp      Decimal    @db.Decimal(18, 0)
+  top15GrossGbp         Decimal    @db.Decimal(18, 0)
+  releaseCount          Int
+  topFilm               String?
+  topFilmGrossGbp       Decimal?   @db.Decimal(18, 0)
+  top3GrossGbp          Decimal?   @db.Decimal(18, 0)
+  top5GrossGbp          Decimal?   @db.Decimal(18, 0)
+  top10GrossGbp         Decimal?   @db.Decimal(18, 0)
+  sourceFileUrl         String
+  sourceFileName        String
+  sourceFormat          String
+  sourcePublishedAt     DateTime?  @db.Timestamptz(3)
+  retrievedAt           DateTime   @db.Timestamptz(3)
+  firstSeenAt           DateTime   @db.Timestamptz(3)
+  lastSeenAt            DateTime   @db.Timestamptz(3)
+  metadata              Json       @default("{}")
+  createdAt             DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
+  source                DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, weekendEnd])
+  @@index([weekendEnd])
+  @@index([sourceId, weekendEnd])
+}
+
+model BFIFilmMarketYear {
+  id                        String     @id @default(uuid()) @db.Uuid
+  sourceId                  String     @db.Uuid
+  year                      Int
+  cinemaAdmissionsMillions Decimal?   @db.Decimal(10, 1)
+  ukBoxOfficeGrossGbpM      Decimal?   @db.Decimal(12, 1)
+  releaseCount              Int?
+  filmProductionSpendGbpM  Decimal?   @db.Decimal(12, 1)
+  filmProductionCount      Int?
+  hetvProductionSpendGbpM  Decimal?   @db.Decimal(12, 1)
+  hetvProductionCount      Int?
+  sourceBoxOfficeUrl        String?
+  sourceProductionUrl       String?
+  sourceYearbook            String
+  retrievedAt               DateTime   @db.Timestamptz(3)
+  firstSeenAt               DateTime   @db.Timestamptz(3)
+  lastSeenAt                DateTime   @db.Timestamptz(3)
+  metadata                  Json       @default("{}")
+  createdAt                 DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime   @updatedAt @db.Timestamptz(3)
+  source                    DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, year])
+  @@index([year])
+  @@index([sourceId, year])
 }
 
 model BroadwayMarketWeek {

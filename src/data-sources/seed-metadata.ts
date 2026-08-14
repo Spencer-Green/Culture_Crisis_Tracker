@@ -41,7 +41,9 @@ export function buildSourceSeedOperation(
         ? "https://www.kaggle.com/api/v1"
         : source.slug === "broadway-business"
           ? "https://broadwaybusiness.com/grosses"
-          : ""),
+          : source.slug === "bfi"
+            ? "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures"
+            : ""),
     countryCode,
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
@@ -63,6 +65,7 @@ export function buildSourceSeedOperation(
       "rss",
       "us-box-office",
       "broadway-business",
+      "bfi",
     ].includes(source.slug),
   };
 

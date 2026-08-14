@@ -6,6 +6,7 @@ import { igdbAdapter } from "@/data-sources/entertainment/igdb";
 import { steamAdapter } from "@/data-sources/entertainment/steam";
 import { ticketmasterAdapter } from "@/data-sources/entertainment/ticketmaster";
 import { usBoxOfficeAdapter } from "@/data-sources/film/us-box-office";
+import { bfiAdapter } from "@/data-sources/film/bfi";
 import { absAdapter } from "@/data-sources/macro/abs";
 import { beaAdapter } from "@/data-sources/macro/bea";
 import { eurostatAdapter } from "@/data-sources/macro/eurostat";
@@ -45,6 +46,7 @@ export const adapters: readonly DataSourceAdapter[] = [
   mediastackAdapter,
   usBoxOfficeAdapter,
   broadwayBusinessAdapter,
+  bfiAdapter,
 ];
 
 export function getStaticSourceRegistry() {

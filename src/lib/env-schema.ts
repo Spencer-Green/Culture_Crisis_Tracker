@@ -32,6 +32,7 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "RSS_BASE_URL",
   "US_BOX_OFFICE_BASE_URL",
   "BROADWAY_BUSINESS_BASE_URL",
+  "BFI_BASE_URL",
   "MEDIASTACK_BASE_URL",
 ] as const;
 
@@ -87,6 +88,9 @@ export const serverEnvSchema = z.object({
   ),
   BROADWAY_BUSINESS_BASE_URL: optionalUrl("BROADWAY_BUSINESS_BASE_URL").default(
     "https://broadwaybusiness.com/grosses",
+  ),
+  BFI_BASE_URL: optionalUrl("BFI_BASE_URL").default(
+    "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
 });

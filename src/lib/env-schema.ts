@@ -56,6 +56,27 @@ const optionalUrl = (name: string) =>
     z.string().url(`${name} must be a valid URL`).optional(),
   );
 
+const optionalBoolean = z.preprocess((value) => {
+  if (value === undefined || value === "") return undefined;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return value;
+}, z.boolean().optional());
+
+const optionalPositiveInteger = (name: string, maximum: number) =>
+  z.preprocess(
+    (value) =>
+      value === undefined || value === "" ? undefined : Number(value),
+    z
+      .number()
+      .int(`${name} must be an integer`)
+      .positive(`${name} must be positive`)
+      .max(maximum, `${name} must not exceed ${maximum}`)
+      .optional(),
+  );
+
 export const serverEnvSchema = z.object({
   DATABASE_URL: optionalUrl("DATABASE_URL"),
   BEA_API_KEY: optionalString,
@@ -105,6 +126,27 @@ export const serverEnvSchema = z.object({
     "https://reports.liveperformance.com.au/",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
+  SCHEDULER_ENABLED: optionalBoolean.default(false),
+  SCHEDULER_CONCURRENCY: optionalPositiveInteger(
+    "SCHEDULER_CONCURRENCY",
+    2,
+  ).default(1),
+  SCHEDULER_POLL_MINUTES: optionalPositiveInteger(
+    "SCHEDULER_POLL_MINUTES",
+    60,
+  ).default(5),
+  MEDIA_REFRESH_HOURS: optionalPositiveInteger(
+    "MEDIA_REFRESH_HOURS",
+    24,
+  ).default(3),
+  TICKETMASTER_REFRESH_HOURS: optionalPositiveInteger(
+    "TICKETMASTER_REFRESH_HOURS",
+    168,
+  ).default(24),
+  GAMING_REFRESH_HOURS: optionalPositiveInteger(
+    "GAMING_REFRESH_HOURS",
+    168,
+  ).default(24),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

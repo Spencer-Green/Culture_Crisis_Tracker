@@ -19,6 +19,7 @@ import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticket
 import { getGamingOverview } from "@/services/gaming/analytics";
 import { MediaArticleList } from "@/components/media-article-list";
 import { getMediaOverview } from "@/services/media/media";
+import { getSchedulerFreshness } from "@/services/scheduler/freshness";
 
 export const dynamic = "force-dynamic";
 
@@ -185,6 +186,7 @@ export default async function OverviewPage() {
     crossSectorTrends,
     gamingOverview,
     mediaOverview,
+    schedulerFreshness,
   ] = await Promise.all([
     getOverviewState(),
     getConsumerSpendingData(),
@@ -193,6 +195,7 @@ export default async function OverviewPage() {
     getTicketmasterCrossSectorTrends(),
     getGamingOverview(),
     getMediaOverview(),
+    getSchedulerFreshness(),
   ]);
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
@@ -346,6 +349,44 @@ export default async function OverviewPage() {
           </div>
         </div>
       </div>
+
+      {schedulerFreshness.databaseStatus === "available" ? (
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-zinc-200">
+                Data freshness
+              </p>
+              <p className="mt-1 text-xs text-zinc-600">
+                Refresh recency is separate from the latest published source
+                period.
+              </p>
+            </div>
+            <div className="grid grid-cols-5 gap-4 text-center">
+              {[
+                [
+                  "Current",
+                  schedulerFreshness.summary.CURRENT +
+                    schedulerFreshness.summary.DUE_SOON,
+                ],
+                [
+                  "Due / late",
+                  schedulerFreshness.summary.STALE +
+                    schedulerFreshness.summary.OVERDUE,
+                ],
+                ["Structural", schedulerFreshness.summary.STRUCTURAL],
+                ["Blocked", schedulerFreshness.summary.BLOCKED],
+                ["Failed", schedulerFreshness.summary.FAILED_RECENTLY],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="font-data text-lg text-zinc-100">{value}</p>
+                  <p className="text-[10px] text-zinc-600">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         {indicators.map((indicator) => (

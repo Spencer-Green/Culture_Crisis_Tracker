@@ -67,10 +67,38 @@ model DataSource {
   mvtGrassrootsYears     MVTGrassrootsMusicYear[]
   censusRecordYears      CensusRecordIndustryYear[]
   beaAcpsaSoundYears     BEAACPSASoundRecordingYear[]
+  schedulerState         SchedulerSourceState?
 
   @@index([countryCode])
   @@index([sectorSlug])
   @@index([enabled])
+}
+
+model SchedulerSourceState {
+  id                  String     @id @default(uuid()) @db.Uuid
+  sourceId            String     @unique @db.Uuid
+  schedulingClass     String
+  cadenceMinutes      Int?
+  lastAttemptAt       DateTime?  @db.Timestamptz(3)
+  lastSuccessAt       DateTime?  @db.Timestamptz(3)
+  lastFailureAt       DateTime?  @db.Timestamptz(3)
+  nextScheduledAt     DateTime?  @db.Timestamptz(3)
+  lastRunStatus       String     @default("never")
+  lastRunId           String?    @db.Uuid
+  lastCreatedCount    Int        @default(0)
+  lastUpdatedCount    Int        @default(0)
+  consecutiveFailures Int        @default(0)
+  lastErrorMessage    String?
+  activeRunId         String?    @unique @db.Uuid
+  lockAcquiredAt      DateTime?  @db.Timestamptz(3)
+  lockExpiresAt       DateTime?  @db.Timestamptz(3)
+  createdAt           DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime   @updatedAt @db.Timestamptz(3)
+  source              DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([nextScheduledAt])
+  @@index([lastRunStatus])
+  @@index([lockExpiresAt])
 }
 
 model LPAPerformanceMarketYear {

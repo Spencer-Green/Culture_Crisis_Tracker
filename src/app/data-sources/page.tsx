@@ -9,6 +9,9 @@ import {
 import type { HealthStatus } from "@/data-sources/status";
 import { COUNTRIES, SECTORS } from "@/lib/constants";
 import { enabledRssFeeds } from "@/data-sources/news/rss-registry";
+import { getSchedulerFreshness } from "@/services/scheduler/freshness";
+import type { SourceOperationalFreshness } from "@/services/scheduler/freshness-core";
+import type { FreshnessStatus } from "@/services/scheduler/types";
 
 export const dynamic = "force-dynamic";
 
@@ -50,8 +53,14 @@ function Badge({
 }
 
 export default async function DataSourcesPage() {
-  const registry = await getSourceRegistry();
+  const [registry, scheduler] = await Promise.all([
+    getSourceRegistry(),
+    getSchedulerFreshness(),
+  ]);
   const sources = registry.sources;
+  const operations = new Map(
+    scheduler.sources.map((source) => [source.sourceId, source]),
+  );
 
   return (
     <div className="space-y-6">
@@ -117,7 +126,7 @@ export default async function DataSourcesPage() {
           aria-label="Scrollable data sources table"
           tabIndex={0}
         >
-          <table className="w-full min-w-[1380px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1500px] border-collapse text-left text-sm">
             <caption className="sr-only">
               Supported data sources and their current readiness state
             </caption>
@@ -142,10 +151,7 @@ export default async function DataSourcesPage() {
                   Status
                 </th>
                 <th scope="col" className="px-5 py-4 font-medium">
-                  Last attempted sync
-                </th>
-                <th scope="col" className="px-5 py-4 font-medium">
-                  Last successful sync
+                  Operational freshness
                 </th>
               </tr>
             </thead>
@@ -219,11 +225,10 @@ export default async function DataSourcesPage() {
                       <HealthBadge status={source.healthStatus} />
                     </div>
                   </td>
-                  <td className="font-data px-5 py-5 text-xs text-zinc-600">
-                    <Timestamp value={source.lastAttemptedSyncAt} />
-                  </td>
-                  <td className="font-data px-5 py-5 text-xs text-zinc-600">
-                    <Timestamp value={source.lastSuccessfulSyncAt} />
+                  <td className="min-w-80 px-5 py-5">
+                    <OperationalState
+                      source={operations.get(source.slug) ?? null}
+                    />
                   </td>
                 </tr>
               ))}
@@ -231,6 +236,67 @@ export default async function DataSourcesPage() {
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+function freshnessTone(status: FreshnessStatus): BadgeTone {
+  if (status === "CURRENT" || status === "DUE_SOON") return "success";
+  if (status === "RUNNING") return "info";
+  if (status === "STRUCTURAL" || status === "MANUAL" || status === "DISABLED")
+    return "neutral";
+  return "warning";
+}
+
+function OperationalState({
+  source,
+}: {
+  source: SourceOperationalFreshness | null;
+}) {
+  if (!source) return <p className="text-xs text-zinc-600">Not available</p>;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={freshnessTone(source.status)}>
+          {source.status.replaceAll("_", " ")}
+        </Badge>
+        <span className="font-data text-[10px] text-zinc-600">
+          {source.schedulingClass.replaceAll("_", " ")}
+        </span>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+        <div>
+          <dt className="text-zinc-600">Last success</dt>
+          <dd className="font-data mt-1 text-zinc-400">
+            <Timestamp value={source.lastSuccessAt} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-zinc-600">Last attempt</dt>
+          <dd className="font-data mt-1 text-zinc-400">
+            <Timestamp value={source.lastAttemptAt} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-zinc-600">Next scheduled</dt>
+          <dd className="font-data mt-1 text-zinc-400">
+            <Timestamp value={source.nextScheduledAt} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-zinc-600">Latest observation</dt>
+          <dd className="font-data mt-1 text-zinc-400">
+            {source.latestObservationPeriod ?? "Not available"}
+          </dd>
+        </div>
+      </dl>
+      <p className="font-data text-[10px] text-zinc-600">
+        Last run: {source.lastCreatedCount.toLocaleString()} created ·{" "}
+        {source.lastUpdatedCount.toLocaleString()} updated
+        {source.consecutiveFailures > 0
+          ? ` · ${source.consecutiveFailures} consecutive failures`
+          : ""}
+      </p>
     </div>
   );
 }

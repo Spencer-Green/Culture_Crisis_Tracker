@@ -16,7 +16,11 @@ import { ingestSource } from "../src/services/ingestion";
 import { sanitiseIngestionError } from "../src/services/ingestion/service-core";
 
 async function main() {
-  const options = parseBeaCliArguments(process.argv.slice(2));
+  const arguments_ = process.argv.slice(2);
+  const routine = arguments_.includes("--routine");
+  const options = parseBeaCliArguments(
+    arguments_.filter((argument) => argument !== "--routine"),
+  );
   const allowedSlugs = new Set(BEA_MUSIC_METRICS.map((metric) => metric.slug));
   const metricSlugs = options.metricSlugs ?? [...allowedSlugs];
   for (const slug of metricSlugs) {
@@ -42,7 +46,7 @@ async function main() {
   const range =
     options.startPeriod && options.endPeriod
       ? validateBeaMonthRange(options.startPeriod, options.endPeriod)
-      : !options.startPeriod && !options.endPeriod
+      : !routine && !options.startPeriod && !options.endPeriod
         ? validateBeaMonthRange(
             availability.earliestPeriod,
             availability.latestPeriod,

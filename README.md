@@ -1634,3 +1634,114 @@ an AI-impact classification, ordered by importance, confidence, and recency.
 The remaining low-signal coverage appears in a denser `More from …` sector feed
 ordered by publication time. Positive counter-signals remain eligible and no
 sentiment or sector-health score is produced.
+
+## Scheduler and freshness operations
+
+The tracker uses one dedicated scheduler worker rather than starting timers in
+Next.js. Application pages and API routes only read persisted state, so hot
+reloads, page renders, and server requests cannot create duplicate scheduler
+loops. This process model is intended for local/private deployment and can
+later be moved unchanged behind OS cron, a dedicated container, cloud cron, or
+a queue worker.
+
+Development uses two terminals:
+
+```bash
+# Terminal 1
+npm run dev
+
+# Terminal 2 (.env must set SCHEDULER_ENABLED=true)
+npm run scheduler
+```
+
+Operational commands:
+
+```bash
+# DB-backed cadence audit; makes no provider requests
+npm run scheduler:inspect
+
+# Execute each currently due automatic source once, then exit
+npm run scheduler:once
+
+# Explicitly execute one eligible automatic source
+npm run scheduler:once -- --source=rss
+```
+
+The continuously polling worker is disabled by default. Configuration is kept
+small: `SCHEDULER_ENABLED=false`, `SCHEDULER_CONCURRENCY=1`,
+`SCHEDULER_POLL_MINUTES=5`, `MEDIA_REFRESH_HOURS=3`,
+`TICKETMASTER_REFRESH_HOURS=24`, and `GAMING_REFRESH_HOURS=24`. Concurrency is
+hard-limited to 1–2 jobs. Ticketmaster always runs alone; RSS and TheNewsAPI are
+serialized. All timestamps and cadence arithmetic use UTC.
+
+### Scheduling inventory
+
+| Source                    | Class / cadence     | Routine action and request profile                                                             |
+| ------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
+| ABS                       | Daily / 24h         | Recent monthly HSI plus eight completed real quarters; low volume                              |
+| BEA                       | Daily / 24h         | Recent macro and detailed Music PCE; ACPSA archive explicitly excluded                         |
+| FRED                      | Daily / 24h         | Four series over the latest twelve months; low volume                                          |
+| ONS                       | Daily / 24h         | Latest eight official quarters; low volume                                                     |
+| Eurostat                  | Structural/static   | No automatic run; manual structural refresh only                                               |
+| Statistics Canada         | Daily / 24h         | Latest eight validated quarters; six low-volume vector requests                                |
+| GDELT                     | Blocked             | No automatic retry while DOC 2.0 remains upstream HTTP 429 blocked                             |
+| Ticketmaster              | Daily / 24h         | Seven-day forward snapshot only; 12 base country/segment partitions plus density pagination    |
+| IGDB                      | Daily / 24h         | Trailing 90 days through upcoming 180 days; roughly nine monthly partitions plus pagination    |
+| Steam                     | Daily / 24h         | Stable 100-title sample; up to three Valve requests per title, no catalog enumeration          |
+| TheNewsAPI                | High frequency / 3h | Ten targeted requests per run, maximum 80/day under default cadence                            |
+| Curated RSS               | High frequency / 3h | Enabled feeds sequentially, using a 24-hour entry window                                       |
+| US provisional box office | Daily / 24h         | Current calendar-year dataset rows only                                                        |
+| BFI                       | Daily / 24h         | Current-year weekly reports and published structural tables                                    |
+| Broadway Business         | Daily / 24h         | Recent 91-day structured query; no historical backfill                                         |
+| LPA                       | Monthly / 30d       | Latest two report years from the official bundle                                               |
+| MVT                       | Monthly / 30d       | Re-applies reviewed official-report mappings; it cannot discover an unregistered future report |
+| Census AIES               | Monthly / 30d       | Two official configured-vintage ZIP files                                                      |
+| Stats NZ                  | Disabled            | Not implemented; no scheduled action                                                           |
+| Eventbrite                | Disabled            | Not implemented; no scheduled action                                                           |
+| Mediastack                | Disabled            | Not implemented; no scheduled action                                                           |
+
+All scheduled commands use ordinary bounded refresh modes. No scheduler policy
+contains `--backfill`, a multi-year `--since` range, or an archive population.
+BEA ACPSA remains a historical 1998–2023 benchmark and is never included in the
+daily BEA job. Existing provider CLIs remain available for explicit backfills.
+
+### Locking, failures, and restart behavior
+
+`SchedulerSourceState` stores one durable row per provider. A database
+compare-and-set lock records an active run UUID, acquisition time, and expiry.
+An active lock prevents overlap; an expired lock can be recovered after a crash.
+Successful or failed completion releases the lock. Scheduler state also retains
+last attempt/success/failure, next scheduled time, last created/updated counts,
+sanitized failure text, and consecutive failures. A later success resets the
+failure count.
+
+Provider adapters retain their own timeout/retry/backoff behavior. The scheduler
+does not create retry storms: a failed run waits for the next cadence, 429s are
+not repeatedly retried at scheduler level, and one failed source does not stop
+other due sources. Child command output is not replayed into scheduler logs;
+logs contain only source, lifecycle timestamps, duration, created/updated
+counts, status, and sanitized failure state.
+
+On restart, persisted `nextScheduledAt` is reused. Where scheduler state does
+not yet exist, the worker derives the next run from the existing source's last
+successful ingestion. A never-run source receives a deterministic 15–59 minute
+initial delay instead of joining a startup refresh storm. Structural, blocked,
+manual, disabled, unimplemented, or unconfigured sources never auto-run.
+
+### Freshness states
+
+- `CURRENT`: successful refresh is comfortably inside its cadence.
+- `DUE_SOON`: at least 75% of the cadence has elapsed.
+- `STALE`: the cadence has elapsed; the source is due.
+- `OVERDUE`: at least two cadences have elapsed.
+- `RUNNING`: a non-expired database lock is active.
+- `FAILED_RECENTLY`: the latest scheduled attempt failed after the latest success.
+- `BLOCKED`: external conditions intentionally exclude automatic execution.
+- `MANUAL`: ingestion requires explicit operator action.
+- `STRUCTURAL`: a historical benchmark is not expected to refresh routinely.
+- `DISABLED`: disabled, unimplemented, or unconfigured.
+
+Refresh freshness and observation freshness are deliberately separate. A source
+can refresh successfully today while its latest valid published period remains
+June 2026. Data Sources displays both, and annual or discontinued sources are
+not falsely marked overdue because their observation period is old.

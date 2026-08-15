@@ -55,7 +55,10 @@
     "bea:acpsa:music:inspect": "node --conditions=react-server --import tsx scripts/bea-acpsa-music-inspect.ts",
     "ingest:bea:acpsa:music": "node --conditions=react-server --import tsx scripts/ingest-bea-acpsa-music.ts",
     "lpa:inspect": "node --conditions=react-server --import tsx scripts/lpa-inspect.ts",
-    "ingest:lpa": "node --conditions=react-server --import tsx scripts/ingest-lpa.ts"
+    "ingest:lpa": "node --conditions=react-server --import tsx scripts/ingest-lpa.ts",
+    "scheduler": "node --conditions=react-server --import tsx scripts/scheduler-worker.ts",
+    "scheduler:once": "node --conditions=react-server --import tsx scripts/scheduler-once.ts",
+    "scheduler:inspect": "node --conditions=react-server --import tsx scripts/scheduler-inspect.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

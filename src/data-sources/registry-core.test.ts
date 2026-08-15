@@ -35,15 +35,16 @@ describe("source registry", () => {
       BFI_BASE_URL:
         "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
       MVT_BASE_URL: "https://www.musicvenuetrust.com/resources/",
+      LPA_BASE_URL: "https://reports.liveperformance.com.au/",
       CENSUS_BASE_URL: "https://www2.census.gov/programs-surveys/aies/data",
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(20);
+    expect(sources).toHaveLength(21);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(17);
+    ).toHaveLength(18);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -136,6 +137,13 @@ describe("source registry", () => {
       isPublic: true,
       countries: ["GB"],
       sectors: ["music"],
+    });
+    expect(sources.find((source) => source.slug === "lpa")).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      countries: ["AU"],
+      sectors: ["theatre"],
     });
     expect(sources.find((source) => source.slug === "census")).toMatchObject({
       configured: true,

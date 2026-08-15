@@ -35,6 +35,7 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "BFI_BASE_URL",
   "MVT_BASE_URL",
   "CENSUS_BASE_URL",
+  "LPA_BASE_URL",
   "MEDIASTACK_BASE_URL",
 ] as const;
 
@@ -99,6 +100,9 @@ export const serverEnvSchema = z.object({
   ),
   CENSUS_BASE_URL: optionalUrl("CENSUS_BASE_URL").default(
     "https://www2.census.gov/programs-surveys/aies/data",
+  ),
+  LPA_BASE_URL: optionalUrl("LPA_BASE_URL").default(
+    "https://reports.liveperformance.com.au/",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
 });

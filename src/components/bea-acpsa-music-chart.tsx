@@ -10,6 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  calendarTicks,
+  chartTimestamp,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 export type BEAACPSAChartPoint = {
   year: number;
@@ -31,12 +37,12 @@ const MODES: Array<{ id: Mode; label: string }> = [
   { id: "value-added", label: "Value Added" },
   { id: "employment", label: "Employment" },
   { id: "compensation", label: "Compensation" },
-  { id: "indexed", label: "Output vs Employment" },
+  { id: "indexed", label: "Output vs Employment — Indexed" },
 ];
 
 export function BEAACPSAMusicChart({ data }: { data: BEAACPSAChartPoint[] }) {
   const [mode, setMode] = useState<Mode>("indexed");
-  const [baseline, setBaseline] = useState<"1998" | "2019">("1998");
+  const [baseline, setBaseline] = useState<"1998" | "2019">("2019");
   const indexed = mode === "indexed";
   const outputIndexKey =
     baseline === "1998" ? "outputIndex1998" : "outputIndex2019";
@@ -50,6 +56,14 @@ export function BEAACPSAMusicChart({ data }: { data: BEAACPSAChartPoint[] }) {
         : mode === "employment"
           ? "employment"
           : "compensationUsd";
+  const chartData = data.map((point) => ({
+    ...point,
+    timestamp: chartTimestamp(point.year, "annual"),
+  }));
+  const ticks = calendarTicks(
+    chartData.map((point) => point.timestamp),
+    { frequency: "annual", range: "MAX" },
+  );
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -80,9 +94,19 @@ export function BEAACPSAMusicChart({ data }: { data: BEAACPSAChartPoint[] }) {
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 8 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 8 }}>
             <CartesianGrid stroke="#27272a" vertical={false} />
-            <XAxis dataKey="year" tick={{ fill: "#71717a", fontSize: 11 }} />
+            <XAxis
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
+              tick={{ fill: "#71717a", fontSize: 11 }}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "annual", "MAX")
+              }
+            />
             <YAxis
               width={68}
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -114,6 +138,9 @@ export function BEAACPSAMusicChart({ data }: { data: BEAACPSAChartPoint[] }) {
                     ? "ACPSA employment"
                     : MODES.find((option) => option.id === mode)?.label,
               ]}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "annual")
+              }
             />
             {indexed ? (
               <>

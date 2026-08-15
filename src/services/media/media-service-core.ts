@@ -89,6 +89,40 @@ export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
   };
 }
 
+const CONFIDENCE_RANK: Record<MediaConfidence, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+export function buildSectorMediaTiers(articles: readonly MediaArticleView[]) {
+  const isSignal = (article: MediaArticleView) =>
+    article.importance >= 2 ||
+    CONFIDENCE_RANK[article.confidence] >= CONFIDENCE_RANK.medium ||
+    article.eventType !== null ||
+    article.aiImpactType !== null;
+  const industrySignals = articles
+    .filter(isSignal)
+    .slice()
+    .sort(
+      (left, right) =>
+        right.importance - left.importance ||
+        CONFIDENCE_RANK[right.confidence] - CONFIDENCE_RANK[left.confidence] ||
+        new Date(right.publishedAt).getTime() -
+          new Date(left.publishedAt).getTime(),
+    );
+  const signalIds = new Set(industrySignals.map((article) => article.id));
+  const sectorFeed = articles
+    .filter((article) => !signalIds.has(article.id))
+    .slice()
+    .sort(
+      (left, right) =>
+        new Date(right.publishedAt).getTime() -
+        new Date(left.publishedAt).getTime(),
+    );
+  return { industrySignals, sectorFeed };
+}
+
 export function buildMediaCounts(articles: readonly MediaArticleView[]) {
   const countBy = (values: readonly (string | null)[]) => {
     const counts = new Map<string, number>();

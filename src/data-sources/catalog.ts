@@ -263,6 +263,17 @@ export const SOURCE_DEFINITIONS = [
     requiresAuthentication: false,
     implementationStatus: "implemented",
   },
+  {
+    slug: "lpa",
+    name: "Live Performance Australia",
+    provider: "Live Performance Australia",
+    baseUrlEnvironmentKey: "LPA_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["AU"],
+    sectors: ["theatre"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+  },
 ] as const satisfies readonly SourceDefinitionShape[];
 
 export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number];

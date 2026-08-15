@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
 import { GamingReleaseChart } from "@/components/gaming-release-chart";
-import { MediaArticleList } from "@/components/media-article-list";
+import { SectorMediaDevelopments } from "@/components/sector-media-developments";
 import { getGamingData } from "@/services/gaming/analytics";
 import { getRecentMediaDevelopments } from "@/services/media/media";
 
@@ -11,6 +11,12 @@ export const metadata: Metadata = { title: "Gaming" };
 
 function formatPercent(value: number | null, digits = 1): string {
   return value === null ? "N/A" : `${value.toFixed(digits)}%`;
+}
+
+function formatChange(value: number | null): string {
+  return value === null
+    ? "Insufficient history"
+    : `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
@@ -75,26 +81,61 @@ export default async function GamingPage() {
         />
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-data text-xs tracking-[0.16em] text-zinc-500 uppercase">
+                  Dataset Coverage
+                </p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Tracker scope, not market-health indicators
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-zinc-500">
+                <span>
+                  Games{" "}
+                  <strong className="font-data ml-1 text-zinc-200">
+                    {analytics.totalGames.toLocaleString()}
+                  </strong>
+                </span>
+                <span>
+                  Steam-mapped{" "}
+                  <strong className="font-data ml-1 text-zinc-200">
+                    {analytics.steam.mappedGames.toLocaleString()}
+                  </strong>
+                </span>
+                <span>
+                  Developers{" "}
+                  <strong className="font-data ml-1 text-zinc-200">
+                    {analytics.developers.uniqueCompanies.toLocaleString()}
+                  </strong>
+                </span>
+                <span>
+                  Publishers{" "}
+                  <strong className="font-data ml-1 text-zinc-200">
+                    {analytics.publishers.uniqueCompanies.toLocaleString()}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Stat
-              label="Tracked IGDB games"
-              value={analytics.totalGames.toLocaleString()}
-            />
-            <Stat
-              label="Latest 12 months"
+              label="Releases · latest 12M"
               value={analytics.latestTwelveMonthReleases.toLocaleString()}
             />
             <Stat
-              label="Steam-mapped titles"
-              value={analytics.steam.mappedGames.toLocaleString()}
+              label="Prior comparable 12M"
+              value={analytics.priorTwelveMonthReleases.toLocaleString()}
             />
             <Stat
-              label="Unique developers"
-              value={analytics.developers.uniqueCompanies.toLocaleString()}
+              label="Rolling 12M change"
+              value={formatChange(analytics.latestTwelveMonthChangePct)}
             />
             <Stat
-              label="Unique publishers"
-              value={analytics.publishers.uniqueCompanies.toLocaleString()}
+              label="Upcoming releases · 90D"
+              value={analytics.upcoming.days90.toLocaleString()}
             />
           </section>
 
@@ -141,12 +182,12 @@ export default async function GamingPage() {
 
           <div className="grid gap-6 xl:grid-cols-2">
             <DashboardCard
-              title="Steam Activity"
-              description="Point-in-time concurrent players across Steam-covered titles"
+              title="Steam Sample Activity"
+              description="Point-in-time observations for sampled Steam-covered titles"
             >
               <div className="grid grid-cols-2 gap-3">
                 <Stat
-                  label="Snapshot titles"
+                  label="Sampled titles"
                   value={analytics.steam.snapshotGames}
                 />
                 <Stat
@@ -154,7 +195,7 @@ export default async function GamingPage() {
                   value={formatPercent(analytics.steam.playerCoveragePercent)}
                 />
                 <Stat
-                  label="Current players · sum"
+                  label="Concurrent players across sampled titles"
                   value={analytics.steam.totalCurrentPlayers.toLocaleString()}
                 />
                 <Stat
@@ -164,10 +205,25 @@ export default async function GamingPage() {
                     "N/A"
                   }
                 />
+                <Stat
+                  label="Top title share · sample"
+                  value={formatPercent(analytics.steam.topTitleSharePercent)}
+                />
+                <Stat
+                  label="Titles above 100 players"
+                  value={analytics.steam.titlesOver100Players}
+                />
+                <Stat
+                  label="Titles above 1,000 players"
+                  value={analytics.steam.titlesOver1000Players}
+                />
               </div>
               <p className="mt-4 text-xs leading-5 text-zinc-600">
-                Concurrent players are users currently connected to Steam, not
-                DAU, MAU, sales, or total gaming engagement.
+                Sample coverage is{" "}
+                {formatPercent(analytics.steam.playerCoveragePercent)} of
+                Steam-mapped titles. Concurrent players are users currently
+                connected to Steam, not DAU, MAU, sales, total gaming
+                engagement, or a Steam-wide concentration measure.
               </p>
               <ul className="mt-4 space-y-2">
                 {analytics.steam.topCurrentPlayers.slice(0, 5).map((item) => (
@@ -184,8 +240,8 @@ export default async function GamingPage() {
               </ul>
             </DashboardCard>
             <DashboardCard
-              title="Reviews & Pricing"
-              description="Steam store/review coverage; reviews are not unit sales"
+              title="Steam Reviews & Pricing Sample"
+              description="Low-coverage store and review observations; not Steam-wide behavior"
             >
               <div className="grid grid-cols-2 gap-3">
                 <Stat
@@ -216,15 +272,19 @@ export default async function GamingPage() {
                 />
               </div>
               <p className="mt-4 text-xs leading-5 text-zinc-600">
-                Prices remain in source currencies. Discounting and review
-                volume are descriptive signals, not distress or sales measures.
+                Review coverage is{" "}
+                {formatPercent(analytics.steam.reviewCoveragePercent)} and price
+                coverage is{" "}
+                {formatPercent(analytics.steam.priceCoveragePercent)} of mapped
+                titles. Prices remain in source currencies; reviews are not unit
+                sales and discounting is not distress.
               </p>
             </DashboardCard>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
             <DashboardCard
-              title="Publisher Structure"
+              title="Release Supply Concentration — Publishers"
               description="Share of attributed tracked releases, not revenue concentration"
             >
               <p className="font-data text-2xl text-zinc-100">
@@ -240,7 +300,7 @@ export default async function GamingPage() {
               </div>
             </DashboardCard>
             <DashboardCard
-              title="Developer Structure"
+              title="Release Supply Concentration — Developers"
               description="Share of attributed tracked releases, not workforce or revenue concentration"
             >
               <p className="font-data text-2xl text-zinc-100">
@@ -264,12 +324,10 @@ export default async function GamingPage() {
             reconstructed.
           </div>
 
-          <DashboardCard
-            title="Recent Developments"
-            description="Gaming business and AI media article candidates"
-          >
-            <MediaArticleList articles={developments} />
-          </DashboardCard>
+          <SectorMediaDevelopments
+            articles={developments}
+            sectorLabel="Gaming"
+          />
         </>
       )}
     </div>

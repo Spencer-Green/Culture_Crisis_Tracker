@@ -85,6 +85,14 @@ describe("source configuration status", () => {
     ).toEqual({ configured: true, missingConfiguration: [] });
   });
 
+  it("configures the public LPA report archive without credentials", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("lpa"), {
+        LPA_BASE_URL: "https://reports.liveperformance.com.au/",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
   it("configures public Census AIES downloads without credentials", () => {
     expect(
       getSourceConfigurationStatus(getSourceDefinition("census"), {

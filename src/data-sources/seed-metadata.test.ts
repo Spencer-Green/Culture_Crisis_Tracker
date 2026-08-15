@@ -31,6 +31,7 @@ describe("source seed metadata", () => {
       getSourceDefinition("broadway-business"),
       getSourceDefinition("bfi"),
       getSourceDefinition("mvt"),
+      getSourceDefinition("lpa"),
       getSourceDefinition("census"),
     ].map((source) =>
       buildSourceSeedOperation(
@@ -96,10 +97,15 @@ describe("source seed metadata", () => {
                                             MVT_BASE_URL:
                                               "https://www.musicvenuetrust.com/resources/",
                                           }
-                                        : {
-                                            CENSUS_BASE_URL:
-                                              "https://www2.census.gov/programs-surveys/aies/data",
-                                          },
+                                        : source.slug === "lpa"
+                                          ? {
+                                              LPA_BASE_URL:
+                                                "https://reports.liveperformance.com.au/",
+                                            }
+                                          : {
+                                              CENSUS_BASE_URL:
+                                                "https://www2.census.gov/programs-surveys/aies/data",
+                                            },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -121,6 +127,7 @@ describe("source seed metadata", () => {
           "broadway-business",
           "bfi",
           "mvt",
+          "lpa",
           "census",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
@@ -142,6 +149,7 @@ describe("source seed metadata", () => {
       "broadway-business",
       "bfi",
       "mvt",
+      "lpa",
       "census",
     ]);
     expect(

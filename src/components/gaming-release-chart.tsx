@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  Bar,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  calendarTicks,
+  chartTimestamp,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 export function GamingReleaseChart({
   monthly,
@@ -22,6 +29,19 @@ export function GamingReleaseChart({
     "quarterly",
   );
   const data = granularity === "monthly" ? monthly : quarterly;
+  const frequency = granularity === "monthly" ? "monthly" : "quarterly";
+  const chartData = useMemo(
+    () =>
+      data.map((point) => ({
+        ...point,
+        timestamp: chartTimestamp(point.period, frequency),
+      })),
+    [data, frequency],
+  );
+  const ticks = calendarTicks(
+    chartData.map((point) => point.timestamp),
+    { frequency, range: "MAX" },
+  );
   return (
     <div className="space-y-4">
       <div className="inline-flex rounded-lg border border-zinc-800 bg-zinc-950 p-1">
@@ -38,15 +58,21 @@ export function GamingReleaseChart({
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={data}
+          <ComposedChart
+            data={chartData}
             margin={{ top: 8, right: 12, left: -12, bottom: 0 }}
           >
             <CartesianGrid stroke="#27272a" vertical={false} />
             <XAxis
-              dataKey="period"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
               tick={{ fill: "#71717a", fontSize: 11 }}
-              minTickGap={28}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), frequency, "MAX")
+              }
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -59,21 +85,33 @@ export function GamingReleaseChart({
                 borderRadius: 10,
               }}
               labelStyle={{ color: "#d4d4d8" }}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), frequency)
+              }
               formatter={(value) => [
                 Number(value).toLocaleString(),
                 "Tracked releases",
               ]}
             />
-            <Line
-              type="monotone"
-              dataKey="count"
-              stroke="#60a5fa"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
+            {granularity === "quarterly" ? (
+              <Bar dataKey="count" fill="#60a5fa" radius={[3, 3, 0, 0]} />
+            ) : (
+              <Line
+                type="linear"
+                dataKey="count"
+                stroke="#60a5fa"
+                strokeWidth={2}
+                dot={false}
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
+      <p className="text-xs leading-5 text-zinc-600">
+        Historical counts include completed periods only. The current partial
+        month or quarter and future-dated releases remain in the Upcoming Supply
+        panel, not the historical series.
+      </p>
     </div>
   );
 }

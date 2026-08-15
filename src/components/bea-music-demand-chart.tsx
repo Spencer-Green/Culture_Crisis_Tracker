@@ -12,6 +12,13 @@ import {
 } from "recharts";
 
 import type { BeaMusicChartPoint } from "@/services/music/bea-music-analytics";
+import {
+  calendarTicks,
+  chartTimestamp,
+  filterChartRange,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 type Mode = "streaming" | "owned" | "indexed";
 type Range = "1Y" | "5Y" | "2019" | "MAX";
@@ -23,29 +30,20 @@ const MODES: { id: Mode; label: string }[] = [
 ];
 const RANGES: Range[] = ["1Y", "5Y", "2019", "MAX"];
 
-function rangeStart(range: Range, latest: string | undefined) {
-  if (!latest || range === "MAX") return null;
-  if (range === "2019") return "2019-01-01T00:00:00.000Z";
-  const date = new Date(latest);
-  date.setUTCFullYear(date.getUTCFullYear() - (range === "1Y" ? 1 : 5));
-  return date.toISOString();
-}
-
-function periodLabel(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    year: "2-digit",
-    timeZone: "UTC",
-  }).format(new Date(value));
-}
-
 export function BeaMusicDemandChart({ data }: { data: BeaMusicChartPoint[] }) {
   const [mode, setMode] = useState<Mode>("indexed");
-  const [range, setRange] = useState<Range>("5Y");
+  const [range, setRange] = useState<Range>("2019");
   const visible = useMemo(() => {
-    const start = rangeStart(range, data.at(-1)?.periodStart);
-    return start ? data.filter((point) => point.periodStart >= start) : data;
+    const withTime = data.map((point) => ({
+      ...point,
+      timestamp: chartTimestamp(point.periodStart, "monthly"),
+    }));
+    return filterChartRange(withTime, (point) => point.timestamp, range);
   }, [data, range]);
+  const ticks = calendarTicks(
+    visible.map((point) => point.timestamp),
+    { frequency: "monthly", range },
+  );
   const indexed = mode === "indexed";
   const dataKey = mode === "streaming" ? "streamingNominal" : "ownedNominal";
 
@@ -57,7 +55,10 @@ export function BeaMusicDemandChart({ data }: { data: BeaMusicChartPoint[] }) {
             <button
               key={option.id}
               type="button"
-              onClick={() => setMode(option.id)}
+              onClick={() => {
+                setMode(option.id);
+                if (option.id === "indexed") setRange("2019");
+              }}
               className={`rounded-full border px-3 py-1.5 text-xs ${mode === option.id ? "border-blue-500 bg-blue-950/60 text-blue-200" : "border-zinc-800 text-zinc-500"}`}
             >
               {option.label}
@@ -81,15 +82,31 @@ export function BeaMusicDemandChart({ data }: { data: BeaMusicChartPoint[] }) {
           ))}
         </div>
       </div>
+      {indexed ? (
+        <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-0.5 w-5 bg-blue-400" /> Streaming &amp; radio
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-0.5 w-5 bg-amber-500" /> Owned media &amp;
+            downloads
+          </span>
+        </div>
+      ) : null}
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={visible} margin={{ top: 8, right: 12, left: 8 }}>
             <CartesianGrid stroke="#27272a" vertical={false} />
             <XAxis
-              dataKey="periodStart"
-              minTickGap={36}
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
               tick={{ fill: "#71717a", fontSize: 11 }}
-              tickFormatter={periodLabel}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "monthly", range)
+              }
             />
             <YAxis
               width={62}
@@ -106,7 +123,9 @@ export function BeaMusicDemandChart({ data }: { data: BeaMusicChartPoint[] }) {
                 border: "1px solid #27272a",
                 borderRadius: 10,
               }}
-              labelFormatter={(value) => periodLabel(String(value))}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "monthly")
+              }
               formatter={(value, name) => [
                 indexed
                   ? `${Number(value).toFixed(1)} (2019 = 100)`

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildGamingAnalytics,
   calculateCompanyConcentration,
+  completedReleaseSeries,
   countReleasesByPeriod,
   latestSteamSnapshots,
   median,
@@ -46,6 +47,19 @@ describe("gaming analytics", () => {
       { period: "2026-Q3", count: 1 },
     ]);
     expect(games.map((game) => game.name)).toEqual(before);
+  });
+
+  it("excludes the current partial quarter and future releases from history", () => {
+    expect(
+      completedReleaseSeries(
+        games,
+        "quarter",
+        new Date("2026-08-13T00:00:00Z"),
+      ),
+    ).toEqual([{ period: "2025-Q3", count: 1 }]);
+    expect(
+      completedReleaseSeries(games, "month", new Date("2025-08-15T00:00:00Z")),
+    ).toEqual([]);
   });
 
   it("calculates company concentration among attributed releases", () => {
@@ -124,10 +138,19 @@ describe("gaming analytics", () => {
       snapshotGames: 2,
       playerCoveragePercent: 50,
       totalCurrentPlayers: 10,
+      topTitleSharePercent: 100,
+      titlesOver100Players: 0,
+      titlesOver1000Players: 0,
       reviewCoveragePercent: 50,
       discountSharePercent: 50,
       freeToPlaySharePercent: 50,
     });
+    expect(analytics.releaseSeries.quarterly).toEqual([
+      { period: "2025-Q3", count: 1 },
+    ]);
+    expect(analytics.latestTwelveMonthReleases).toBe(1);
+    expect(analytics.priorTwelveMonthReleases).toBe(0);
+    expect(analytics.latestTwelveMonthChangePct).toBeNull();
   });
 
   it("handles empty and even medians", () => {

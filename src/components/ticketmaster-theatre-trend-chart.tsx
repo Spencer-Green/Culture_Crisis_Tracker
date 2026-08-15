@@ -9,6 +9,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  calendarTicks,
+  chartTimestamp,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 export type TicketmasterTheatreTrendPoint = {
   capturedAt: string;
@@ -21,15 +27,30 @@ export function TicketmasterTheatreTrendChart({
 }: {
   data: TicketmasterTheatreTrendPoint[];
 }) {
+  const chartData = data.map((point) => ({
+    ...point,
+    timestamp: chartTimestamp(point.capturedAt, "weekly"),
+  }));
+  const ticks = calendarTicks(
+    chartData.map((point) => point.timestamp),
+    { frequency: "weekly", range: "1Y" },
+  );
   return (
     <div className="space-y-3">
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 8 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 8 }}>
             <CartesianGrid stroke="#27272a" vertical={false} />
             <XAxis
-              dataKey="capturedAt"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
               tick={{ fill: "#71717a", fontSize: 11 }}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "weekly", "1Y")
+              }
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -48,6 +69,9 @@ export function TicketmasterTheatreTrendChart({
                 Number(value).toLocaleString(),
                 name === "events30" ? "30D events" : "90D events",
               ]}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "weekly")
+              }
             />
             <Line
               type="linear"

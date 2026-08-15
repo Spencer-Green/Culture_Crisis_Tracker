@@ -21,6 +21,7 @@ import { mediastackAdapter } from "@/data-sources/news/mediastack";
 import { rssAdapter } from "@/data-sources/news/rss";
 import { theNewsApiAdapter } from "@/data-sources/news/thenewsapi";
 import { broadwayBusinessAdapter } from "@/data-sources/theatre/broadway-business";
+import { lpaAdapter } from "@/data-sources/theatre/lpa";
 import { buildStaticSourceRegistry } from "@/data-sources/registry-core";
 import {
   buildRuntimeSourceRegistry,
@@ -51,6 +52,7 @@ export const adapters: readonly DataSourceAdapter[] = [
   bfiAdapter,
   mvtAdapter,
   censusAdapter,
+  lpaAdapter,
 ];
 
 export function getStaticSourceRegistry() {

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { BeaMusicDemandChart } from "@/components/bea-music-demand-chart";
 import { BEAACPSAMusicChart } from "@/components/bea-acpsa-music-chart";
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
-import { MediaArticleList } from "@/components/media-article-list";
+import { SectorMediaDevelopments } from "@/components/sector-media-developments";
 import { MVTViabilityChart } from "@/components/mvt-viability-chart";
 import {
   TicketmasterMusicTrendChart,
@@ -186,27 +186,93 @@ export default async function MusicPage({
           </p>
         ) : beaDemand?.streamingNominal && beaDemand.ownedNominal ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric
-                label="Audio streaming and radio services"
-                value={
-                  formatPublishedValue(
-                    beaDemand.streamingNominal.current.value,
-                    beaDemand.streamingNominal.current.unit,
-                  ).headline
-                }
-                detail={`${monthLabel(beaDemand.streamingNominal.current.periodStart)} · MoM ${percent(beaDemand.streamingNominal.periodChange)} · YoY ${percent(beaDemand.streamingNominal.yearOverYearChange)}`}
-              />
-              <Metric
-                label="Owned recorded media and downloads"
-                value={
-                  formatPublishedValue(
-                    beaDemand.ownedNominal.current.value,
-                    beaDemand.ownedNominal.current.unit,
-                  ).headline
-                }
-                detail={`${monthLabel(beaDemand.ownedNominal.current.periodStart)} · MoM ${percent(beaDemand.ownedNominal.periodChange)} · YoY ${percent(beaDemand.ownedNominal.yearOverYearChange)}`}
-              />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
+                <div>
+                  <h3 className="font-semibold text-zinc-100">
+                    Audio streaming and radio services
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    {monthLabel(beaDemand.streamingNominal.current.periodStart)}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Metric
+                    label="Nominal level"
+                    value={
+                      formatPublishedValue(
+                        beaDemand.streamingNominal.current.value,
+                        beaDemand.streamingNominal.current.unit,
+                      ).headline
+                    }
+                    detail={`YoY ${percent(beaDemand.streamingNominal.yearOverYearChange)} · MoM ${percent(beaDemand.streamingNominal.periodChange)}`}
+                  />
+                  <Metric
+                    label="Real level"
+                    value={
+                      beaDemand.streamingReal
+                        ? formatPublishedValue(
+                            beaDemand.streamingReal.current.value,
+                            beaDemand.streamingReal.current.unit,
+                          ).headline
+                        : "Unavailable"
+                    }
+                    detail={
+                      beaDemand.streamingReal
+                        ? `YoY ${percent(beaDemand.streamingReal.yearOverYearChange)} · chained 2017 dollars`
+                        : "Official detailed real series unavailable"
+                    }
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Nominal-real YoY growth gap:{" "}
+                  {percent(beaDemand.nominalRealGrowthGap.streaming, " pp")}
+                </p>
+              </div>
+              <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
+                <div>
+                  <h3 className="font-semibold text-zinc-100">
+                    Owned recorded media and downloads
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    {monthLabel(beaDemand.ownedNominal.current.periodStart)}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Metric
+                    label="Nominal level"
+                    value={
+                      formatPublishedValue(
+                        beaDemand.ownedNominal.current.value,
+                        beaDemand.ownedNominal.current.unit,
+                      ).headline
+                    }
+                    detail={`YoY ${percent(beaDemand.ownedNominal.yearOverYearChange)} · MoM ${percent(beaDemand.ownedNominal.periodChange)}`}
+                  />
+                  <Metric
+                    label="Real level"
+                    value={
+                      beaDemand.ownedReal
+                        ? formatPublishedValue(
+                            beaDemand.ownedReal.current.value,
+                            beaDemand.ownedReal.current.unit,
+                          ).headline
+                        : "Unavailable"
+                    }
+                    detail={
+                      beaDemand.ownedReal
+                        ? `YoY ${percent(beaDemand.ownedReal.yearOverYearChange)} · chained 2017 dollars`
+                        : "Official detailed real series unavailable"
+                    }
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Nominal-real YoY growth gap:{" "}
+                  {percent(beaDemand.nominalRealGrowthGap.owned, " pp")}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Metric
                 label="Streaming + radio share"
                 value={
@@ -224,40 +290,6 @@ export default async function MusicPage({
                     : "Unavailable"
                 }
                 detail="Audio discs, tapes, vinyl, and permanent downloads"
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric
-                label="Real streaming and radio services"
-                value={
-                  beaDemand.streamingReal
-                    ? formatPublishedValue(
-                        beaDemand.streamingReal.current.value,
-                        beaDemand.streamingReal.current.unit,
-                      ).headline
-                    : "Unavailable"
-                }
-                detail={
-                  beaDemand.streamingReal
-                    ? `Official chained 2017 dollars · MoM ${percent(beaDemand.streamingReal.periodChange)} · YoY ${percent(beaDemand.streamingReal.yearOverYearChange)}`
-                    : "Official detailed real series unavailable"
-                }
-              />
-              <Metric
-                label="Real owned recorded media and downloads"
-                value={
-                  beaDemand.ownedReal
-                    ? formatPublishedValue(
-                        beaDemand.ownedReal.current.value,
-                        beaDemand.ownedReal.current.unit,
-                      ).headline
-                    : "Unavailable"
-                }
-                detail={
-                  beaDemand.ownedReal
-                    ? `Official chained 2017 dollars · MoM ${percent(beaDemand.ownedReal.periodChange)} · YoY ${percent(beaDemand.ownedReal.yearOverYearChange)}`
-                    : "Official detailed real series unavailable"
-                }
               />
             </div>
             <DashboardCard
@@ -305,42 +337,44 @@ export default async function MusicPage({
               <Metric
                 label="Industry revenue"
                 value={moneyUsd(censusIndustry.latest.revenueUsd)}
-                detail={`${censusIndustry.latest.year} · Annual · ${censusIndustry.changeLabel}${censusIndustry.revenueChangePct === null ? "" : ` ${percent(censusIndustry.revenueChangePct)}`}`}
+                detail={`${censusIndustry.latest.year} · Annual`}
               />
               <Metric
                 label="Annual payroll"
                 value={moneyUsd(censusIndustry.latest.payrollUsd)}
-                detail={`${censusIndustry.changeLabel}${censusIndustry.payrollChangePct === null ? "" : ` ${percent(censusIndustry.payrollChangePct)}`}`}
+                detail="Employer firms"
               />
               <Metric
                 label="Employment"
                 value={integer(censusIndustry.latest.employment)}
-                detail={`March 12 count · ${censusIndustry.changeLabel}${censusIndustry.employmentChangePct === null ? "" : ` ${percent(censusIndustry.employmentChangePct)}`}`}
+                detail="March 12 count"
               />
-              <Metric
-                label="Revenue per employee"
-                value={moneyUsd(censusIndustry.revenuePerEmployeeUsd)}
-                detail="Tracker-calculated from valid published values"
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
               <Metric
                 label="Operating expenses"
                 value={moneyUsd(censusIndustry.latest.operatingExpensesUsd)}
                 detail="AIES00EXP01 · employer firms"
               />
-              <Metric
-                label="Payroll per employee"
-                value={moneyUsd(censusIndustry.payrollPerEmployeeUsd)}
-                detail="Tracker-calculated from annual payroll and employment"
-              />
+            </div>
+            <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm">
+              <span className="text-zinc-500">
+                Revenue per employee{" "}
+                <strong className="font-data ml-2 text-zinc-200">
+                  {moneyUsd(censusIndustry.revenuePerEmployeeUsd)}
+                </strong>
+              </span>
+              <span className="text-zinc-500">
+                Payroll per employee{" "}
+                <strong className="font-data ml-2 text-zinc-200">
+                  {moneyUsd(censusIndustry.payrollPerEmployeeUsd)}
+                </strong>
+              </span>
             </div>
             <p className="text-xs leading-5 text-zinc-600">
               Official U.S. Census Bureau AIES tables AIES00BASIC and
               AIES00EXP01 · national all-establishment rows · monetary source
-              values published in USD thousands and normalized to USD. Only the
-              2023 AIES observation is currently comparable, so no change is
-              fabricated from predecessor SAS data.
+              values published in USD thousands and normalized to USD. 2023 is
+              currently the only comparable AIES observation; trend metrics will
+              appear as future vintages accumulate.
             </p>
           </>
         ) : (
@@ -549,44 +583,52 @@ export default async function MusicPage({
             )}
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metric
-            label="Cancellation transitions"
-            value={integer(
-              transitions
-                ? (transitionsByDestination(transitions, "cancelled") ?? 0) +
-                    (transitionsByDestination(transitions, "canceled") ?? 0)
-                : null,
-            )}
-            detail="Observed between comparable snapshots"
-          />
-          <Metric
-            label="Offsale transitions"
-            value={integer(transitionsByDestination(transitions, "offsale"))}
-          />
-          <Metric
-            label="Reschedule transitions"
-            value={integer(
-              transitionsByDestination(transitions, "rescheduled"),
-            )}
-          />
-        </div>
         {trends30.hasComparableHistory || trends90.hasComparableHistory ? (
-          <DashboardCard
-            title="Forward supply snapshots"
-            description="Persisted 30D and 90D Music history"
-          >
-            <TicketmasterMusicTrendChart
-              data={[...trendPoints.values()].sort((left, right) =>
-                left.capturedAt.localeCompare(right.capturedAt),
-              )}
-            />
-          </DashboardCard>
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Metric
+                label="Cancellation transitions"
+                value={integer(
+                  (transitionsByDestination(transitions, "cancelled") ?? 0) +
+                    (transitionsByDestination(transitions, "canceled") ?? 0),
+                )}
+                detail="Observed between comparable snapshots"
+              />
+              <Metric
+                label="Offsale transitions"
+                value={integer(
+                  transitionsByDestination(transitions, "offsale"),
+                )}
+                detail="Offsale is not cancellation"
+              />
+              <Metric
+                label="Reschedule transitions"
+                value={integer(
+                  transitionsByDestination(transitions, "rescheduled"),
+                )}
+              />
+            </div>
+            <DashboardCard
+              title="Forward supply snapshots"
+              description="Persisted 30D and 90D Music history"
+            >
+              <TicketmasterMusicTrendChart
+                data={[...trendPoints.values()].sort((left, right) =>
+                  left.capturedAt.localeCompare(right.capturedAt),
+                )}
+              />
+            </DashboardCard>
+          </>
         ) : (
-          <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">
-            Collecting longitudinal history. Changes appear only after
-            comparable country, segment, and window snapshots accumulate.
-          </p>
+          <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-3">
+            <p className="text-sm font-medium text-zinc-300">
+              Status transitions
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Collecting longitudinal history. Changes appear only after
+              comparable country, segment, and window snapshots accumulate.
+            </p>
+          </div>
         )}
       </section>
 
@@ -715,15 +757,7 @@ export default async function MusicPage({
         )}
       </section>
 
-      <DashboardCard
-        title="Recent Developments"
-        description="Latest Music media article candidates"
-      >
-        <MediaArticleList
-          articles={developments}
-          emptyMessage="No recent music developments are available"
-        />
-      </DashboardCard>
+      <SectorMediaDevelopments articles={developments} sectorLabel="Music" />
     </div>
   );
 }

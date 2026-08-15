@@ -12,6 +12,13 @@ import {
 } from "recharts";
 
 import type { BroadwayChartPoint } from "@/services/theatre/broadway-analytics";
+import {
+  calendarTicks,
+  chartTimestamp,
+  filterChartRange,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 type Metric = "gross" | "attendance" | "shows" | "capacity" | "ticket";
 type Range = "13W" | "1Y" | "5Y" | "2019" | "MAX";
@@ -39,16 +46,16 @@ export function BroadwayMarketChart({ data }: { data: BroadwayChartPoint[] }) {
   const [range, setRange] = useState<Range>("1Y");
   const [rolling, setRolling] = useState(true);
   const filtered = useMemo(() => {
-    const latest = new Date(`${data.at(-1)?.date ?? "1970-01-01"}T00:00:00Z`);
-    const start = new Date(latest);
-    if (range === "13W") start.setUTCDate(start.getUTCDate() - 13 * 7);
-    if (range === "1Y") start.setUTCFullYear(start.getUTCFullYear() - 1);
-    if (range === "5Y") start.setUTCFullYear(start.getUTCFullYear() - 5);
-    if (range === "2019") start.setTime(Date.parse("2019-01-01T00:00:00Z"));
-    return range === "MAX"
-      ? data
-      : data.filter((point) => new Date(`${point.date}T00:00:00Z`) >= start);
+    const withTime = data.map((point) => ({
+      ...point,
+      timestamp: chartTimestamp(point.date, "weekly"),
+    }));
+    return filterChartRange(withTime, (point) => point.timestamp, range);
   }, [data, range]);
+  const ticks = calendarTicks(
+    filtered.map((point) => point.timestamp),
+    { frequency: "weekly", range },
+  );
   const key =
     rolling && metric === "gross"
       ? "rolling4GrossUsd"
@@ -101,9 +108,15 @@ export function BroadwayMarketChart({ data }: { data: BroadwayChartPoint[] }) {
           <LineChart data={filtered} margin={{ top: 8, right: 12, left: 8 }}>
             <CartesianGrid stroke="#27272a" vertical={false} />
             <XAxis
-              dataKey="date"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
               tick={{ fill: "#71717a", fontSize: 11 }}
-              minTickGap={36}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "weekly", range)
+              }
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -116,13 +129,16 @@ export function BroadwayMarketChart({ data }: { data: BroadwayChartPoint[] }) {
                 border: "1px solid #27272a",
                 borderRadius: 10,
               }}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "weekly")
+              }
               formatter={(value) => [
                 tick(Number(value), metric),
                 METRICS[metric].label,
               ]}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey={key}
               connectNulls={false}
               stroke="#a78bfa"

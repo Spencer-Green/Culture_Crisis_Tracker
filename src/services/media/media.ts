@@ -142,7 +142,7 @@ export async function getMediaPageData(filters: MediaFilters) {
 
 export async function getRecentMediaDevelopments(
   sector: MediaSectorSlug,
-  limit = 6,
+  limit = 24,
 ): Promise<MediaArticleView[]> {
   const data = await getMediaPageData({ hours: 168, sector });
   return data.articles.slice(0, limit);

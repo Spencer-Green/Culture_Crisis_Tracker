@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildMediaHighlights,
+  buildSectorMediaTiers,
   filterMediaArticles,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
@@ -59,5 +60,34 @@ describe("media service presentation", () => {
     ]);
     expect(highlights.topDevelopments[0].id).toBe("2");
     expect(highlights.positiveSignals).toHaveLength(1);
+  });
+
+  it("keeps every article across deterministic Industry Signals and Sector Feed tiers", () => {
+    const articles = [
+      base,
+      {
+        ...base,
+        id: "2",
+        eventType: null,
+        importance: 1,
+        confidence: "low" as const,
+        aiImpactType: null,
+        publishedAt: "2026-08-13T06:00:00.000Z",
+      },
+      { ...base, id: "3", importance: 5, confidence: "medium" as const },
+    ];
+    const tiers = buildSectorMediaTiers(articles);
+    expect(tiers.industrySignals.map((article) => article.id)).toEqual([
+      "3",
+      "1",
+    ]);
+    expect(tiers.sectorFeed.map((article) => article.id)).toEqual(["2"]);
+    expect(
+      new Set(
+        [...tiers.industrySignals, ...tiers.sectorFeed].map(
+          (article) => article.id,
+        ),
+      ).size,
+    ).toBe(articles.length);
   });
 });

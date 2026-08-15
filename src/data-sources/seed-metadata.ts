@@ -47,7 +47,9 @@ export function buildSourceSeedOperation(
               ? "https://www.musicvenuetrust.com/resources/"
               : source.slug === "census"
                 ? "https://www2.census.gov/programs-surveys/aies/data"
-                : ""),
+                : source.slug === "lpa"
+                  ? "https://reports.liveperformance.com.au/"
+                  : ""),
     countryCode,
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
@@ -72,6 +74,7 @@ export function buildSourceSeedOperation(
       "bfi",
       "mvt",
       "census",
+      "lpa",
     ].includes(source.slug),
   };
 

@@ -76,6 +76,30 @@ export function countReleasesByPeriod(
     .sort((left, right) => left.period.localeCompare(right.period));
 }
 
+export function completedReleaseSeries(
+  games: readonly GamingGameInput[],
+  granularity: "month" | "quarter",
+  now: Date,
+) {
+  const cutoff =
+    granularity === "month"
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      : new Date(
+          Date.UTC(
+            now.getUTCFullYear(),
+            Math.floor(now.getUTCMonth() / 3) * 3,
+            1,
+          ),
+        );
+  return countReleasesByPeriod(
+    games.filter(
+      (game) =>
+        game.firstReleaseDate !== null && game.firstReleaseDate < cutoff,
+    ),
+    granularity,
+  );
+}
+
 export function calculateCompanyConcentration(
   games: readonly GamingGameInput[],
   role: "developer" | "publisher",
@@ -168,6 +192,8 @@ export function buildGamingAnalytics(input: {
     );
   const releasedCutoff = new Date(input.now);
   releasedCutoff.setUTCFullYear(releasedCutoff.getUTCFullYear() - 1);
+  const priorReleasedCutoff = new Date(releasedCutoff);
+  priorReleasedCutoff.setUTCFullYear(priorReleasedCutoff.getUTCFullYear() - 1);
   const upcoming = (days: number) => {
     const end = new Date(input.now);
     end.setUTCDate(end.getUTCDate() + days);
@@ -195,20 +221,43 @@ export function buildGamingAnalytics(input: {
   );
   const publishers = calculateCompanyConcentration(games, "publisher");
   const developers = calculateCompanyConcentration(games, "developer");
+  const latestTwelveMonthReleases = games.filter(
+    (game) =>
+      game.firstReleaseDate !== null &&
+      game.firstReleaseDate >= releasedCutoff &&
+      game.firstReleaseDate <= input.now,
+  ).length;
+  const priorTwelveMonthReleases = games.filter(
+    (game) =>
+      game.firstReleaseDate !== null &&
+      game.firstReleaseDate >= priorReleasedCutoff &&
+      game.firstReleaseDate < releasedCutoff,
+  ).length;
+  const totalCurrentPlayers = playerItems.reduce(
+    (sum, item) => sum + (item.snapshot.currentPlayers ?? 0),
+    0,
+  );
+  const topCurrentPlayers = playerItems
+    .map((item) => ({
+      name: item.game.name,
+      value: item.snapshot.currentPlayers ?? 0,
+    }))
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 10);
 
   return {
     totalGames: games.length,
     releaseSeries: {
-      monthly: countReleasesByPeriod(games, "month"),
-      quarterly: countReleasesByPeriod(games, "quarter"),
+      monthly: completedReleaseSeries(games, "month", input.now),
+      quarterly: completedReleaseSeries(games, "quarter", input.now),
       yearly: countReleasesByPeriod(games, "year"),
     },
-    latestTwelveMonthReleases: games.filter(
-      (game) =>
-        game.firstReleaseDate !== null &&
-        game.firstReleaseDate >= releasedCutoff &&
-        game.firstReleaseDate <= input.now,
-    ).length,
+    latestTwelveMonthReleases,
+    priorTwelveMonthReleases,
+    latestTwelveMonthChangePct: percent(
+      latestTwelveMonthReleases - priorTwelveMonthReleases,
+      priorTwelveMonthReleases,
+    ),
     upcoming: {
       days30: upcoming(30),
       days90: upcoming(90),
@@ -227,20 +276,21 @@ export function buildGamingAnalytics(input: {
       mappedPercent: percent(mappedGames.length, games.length),
       snapshotGames: mappedWithSnapshot.length,
       playerCoveragePercent: percent(playerItems.length, mappedGames.length),
-      totalCurrentPlayers: playerItems.reduce(
-        (sum, item) => sum + (item.snapshot.currentPlayers ?? 0),
-        0,
-      ),
+      totalCurrentPlayers,
       medianCurrentPlayers: median(
         playerItems.map((item) => item.snapshot.currentPlayers ?? 0),
       ),
-      topCurrentPlayers: playerItems
-        .map((item) => ({
-          name: item.game.name,
-          value: item.snapshot.currentPlayers ?? 0,
-        }))
-        .sort((left, right) => right.value - left.value)
-        .slice(0, 10),
+      topCurrentPlayers,
+      topTitleSharePercent: percent(
+        topCurrentPlayers[0]?.value ?? 0,
+        totalCurrentPlayers,
+      ),
+      titlesOver100Players: playerItems.filter(
+        (item) => (item.snapshot.currentPlayers ?? 0) > 100,
+      ).length,
+      titlesOver1000Players: playerItems.filter(
+        (item) => (item.snapshot.currentPlayers ?? 0) > 1_000,
+      ).length,
       reviewCoveragePercent: percent(reviewItems.length, mappedGames.length),
       medianReviews: median(
         reviewItems.map((item) => item.snapshot.totalReviews ?? 0),

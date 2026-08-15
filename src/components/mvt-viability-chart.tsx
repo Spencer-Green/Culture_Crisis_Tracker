@@ -10,6 +10,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  calendarTicks,
+  chartTimestamp,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 export type MVTChartPoint = {
   year: number;
@@ -38,6 +44,14 @@ type MetricKey = keyof typeof METRICS;
 export function MVTViabilityChart({ data }: { data: MVTChartPoint[] }) {
   const [metric, setMetric] = useState<MetricKey>("venues");
   const definition = METRICS[metric];
+  const chartData = data.map((point) => ({
+    ...point,
+    timestamp: chartTimestamp(point.year, "annual"),
+  }));
+  const ticks = calendarTicks(
+    chartData.map((point) => point.timestamp),
+    { frequency: "annual", range: "MAX" },
+  );
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -52,11 +66,21 @@ export function MVTViabilityChart({ data }: { data: MVTChartPoint[] }) {
           </button>
         ))}
       </div>
-      <div className="h-60">
+      <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 8 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 12, left: 8 }}>
             <CartesianGrid stroke="#27272a" vertical={false} />
-            <XAxis dataKey="year" tick={{ fill: "#71717a", fontSize: 11 }} />
+            <XAxis
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
+              tick={{ fill: "#71717a", fontSize: 11 }}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "annual", "MAX")
+              }
+            />
             <YAxis
               width={58}
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -74,6 +98,9 @@ export function MVTViabilityChart({ data }: { data: MVTChartPoint[] }) {
                 `${Number(value).toLocaleString("en-GB")}${definition.suffix}`,
                 definition.label,
               ]}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "annual")
+              }
             />
             <Line
               type="linear"

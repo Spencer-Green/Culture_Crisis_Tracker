@@ -1345,6 +1345,58 @@ separate from realized Broadway demand. Missing listings or events aging out of 
 are not cancellations; `offsale` is also not cancellation. Insufficient comparable history is
 shown explicitly rather than replaced with zero or a fabricated trend.
 
+### Live Performance Australia
+
+Australian realized theatre demand uses Live Performance Australia's public
+[Attendance and Revenue Report archive](https://reports.liveperformance.com.au/) and the latest
+[2024 static report](https://reports.liveperformance.com.au/ticket-survey-2024/). The access review
+classifies this source as `PUBLIC_STATIC_REPORT`: the report host's `robots.txt` allows retrieval,
+the main LPA [terms](https://liveperformance.com.au/terms/) contain no express automation ban for
+the separately hosted report archive, and the public report delivers its chart arrays in an
+ordinary same-origin static JavaScript asset. The integration makes three sequential requests per
+inspection or ingestion (archive, report shell, static bundle), follows no redirects, uses no
+browser automation, and stores no report HTML or JavaScript.
+
+The current report's national chart data provides annual nominal revenue and attendance for
+`Theatre` and `Musical Theatre` from 2004 through 2024. The categories remain separate in raw
+persistence. A presentation-only combined view is available only for years where both mutually
+exclusive category observations have compatible revenue and attendance. Average ticket price is
+stored only where the report explicitly publishes it; the tracker does not derive it from total
+attendance. Paid attendance, event count, and historical geography are not manufactured.
+
+Inspect and ingest with:
+
+```bash
+npm run lpa:inspect
+npm run ingest:lpa
+npm run ingest:lpa -- --since=2019
+```
+
+`LPAPerformanceMarketYear` uses source, year, category, and national geography as deterministic
+identity. Repeated runs update the same annual observations. The 2024 report notes that 2018 was
+revised for a source-data error and that source coverage depends on participating ticketing
+providers and events in market. Pandemic observations remain source-published and missing years
+are never interpolated. Regional reporting introduced in 2024 is not presented as a historical
+series. Revenue is nominal AUD and is shown alongside attendance and ticket-price context rather
+than being interpreted as audience growth by itself.
+
+LPA and Ticketmaster remain semantically distinct: LPA describes realized annual attendance and
+revenue, while Ticketmaster describes forward listing and venue supply. Neither is a complete
+census of Australian theatre and no combined Theatre score is produced.
+
+### Screen Australia access review
+
+Screen Australia's official
+[cinema attendance-pattern](https://www.screenaustralia.gov.au/fact-finders/cinema/audiences/attendance-patterns)
+and [box-office](https://www.screenaustralia.gov.au/insights-and-trends/cinema-industry-trends/box-office/)
+pages expose useful annual series, but no separately licensed public download or API was found.
+The site's [Terms and Conditions](https://www.screenaustralia.gov.au/corporate-documents/terms-and-conditions/)
+reserve database rights and restrict copying, reproduction, publication, deep-linking, and
+derivative use of site information. Under this task's mandatory access gate, the source is
+classified `PROHIBITED`; no Screen Australia model, source entry, ingestion command, network
+client, persisted data, or Film-page presentation was added. A licensed machine-readable export
+would be required before implementation.
+
 Theatre Recent Developments continues to use the separate MediaArticle candidate layer. No
 Broadway, Ticketmaster, or media values are combined into a Theatre Health or Industry Viability
 score.
@@ -1352,8 +1404,8 @@ score.
 ## Current limitations
 
 - ABS, ONS, BEA, FRED, Statistics Canada, Census AIES, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
-  RSS, the provisional US box-office dataset, BFI, Music Venue Trust, and provisional Broadway
-  Business data are active sources;
+  RSS, the provisional US box-office dataset, BFI, Music Venue Trust, Live Performance Australia,
+  and provisional Broadway Business data are active sources;
   Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
   unimplemented and disabled
 - No scheduled jobs or general retry framework; ONS, GDELT, Ticketmaster, IGDB, and Steam use
@@ -1542,3 +1594,43 @@ or industry health.
 - Monthly BEA household demand, annual Census business activity, historical BEA
   ACPSA structure, annual MVT viability, and current Ticketmaster supply data
   are never combined into a Music Health or Crisis score.
+
+## Sector presentation methodology
+
+Music, Film, Theatre, and Gaming share calendar-aware chart axes while retaining
+their source-specific frequencies. Weekly one-year views use month/year ticks;
+longer weekly views use annual ticks. Monthly one-year views use monthly ticks,
+quarterly charts use annual axis labels with exact quarters in tooltips, and
+annual charts use integer years only. Tick spacing follows real UTC dates rather
+than observation indexes. Missing observations are not interpolated and future
+periods are excluded from historical axes.
+
+`2019` is the default current-market reference for indexed views. Music's BEA
+indexed comparison therefore opens at `Since 2019`, while the ACPSA chart opens
+at `2019 = 100` and retains the longer `1998 = 100` structural view. Nominal and
+official real BEA Music growth rates are paired by consumption category; their
+difference is labelled a nominal-real YoY growth divergence, not an inflation
+estimate or a subtraction of current-dollar and chained-dollar levels.
+
+Sparse datasets receive proportionate visual weight. Census AIES currently has
+one comparable year and uses one section-level history note. The three annual
+MVT observations use a compact chart. Ticketmaster transition panels collapse
+to one `Collecting longitudinal history` state until comparable snapshots
+exist; current source statuses remain visible and `offsale` remains distinct
+from cancellation.
+
+Gaming release-history charts include completed historical periods only. The
+current partial month or quarter and future releases remain in the separate
+30D/90D/180D upcoming-supply panel, so source completeness at longer horizons
+cannot appear as a historical collapse. Quarterly counts use discrete bars.
+Steam panels are explicitly sample statistics: concurrent-player sums,
+concentration, reviews, and pricing describe only titles with captured Steam
+observations, not the Steam market as a whole.
+
+Sector media uses two deterministic presentation tiers without deleting or
+reclassifying articles. `Industry Signals` contains articles with importance of
+at least 2, medium/high confidence, a meaningful event/theme classification, or
+an AI-impact classification, ordered by importance, confidence, and recency.
+The remaining low-signal coverage appears in a denser `More from …` sector feed
+ordered by publication time. Positive counter-signals remain eligible and no
+sentiment or sector-health score is produced.

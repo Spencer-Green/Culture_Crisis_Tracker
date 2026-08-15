@@ -61,6 +61,7 @@ model DataSource {
   mediaArticleMatches    MediaArticleSourceMatch[]
   usBoxOfficeWeekends    USBoxOfficeWeekend[]
   broadwayMarketWeeks    BroadwayMarketWeek[]
+  lpaPerformanceYears    LPAPerformanceMarketYear[]
   bfiWeekendBoxOffice    BFIWeekendBoxOffice[]
   bfiFilmMarketYears     BFIFilmMarketYear[]
   mvtGrassrootsYears     MVTGrassrootsMusicYear[]
@@ -70,6 +71,34 @@ model DataSource {
   @@index([countryCode])
   @@index([sectorSlug])
   @@index([enabled])
+}
+
+model LPAPerformanceMarketYear {
+  id                    String     @id @default(uuid()) @db.Uuid
+  sourceId              String     @db.Uuid
+  year                  Int
+  category              String
+  categoryLabel         String
+  geographyScope        String     @default("NATIONAL")
+  revenueAud            Decimal?   @db.Decimal(18, 0)
+  attendance            Int?
+  averageTicketPriceAud Decimal?   @db.Decimal(12, 2)
+  sourceReportTitle     String
+  sourceReportUrl       String
+  sourceBundleUrl       String
+  sourcePublishedAt     DateTime?  @db.Timestamptz(3)
+  retrievedAt           DateTime   @db.Timestamptz(3)
+  firstSeenAt           DateTime   @db.Timestamptz(3)
+  lastSeenAt            DateTime   @db.Timestamptz(3)
+  metadata              Json       @default("{}")
+  createdAt             DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
+  source                DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, year, category, geographyScope])
+  @@index([year])
+  @@index([category, year])
+  @@index([sourceId, year])
 }
 
 model BEAACPSASoundRecordingYear {

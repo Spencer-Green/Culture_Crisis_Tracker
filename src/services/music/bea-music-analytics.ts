@@ -56,6 +56,26 @@ function indexSeries(
 export function buildBeaMusicAnalytics(
   observations: readonly ConsumerSpendingObservation[],
 ) {
+  const streamingNominalTrend = buildMetricTrend(
+    observations,
+    BEA_MUSIC_SLUGS.streamingNominal,
+    "monthly",
+  );
+  const streamingRealTrend = buildMetricTrend(
+    observations,
+    BEA_MUSIC_SLUGS.streamingReal,
+    "monthly",
+  );
+  const ownedNominalTrend = buildMetricTrend(
+    observations,
+    BEA_MUSIC_SLUGS.ownedNominal,
+    "monthly",
+  );
+  const ownedRealTrend = buildMetricTrend(
+    observations,
+    BEA_MUSIC_SLUGS.ownedReal,
+    "monthly",
+  );
   const streamingNominal = numericSeries(
     observations,
     BEA_MUSIC_SLUGS.streamingNominal,
@@ -109,26 +129,24 @@ export function buildBeaMusicAnalytics(
 
   return {
     metricDefinitions: BEA_MUSIC_METRICS,
-    streamingNominal: buildMetricTrend(
-      observations,
-      BEA_MUSIC_SLUGS.streamingNominal,
-      "monthly",
-    ),
-    streamingReal: buildMetricTrend(
-      observations,
-      BEA_MUSIC_SLUGS.streamingReal,
-      "monthly",
-    ),
-    ownedNominal: buildMetricTrend(
-      observations,
-      BEA_MUSIC_SLUGS.ownedNominal,
-      "monthly",
-    ),
-    ownedReal: buildMetricTrend(
-      observations,
-      BEA_MUSIC_SLUGS.ownedReal,
-      "monthly",
-    ),
+    streamingNominal: streamingNominalTrend,
+    streamingReal: streamingRealTrend,
+    ownedNominal: ownedNominalTrend,
+    ownedReal: ownedRealTrend,
+    nominalRealGrowthGap: {
+      streaming:
+        streamingNominalTrend?.yearOverYearChange != null &&
+        streamingRealTrend?.yearOverYearChange != null
+          ? streamingNominalTrend.yearOverYearChange -
+            streamingRealTrend.yearOverYearChange
+          : null,
+      owned:
+        ownedNominalTrend?.yearOverYearChange != null &&
+        ownedRealTrend?.yearOverYearChange != null
+          ? ownedNominalTrend.yearOverYearChange -
+            ownedRealTrend.yearOverYearChange
+          : null,
+    },
     share:
       sharePeriod && combined !== null && combined !== 0
         ? {

@@ -53,7 +53,9 @@
     "census:music:inspect": "node --conditions=react-server --import tsx scripts/census-music-inspect.ts",
     "ingest:census:music": "node --conditions=react-server --import tsx scripts/ingest-census-music.ts",
     "bea:acpsa:music:inspect": "node --conditions=react-server --import tsx scripts/bea-acpsa-music-inspect.ts",
-    "ingest:bea:acpsa:music": "node --conditions=react-server --import tsx scripts/ingest-bea-acpsa-music.ts"
+    "ingest:bea:acpsa:music": "node --conditions=react-server --import tsx scripts/ingest-bea-acpsa-music.ts",
+    "lpa:inspect": "node --conditions=react-server --import tsx scripts/lpa-inspect.ts",
+    "ingest:lpa": "node --conditions=react-server --import tsx scripts/ingest-lpa.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

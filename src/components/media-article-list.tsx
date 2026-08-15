@@ -24,10 +24,12 @@ function label(value: string): string {
 export function MediaArticleList({
   articles,
   compact = false,
+  dense = false,
   emptyMessage = "No developments match this view.",
 }: {
   articles: readonly MediaArticleView[];
   compact?: boolean;
+  dense?: boolean;
   emptyMessage?: string;
 }) {
   if (articles.length === 0)
@@ -37,13 +39,19 @@ export function MediaArticleList({
       </p>
     );
   return (
-    <div className="space-y-3">
+    <div className={dense ? "divide-y divide-zinc-800" : "space-y-3"}>
       {articles.map((article) => (
         <article
           key={article.id}
-          className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+          className={
+            dense
+              ? "py-3 first:pt-0 last:pb-0"
+              : "rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+          }
         >
-          <div className="flex flex-wrap gap-2 text-[10px] tracking-wide text-zinc-500 uppercase">
+          <div
+            className={`flex flex-wrap gap-2 text-[10px] tracking-wide text-zinc-500 uppercase ${dense ? "mt-1" : ""}`}
+          >
             <span>{label(article.sectorSlug)}</span>
             {article.eventType ? (
               <span className="text-blue-400">{label(article.eventType)}</span>
@@ -53,8 +61,8 @@ export function MediaArticleList({
                 {label(article.aiImpactType)}
               </span>
             ) : null}
-            <span>importance {article.importance}/5</span>
-            <span>{article.confidence} confidence</span>
+            {!dense ? <span>importance {article.importance}/5</span> : null}
+            {!dense ? <span>{article.confidence} confidence</span> : null}
           </div>
           <h3 className="mt-2 text-sm leading-5 font-medium text-zinc-100">
             <Link
@@ -66,16 +74,16 @@ export function MediaArticleList({
               {article.title}
             </Link>
           </h3>
-          {!compact && article.description ? (
+          {!compact && !dense && article.description ? (
             <p className="mt-2 text-xs leading-5 text-zinc-500">
               {article.description}
             </p>
           ) : null}
-          <p className="mt-3 text-xs text-zinc-600">
+          <p className={`${dense ? "mt-1" : "mt-3"} text-xs text-zinc-600`}>
             {article.publisher} · {age(article.publishedAt)} ·{" "}
             {article.sourceMatches.join(" + ")}
           </p>
-          {!compact ? (
+          {!compact && !dense ? (
             <p className="mt-2 text-[11px] leading-4 text-zinc-700">
               Tracker-derived: {article.classificationRationale}
             </p>

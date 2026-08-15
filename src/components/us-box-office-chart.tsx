@@ -12,6 +12,13 @@ import {
 } from "recharts";
 
 import type { BoxOfficeChartPoint } from "@/services/film/us-box-office-analytics";
+import {
+  calendarTicks,
+  chartTimestamp,
+  filterChartRange,
+  formatCalendarTick,
+  formatExactPeriod,
+} from "@/lib/chart-axis";
 
 type Range = "1Y" | "5Y" | "2019" | "MAX";
 
@@ -25,15 +32,16 @@ export function USBoxOfficeChart({ data }: { data: BoxOfficeChartPoint[] }) {
   const [range, setRange] = useState<Range>("5Y");
   const [mode, setMode] = useState<"weekly" | "rolling">("rolling");
   const filtered = useMemo(() => {
-    const latest = new Date(data.at(-1)?.date ?? 0);
-    const start = new Date(latest);
-    if (range === "1Y") start.setUTCFullYear(start.getUTCFullYear() - 1);
-    if (range === "5Y") start.setUTCFullYear(start.getUTCFullYear() - 5);
-    if (range === "2019") start.setTime(Date.parse("2019-01-01T00:00:00Z"));
-    return range === "MAX"
-      ? data
-      : data.filter((point) => new Date(point.date) >= start);
+    const withTime = data.map((point) => ({
+      ...point,
+      timestamp: chartTimestamp(point.date, "weekly"),
+    }));
+    return filterChartRange(withTime, (point) => point.timestamp, range);
   }, [data, range]);
+  const ticks = calendarTicks(
+    filtered.map((point) => point.timestamp),
+    { frequency: "weekly", range },
+  );
   const dataKey = mode === "weekly" ? "weeklyGrossUsd" : "rolling4WeekGrossUsd";
   return (
     <div className="space-y-4">
@@ -75,9 +83,15 @@ export function USBoxOfficeChart({ data }: { data: BoxOfficeChartPoint[] }) {
           >
             <CartesianGrid stroke="#27272a" vertical={false} />
             <XAxis
-              dataKey="date"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
               tick={{ fill: "#71717a", fontSize: 11 }}
-              minTickGap={36}
+              tickFormatter={(value) =>
+                formatCalendarTick(Number(value), "weekly", range)
+              }
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -91,13 +105,16 @@ export function USBoxOfficeChart({ data }: { data: BoxOfficeChartPoint[] }) {
                 borderRadius: 10,
               }}
               labelStyle={{ color: "#d4d4d8" }}
+              labelFormatter={(value) =>
+                formatExactPeriod(Number(value), "weekly")
+              }
               formatter={(value) => [
                 compactUsd(Number(value)),
                 mode === "weekly" ? "Weekend gross" : "Four-week gross",
               ]}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey={dataKey}
               connectNulls={false}
               stroke="#60a5fa"

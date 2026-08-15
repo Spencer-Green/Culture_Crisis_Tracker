@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 
 import { BroadwayMarketChart } from "@/components/broadway-market-chart";
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
-import { MediaArticleList } from "@/components/media-article-list";
+import { LPAPerformanceChart } from "@/components/lpa-performance-chart";
+import { SectorMediaDevelopments } from "@/components/sector-media-developments";
 import {
   TicketmasterTheatreTrendChart,
   type TicketmasterTheatreTrendPoint,
@@ -10,7 +11,10 @@ import {
 import { getTicketmasterSupplyTrends } from "@/services/industry-events/ticketmaster-longitudinal";
 import { getTicketmasterSupply } from "@/services/industry-events/ticketmaster-supply";
 import { getRecentMediaDevelopments } from "@/services/media/media";
-import { getBroadwayMarketData } from "@/services/theatre/theatre";
+import {
+  getBroadwayMarketData,
+  getLPAPerformanceData,
+} from "@/services/theatre/theatre";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Theatre" };
@@ -27,6 +31,13 @@ function money(value: number | null): string {
   return value >= 1_000_000
     ? `$${(value / 1_000_000).toFixed(2)}M`
     : `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function audMoney(value: number | null): string {
+  if (value === null) return "Unavailable";
+  return value >= 1_000_000
+    ? `A$${(value / 1_000_000).toFixed(1)}M`
+    : `A$${value.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`;
 }
 
 function integer(value: number | null): string {
@@ -78,9 +89,10 @@ export default async function TheatrePage({
   const country = COUNTRIES.includes(candidate as (typeof COUNTRIES)[number])
     ? (candidate as (typeof COUNTRIES)[number])
     : "US";
-  const [broadway, supply30, supply90, trends30, trends90, developments] =
+  const [broadway, lpa, supply30, supply90, trends30, trends90, developments] =
     await Promise.all([
       getBroadwayMarketData(),
+      getLPAPerformanceData(),
       getTicketmasterSupply({
         days: 30,
         countryCode: country,
@@ -104,6 +116,7 @@ export default async function TheatrePage({
       getRecentMediaDevelopments("theatre"),
     ]);
   const analytics = broadway.analytics;
+  const lpaAnalytics = lpa.analytics;
   const trend30 = trends30.entries[0];
   const trend90 = trends90.entries[0];
   const transitions = trend90.transitionCounts ?? trend30.transitionCounts;
@@ -136,8 +149,8 @@ export default async function TheatrePage({
           Theatre
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-          Realized Broadway demand, broader live-event supply, and current
-          theatre-industry developments.
+          Realized Broadway and Australian demand, broader live-event supply,
+          and current theatre-industry developments.
         </p>
       </div>
 
@@ -281,6 +294,100 @@ export default async function TheatrePage({
         </DashboardCard>
       )}
 
+      <section className="space-y-5 rounded-2xl border border-fuchsia-900/50 bg-fuchsia-950/10 p-5">
+        <div>
+          <p className="font-data text-xs tracking-[0.16em] text-fuchsia-400 uppercase">
+            Australian Theatre Market
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-zinc-100">
+            Live Performance Australia
+          </h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
+            Realized annual national attendance and nominal revenue. Theatre and
+            Musical Theatre remain separate source categories; this is distinct
+            from Ticketmaster forward listing supply.
+          </p>
+        </div>
+        {lpa.databaseStatus === "unavailable" ? (
+          <div className="rounded-xl border border-amber-900/50 bg-amber-950/20 p-4 text-sm text-amber-200">
+            Australian theatre market data is temporarily unavailable.
+          </div>
+        ) : lpaAnalytics?.theatre && lpaAnalytics.musicalTheatre ? (
+          <>
+            <div className="grid gap-5 xl:grid-cols-2">
+              {[
+                ["Theatre", lpaAnalytics.theatre],
+                ["Musical Theatre", lpaAnalytics.musicalTheatre],
+              ].map(([label, values]) => {
+                const category = values as NonNullable<
+                  typeof lpaAnalytics.theatre
+                >;
+                return (
+                  <div
+                    key={label as string}
+                    className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4"
+                  >
+                    <div>
+                      <h3 className="font-semibold text-zinc-100">
+                        {label as string}
+                      </h3>
+                      <p className="mt-1 text-xs text-zinc-600">
+                        {category.latest.year} · Annual · AUD
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Metric
+                        label="Revenue"
+                        value={audMoney(category.latest.revenueAud)}
+                        detail={`Prior observation ${percent(category.revenueChangePct)} · vs 2019 ${percent(category.revenueVs2019Pct)}`}
+                      />
+                      <Metric
+                        label="Attendance"
+                        value={integer(category.latest.attendance)}
+                        detail={`Prior observation ${percent(category.attendanceChangePct)} · vs 2019 ${percent(category.attendanceVs2019Pct)}`}
+                      />
+                      <Metric
+                        label="Average ticket"
+                        value={audMoney(category.latest.averageTicketPriceAud)}
+                        detail={`Prior observation ${percent(category.averageTicketPriceChangePct)}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <DashboardCard
+              title="Australian theatre history"
+              description="Annual revenue, attendance, and explicit source-published ticket prices"
+            >
+              <LPAPerformanceChart
+                data={{
+                  theatre: lpaAnalytics.theatre.chart,
+                  musicalTheatre: lpaAnalytics.musicalTheatre.chart,
+                  combined: lpaAnalytics.combined?.chart ?? [],
+                }}
+              />
+            </DashboardCard>
+            <p className="text-xs leading-5 text-zinc-600">
+              The 2024 report notes a revision to 2018 source data and changing
+              ticketing-provider coverage. Pandemic observations are retained;
+              gaps are not filled. Regional reporting introduced in 2024 is not
+              presented as historical geography.
+            </p>
+          </>
+        ) : (
+          <DashboardCard
+            title="Australian Theatre Market"
+            description="Live Performance Australia annual reports"
+          >
+            <EmptyChart
+              label="Australian theatre history"
+              message="Run npm run ingest:lpa"
+            />
+          </DashboardCard>
+        )}
+      </section>
+
       <section className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-950/70 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -340,68 +447,98 @@ export default async function TheatrePage({
             detail={`Change ${percent(trend90.comparison?.eventsPerVenuePctChange ?? null)}`}
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric
-            label="Cancellation transitions"
-            value={integer(
-              (transitionsByDestination(transitions, "cancelled") ?? 0) +
-                (transitionsByDestination(transitions, "canceled") ?? 0),
-            )}
-            detail={
-              transitions
-                ? "Observed between comparable snapshots"
-                : "Collecting longitudinal history"
-            }
-          />
-          <Metric
-            label="Offsale transitions"
-            value={integer(transitionsByDestination(transitions, "offsale"))}
-            detail="Offsale is not cancellation"
-          />
-          <Metric
-            label="Postponement transitions"
-            value={integer(transitionsByDestination(transitions, "postponed"))}
-          />
-          <Metric
-            label="Reschedule transitions"
-            value={integer(
-              transitionsByDestination(transitions, "rescheduled"),
-            )}
-          />
-        </div>
-        {!trends30.hasComparableHistory && !trends90.hasComparableHistory ? (
-          <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">
-            Collecting longitudinal history. Supply changes will appear after
-            comparable country, segment, and window snapshots accumulate.
-          </p>
-        ) : null}
-        {trends30.hasComparableHistory || trends90.hasComparableHistory ? (
-          <DashboardCard
-            title="Forward supply snapshots"
-            description="Persisted 30D and 90D Arts & Theatre history"
-          >
-            <TicketmasterTheatreTrendChart
-              data={[...trendPoints.values()].sort((left, right) =>
-                left.capturedAt.localeCompare(right.capturedAt),
+        <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-xs text-zinc-500">
+          <span>
+            On sale{" "}
+            <strong className="font-data ml-1 text-zinc-200">
+              {integer(supply90.summary.statuses.onsale ?? 0)}
+            </strong>
+          </span>
+          <span>
+            Off sale{" "}
+            <strong className="font-data ml-1 text-zinc-200">
+              {integer(supply90.summary.statuses.offsale ?? 0)}
+            </strong>
+            <span className="ml-1 text-zinc-700">not cancellation</span>
+          </span>
+          <span>
+            Canceled / cancelled{" "}
+            <strong className="font-data ml-1 text-zinc-200">
+              {integer(
+                (supply90.summary.statuses.canceled ?? 0) +
+                  (supply90.summary.statuses.cancelled ?? 0),
               )}
-            />
-          </DashboardCard>
-        ) : null}
+            </strong>
+          </span>
+          <span>
+            Postponed / rescheduled{" "}
+            <strong className="font-data ml-1 text-zinc-200">
+              {integer(
+                (supply90.summary.statuses.postponed ?? 0) +
+                  (supply90.summary.statuses.rescheduled ?? 0),
+              )}
+            </strong>
+          </span>
+        </div>
+        {trends30.hasComparableHistory || trends90.hasComparableHistory ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric
+                label="Cancellation transitions"
+                value={integer(
+                  (transitionsByDestination(transitions, "cancelled") ?? 0) +
+                    (transitionsByDestination(transitions, "canceled") ?? 0),
+                )}
+              />
+              <Metric
+                label="Offsale transitions"
+                value={integer(
+                  transitionsByDestination(transitions, "offsale"),
+                )}
+                detail="Offsale is not cancellation"
+              />
+              <Metric
+                label="Postponement transitions"
+                value={integer(
+                  transitionsByDestination(transitions, "postponed"),
+                )}
+              />
+              <Metric
+                label="Reschedule transitions"
+                value={integer(
+                  transitionsByDestination(transitions, "rescheduled"),
+                )}
+              />
+            </div>
+            <DashboardCard
+              title="Forward supply snapshots"
+              description="Persisted 30D and 90D Arts & Theatre history"
+            >
+              <TicketmasterTheatreTrendChart
+                data={[...trendPoints.values()].sort((left, right) =>
+                  left.capturedAt.localeCompare(right.capturedAt),
+                )}
+              />
+            </DashboardCard>
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-3">
+            <p className="text-sm font-medium text-zinc-300">
+              Status transitions
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              Collecting longitudinal history. Supply changes will appear after
+              comparable country, segment, and window snapshots accumulate.
+            </p>
+          </div>
+        )}
         <p className="text-xs leading-5 text-zinc-600">
           Ticketmaster is not a complete theatre census. Disappearing listings
           and events aging out of a window are not counted as cancellations.
         </p>
       </section>
 
-      <DashboardCard
-        title="Recent Developments"
-        description="Latest Theatre media article candidates"
-      >
-        <MediaArticleList
-          articles={developments}
-          emptyMessage="No recent theatre developments are available"
-        />
-      </DashboardCard>
+      <SectorMediaDevelopments articles={developments} sectorLabel="Theatre" />
     </div>
   );
 }

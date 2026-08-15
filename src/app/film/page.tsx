@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
 import { BFIBoxOfficeChart } from "@/components/bfi-box-office-chart";
-import { MediaArticleList } from "@/components/media-article-list";
+import { SectorMediaDevelopments } from "@/components/sector-media-developments";
 import { USBoxOfficeChart } from "@/components/us-box-office-chart";
 import { US_BOX_OFFICE_PROVENANCE } from "@/data-sources/film/us-box-office-types";
 import { getUSBoxOfficeData } from "@/services/film/us-box-office";
@@ -78,25 +78,25 @@ export default async function FilmPage() {
         </p>
       </div>
 
-      <section className="rounded-2xl border border-amber-900/50 bg-amber-950/15 p-5">
+      <section className="rounded-xl border border-amber-900/50 bg-amber-950/15 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-data text-xs tracking-[0.16em] text-amber-400 uppercase">
               US Domestic Box Office
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-zinc-100">
-              Provisional community dataset
-            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Kaggle community dataset · Box Office Mojo-derived
+            </p>
           </div>
           <span className="rounded-full border border-amber-800 px-2.5 py-1 text-xs text-amber-300">
             Research placeholder
           </span>
         </div>
-        <p className="mt-3 max-w-4xl text-sm leading-6 text-zinc-400">
-          Provider: Kaggle community dataset · Dataset: U.S. Weekend Box Office
-          Summaries · Underlying provenance: {US_BOX_OFFICE_PROVENANCE}. Replace
-          with a licensed or primary US theatrical source before public
-          production deployment.
+        <p className="mt-3 max-w-4xl text-xs leading-5 text-zinc-500">
+          Dataset: U.S. Weekend Box Office Summaries · Underlying provenance:{" "}
+          {US_BOX_OFFICE_PROVENANCE}. This remains provisional research data;
+          replace it with a licensed or primary US theatrical source before
+          public production deployment.
         </p>
       </section>
 
@@ -403,15 +403,7 @@ export default async function FilmPage() {
         </DashboardCard>
       ) : null}
 
-      <DashboardCard
-        title="Recent Developments"
-        description="Latest Film media article candidates"
-      >
-        <MediaArticleList
-          articles={developments}
-          emptyMessage="No recent film developments are available"
-        />
-      </DashboardCard>
+      <SectorMediaDevelopments articles={developments} sectorLabel="Film" />
     </div>
   );
 }

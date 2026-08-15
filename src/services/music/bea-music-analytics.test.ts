@@ -56,6 +56,8 @@ describe("BEA recorded-music PCE analytics", () => {
     expect(result.ownedNominal?.periodChange).toBeCloseTo(-11.1111, 3);
     expect(result.ownedNominal?.yearOverYearChange).toBe(-20);
     expect(result.streamingReal?.yearOverYearChange).toBeCloseTo(15.7895, 3);
+    expect(result.nominalRealGrowthGap.streaming).toBeCloseTo(9.2105, 3);
+    expect(result.nominalRealGrowthGap.owned).toBeCloseTo(3.6364, 3);
     expect(result.share).toMatchObject({
       periodStart: "2026-06-01T00:00:00.000Z",
     });

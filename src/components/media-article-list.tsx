@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MediaClassificationFeedback } from "@/components/media-classification-feedback";
 import type { MediaArticleView } from "@/services/media/media-service-core";
 
 function age(value: string): string {
@@ -25,11 +26,13 @@ export function MediaArticleList({
   articles,
   compact = false,
   dense = false,
+  feedbackEnabled = false,
   emptyMessage = "No developments match this view.",
 }: {
   articles: readonly MediaArticleView[];
   compact?: boolean;
   dense?: boolean;
+  feedbackEnabled?: boolean;
   emptyMessage?: string;
 }) {
   if (articles.length === 0)
@@ -87,6 +90,12 @@ export function MediaArticleList({
             <p className="mt-2 text-[11px] leading-4 text-zinc-700">
               Tracker-derived: {article.classificationRationale}
             </p>
+          ) : null}
+          {feedbackEnabled ? (
+            <MediaClassificationFeedback
+              articleId={article.id}
+              initialFeedback={article.classificationFeedback}
+            />
           ) : null}
         </article>
       ))}

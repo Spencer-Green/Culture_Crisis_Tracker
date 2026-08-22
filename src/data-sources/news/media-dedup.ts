@@ -77,14 +77,22 @@ export function likelyDuplicateStory(
   ) {
     return false;
   }
-  const leftTokens = headlineTokens(left.title);
-  const rightTokens = headlineTokens(right.title);
+  const leftHeadline = normaliseHeadline(left.title);
+  const rightHeadline = normaliseHeadline(right.title);
+  const leftTokens = new Set(leftHeadline.split(" ").filter(Boolean));
+  const rightTokens = new Set(rightHeadline.split(" ").filter(Boolean));
   if (leftTokens.size < 4 || rightTokens.size < 4) return false;
+  if (leftHeadline === rightHeadline) return true;
   const intersection = [...leftTokens].filter((token) =>
     rightTokens.has(token),
   ).length;
   const union = new Set([...leftTokens, ...rightTokens]).size;
-  return union > 0 && intersection / union >= 0.72;
+  const smallerHeadline = Math.min(leftTokens.size, rightTokens.size);
+  return (
+    intersection >= 6 &&
+    union > 0 &&
+    (intersection / union >= 0.82 || intersection / smallerHeadline >= 0.62)
+  );
 }
 
 export function storyFingerprint(title: string, publishedAt: Date): string {

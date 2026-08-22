@@ -127,6 +127,7 @@ export default async function SectionPage({
           {mediaSector ? (
             <MediaArticleList
               articles={developments}
+              feedbackEnabled
               emptyMessage={`No recent ${content.title.toLowerCase()} developments are available`}
             />
           ) : (

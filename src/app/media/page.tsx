@@ -101,6 +101,7 @@ export default async function MediaPage({
               <MediaArticleList
                 articles={articles as typeof data.articles}
                 compact
+                feedbackEnabled
               />
             </div>
           </section>
@@ -119,7 +120,7 @@ export default async function MediaPage({
           <p className="text-xs text-zinc-600">Newest first</p>
         </div>
         <div className="mt-4">
-          <MediaArticleList articles={data.articles} />
+          <MediaArticleList articles={data.articles} feedbackEnabled />
         </div>
       </section>
     </div>

@@ -21,6 +21,7 @@ export function SectorMediaDevelopments({
       >
         <MediaArticleList
           articles={tiers.industrySignals}
+          feedbackEnabled
           emptyMessage={`No higher-signal ${sectorLabel.toLowerCase()} developments are available`}
         />
       </DashboardCard>
@@ -29,7 +30,12 @@ export function SectorMediaDevelopments({
           title={`More from ${sectorLabel}`}
           description="Broader sector coverage, newest first"
         >
-          <MediaArticleList articles={tiers.sectorFeed} compact dense />
+          <MediaArticleList
+            articles={tiers.sectorFeed}
+            compact
+            dense
+            feedbackEnabled
+          />
         </DashboardCard>
       ) : null}
     </section>

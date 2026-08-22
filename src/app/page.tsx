@@ -424,6 +424,7 @@ export default async function OverviewPage() {
           </div>
           <MediaArticleList
             compact
+            feedbackEnabled
             articles={[
               mediaOverview.latestAi,
               mediaOverview.latestIndustryHealth,

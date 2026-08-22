@@ -7,6 +7,14 @@ import type {
   MediaSectorSlug,
   MediaSourceType,
 } from "@/data-sources/news/media-types";
+import { likelyDuplicateStory } from "@/data-sources/news/media-dedup";
+import {
+  CULTURAL_MEDIA_SECTORS,
+  hasCreativeAiConnection,
+  hasCreativeIndustryEvidence,
+  hasSectorEvidence,
+} from "@/data-sources/news/media-evidence";
+import type { MediaClassificationFeedbackState } from "@/services/media/media-feedback-types";
 
 export type MediaArticleView = {
   id: string;
@@ -27,6 +35,8 @@ export type MediaArticleView = {
   aiImpactType: AiImpactType | null;
   reviewState: MediaReviewState;
   classificationRationale: string;
+  classificationFeedback: MediaClassificationFeedbackState | null;
+  storyFingerprint: string | null;
   possibleDuplicateStory: boolean;
   sourceMatches: string[];
 };
@@ -69,38 +79,248 @@ export function filterMediaArticles(
     );
 }
 
-export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
-  const ranked = (predicate: (article: MediaArticleView) => boolean) =>
-    articles
-      .filter(predicate)
-      .slice()
-      .sort(
-        (left, right) =>
-          right.importance - left.importance ||
-          new Date(right.publishedAt).getTime() -
-            new Date(left.publishedAt).getTime(),
-      )
-      .slice(0, 4);
-  return {
-    topDevelopments: ranked((article) => article.importance >= 4),
-    aiAndCreativeWork: ranked((article) => article.aiImpactType !== null),
-    industryHealth: ranked((article) => article.polarity === "negative"),
-    positiveSignals: ranked((article) => article.polarity === "positive"),
-  };
-}
-
 const CONFIDENCE_RANK: Record<MediaConfidence, number> = {
   low: 1,
   medium: 2,
   high: 3,
 };
 
+const MATERIAL_EVENT_TYPES = new Set<MediaEventType>([
+  "CLOSURE",
+  "AT_RISK",
+  "BANKRUPTCY_INSOLVENCY",
+  "LAYOFFS",
+  "FUNDING_CUT",
+  "CANCELLATION",
+  "DEMAND_WEAKNESS",
+  "REVENUE_DECLINE",
+  "CONSOLIDATION_ACQUISITION",
+  "OPENING",
+  "INVESTMENT",
+  "HIRING",
+  "FUNDING_INCREASE",
+  "ATTENDANCE_GROWTH",
+  "REVENUE_GROWTH",
+  "EXPANSION",
+  "AI_LABOR_DISPLACEMENT",
+  "AI_COPYRIGHT",
+  "AI_LICENSING",
+  "AI_POLICY_REGULATION",
+  "AI_CREATOR_TOOL",
+  "AI_SYNTHETIC_CONTENT",
+  "AI_UNION_DISPUTE",
+]);
+
+function articleText(article: MediaArticleView): string {
+  return `${article.title}. ${article.description ?? ""}`
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function hasCredibleCulturalRelevance(
+  article: MediaArticleView,
+): boolean {
+  const text = articleText(article);
+  if (
+    CULTURAL_MEDIA_SECTORS.includes(
+      article.sectorSlug as (typeof CULTURAL_MEDIA_SECTORS)[number],
+    )
+  ) {
+    return hasSectorEvidence(text, article.sectorSlug);
+  }
+  return hasCreativeIndustryEvidence(text);
+}
+
+export function isAiCreativeWorkEligible(article: MediaArticleView): boolean {
+  const text = articleText(article);
+  return (
+    hasCreativeAiConnection(text) &&
+    hasCredibleCulturalRelevance(article) &&
+    article.aiImpactType !== null &&
+    article.eventType?.startsWith("AI_") === true &&
+    (article.confidence !== "low" || article.aiImpactType !== "AMBIGUOUS")
+  );
+}
+
+function hasClassificationEventEvidence(article: MediaArticleView): boolean {
+  const text = articleText(article);
+  return (
+    article.eventType !== "BANKRUPTCY_INSOLVENCY" ||
+    /\b(bankrupt|bankruptcy|insolvent|insolvency|liquidation|receivership)\b/i.test(
+      text,
+    ) ||
+    /\b(?:enters?|entered|placed|goes?|went)\s+(?:into\s+)?administration\b|\bin administration\b/i.test(
+      text,
+    )
+  );
+}
+
+export function isTopDevelopmentEligible(article: MediaArticleView): boolean {
+  return (
+    hasCredibleCulturalRelevance(article) &&
+    hasClassificationEventEvidence(article) &&
+    article.eventType !== null &&
+    MATERIAL_EVENT_TYPES.has(article.eventType) &&
+    article.confidence !== "low" &&
+    article.importance >= 3
+  );
+}
+
+export function isCuratedPresentationEligible(
+  article: MediaArticleView,
+): boolean {
+  return (
+    article.classificationFeedback?.reasons.includes(
+      "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
+    ) !== true
+  );
+}
+
+function preferCanonicalRepresentative(
+  left: MediaArticleView,
+  right: MediaArticleView,
+): MediaArticleView {
+  const leftDescription = left.description?.trim().length ?? 0;
+  const rightDescription = right.description?.trim().length ?? 0;
+  if (leftDescription !== rightDescription)
+    return leftDescription > rightDescription ? left : right;
+  if (CONFIDENCE_RANK[left.confidence] !== CONFIDENCE_RANK[right.confidence])
+    return CONFIDENCE_RANK[left.confidence] > CONFIDENCE_RANK[right.confidence]
+      ? left
+      : right;
+  if (left.sourceMatches.length !== right.sourceMatches.length)
+    return left.sourceMatches.length > right.sourceMatches.length
+      ? left
+      : right;
+  const leftPublished = new Date(left.publishedAt).getTime();
+  const rightPublished = new Date(right.publishedAt).getTime();
+  if (leftPublished !== rightPublished)
+    return leftPublished < rightPublished ? left : right;
+  return left.canonicalUrl.localeCompare(right.canonicalUrl) <= 0
+    ? left
+    : right;
+}
+
+export function collapseDuplicateStories(
+  articles: readonly MediaArticleView[],
+): {
+  articles: MediaArticleView[];
+  suppressedCount: number;
+} {
+  const groups: MediaArticleView[][] = [];
+  for (const article of articles) {
+    const group = groups.find((candidateGroup) => {
+      const representative = candidateGroup[0];
+      return (
+        (representative.storyFingerprint !== null &&
+          representative.storyFingerprint === article.storyFingerprint) ||
+        (representative.sectorSlug === article.sectorSlug &&
+          representative.eventType === article.eventType &&
+          likelyDuplicateStory(
+            {
+              title: representative.title,
+              publishedAt: new Date(representative.publishedAt),
+            },
+            {
+              title: article.title,
+              publishedAt: new Date(article.publishedAt),
+            },
+          ))
+      );
+    });
+    if (group) group.push(article);
+    else groups.push([article]);
+  }
+
+  return {
+    articles: groups.map((group) => {
+      const representative = group.reduce(preferCanonicalRepresentative);
+      return {
+        ...representative,
+        possibleDuplicateStory:
+          representative.possibleDuplicateStory || group.length > 1,
+        sourceMatches: [
+          ...new Set(group.flatMap((article) => article.sourceMatches)),
+        ],
+      };
+    }),
+    suppressedCount: articles.length - groups.length,
+  };
+}
+
+function rankArticles(articles: readonly MediaArticleView[]) {
+  return articles
+    .slice()
+    .sort(
+      (left, right) =>
+        right.importance - left.importance ||
+        CONFIDENCE_RANK[right.confidence] - CONFIDENCE_RANK[left.confidence] ||
+        new Date(right.publishedAt).getTime() -
+          new Date(left.publishedAt).getTime() ||
+        left.id.localeCompare(right.id),
+    );
+}
+
+export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
+  const curatedArticles = articles.filter(isCuratedPresentationEligible);
+  const aiCandidates = curatedArticles.filter(isAiCreativeWorkEligible);
+  const topCandidates = curatedArticles.filter(
+    (article) =>
+      isTopDevelopmentEligible(article) && !isAiCreativeWorkEligible(article),
+  );
+  const healthCandidates = curatedArticles.filter(
+    (article) =>
+      article.polarity === "negative" &&
+      article.eventType !== null &&
+      article.confidence !== "low" &&
+      hasCredibleCulturalRelevance(article),
+  );
+  const positiveCandidates = curatedArticles.filter(
+    (article) =>
+      article.polarity === "positive" &&
+      article.eventType !== null &&
+      article.confidence !== "low" &&
+      hasCredibleCulturalRelevance(article),
+  );
+  const top = collapseDuplicateStories(topCandidates);
+  const ai = collapseDuplicateStories(aiCandidates);
+  const health = collapseDuplicateStories(healthCandidates);
+  const positive = collapseDuplicateStories(positiveCandidates);
+
+  return {
+    topDevelopments: rankArticles(top.articles).slice(0, 4),
+    aiAndCreativeWork: rankArticles(ai.articles).slice(0, 4),
+    industryHealth: rankArticles(health.articles).slice(0, 4),
+    positiveSignals: rankArticles(positive.articles).slice(0, 4),
+    diagnostics: {
+      topCandidatesBeforeDeduplication: topCandidates.length,
+      topCandidatesAfterDeduplication: top.articles.length,
+      aiCandidatesBeforeDeduplication: aiCandidates.length,
+      aiCandidatesAfterDeduplication: ai.articles.length,
+      duplicateEventCardsSuppressed:
+        top.suppressedCount +
+        ai.suppressedCount +
+        health.suppressedCount +
+        positive.suppressedCount,
+      retainedOutsideTopAndAi: articles.filter(
+        (article) =>
+          !isCuratedPresentationEligible(article) ||
+          (!isTopDevelopmentEligible(article) &&
+            !isAiCreativeWorkEligible(article)),
+      ).length,
+    },
+  };
+}
+
 export function buildSectorMediaTiers(articles: readonly MediaArticleView[]) {
   const isSignal = (article: MediaArticleView) =>
-    article.importance >= 2 ||
-    CONFIDENCE_RANK[article.confidence] >= CONFIDENCE_RANK.medium ||
-    article.eventType !== null ||
-    article.aiImpactType !== null;
+    isCuratedPresentationEligible(article) &&
+    (article.reviewState === "accepted" ||
+      (hasCredibleCulturalRelevance(article) &&
+        hasClassificationEventEvidence(article) &&
+        article.importance >= 2 &&
+        CONFIDENCE_RANK[article.confidence] >= CONFIDENCE_RANK.medium &&
+        article.eventType !== null));
   const industrySignals = articles
     .filter(isSignal)
     .slice()

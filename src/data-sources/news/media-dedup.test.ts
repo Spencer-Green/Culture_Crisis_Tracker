@@ -36,6 +36,34 @@ describe("media deduplication", () => {
         title: "Festival launches new investment fund",
       }),
     ).toBe(false);
+    expect(
+      likelyDuplicateStory(
+        {
+          title:
+            "Suno x BMG: AI Music Platform Strikes Its 2nd important Major Label Licensing Deal",
+          publishedAt: first.publishedAt,
+        },
+        {
+          title:
+            "Suno, the AI music making platform, has inked global licensing deal with BMG",
+          publishedAt: second.publishedAt,
+        },
+      ),
+    ).toBe(true);
+    expect(
+      likelyDuplicateStory(
+        {
+          title:
+            "Paramount completes Warner Bros merger after regulator approval",
+          publishedAt: first.publishedAt,
+        },
+        {
+          title:
+            "Paramount launches streaming bundle with Warner Bros catalogue",
+          publishedAt: second.publishedAt,
+        },
+      ),
+    ).toBe(false);
     expect(normaliseHeadline("The Studio's New Plan")).toBe("studio new plan");
   });
 });

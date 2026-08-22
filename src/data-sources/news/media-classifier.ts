@@ -3,6 +3,12 @@ import {
   canonicaliseMediaUrl,
   storyFingerprint,
 } from "@/data-sources/news/media-dedup";
+import {
+  CULTURAL_MEDIA_SECTORS,
+  culturalSectorEvidence,
+  hasAiRelevance,
+  hasCreativeIndustryEvidence,
+} from "@/data-sources/news/media-evidence";
 import type {
   AiImpactType,
   ClassifiedMediaArticle,
@@ -45,45 +51,38 @@ export function inferMediaCountry(text: string): CountryCode | null {
 export function classifyMediaSector(
   text: string,
   hint: MediaSectorSlug | null,
+  trustedSourceHint = false,
 ): MediaSectorSlug {
-  const matches: MediaSectorSlug[] = [];
+  const evidence = culturalSectorEvidence(text);
+  if (evidence.length === 1) return evidence[0];
   if (
-    /\b(music|musician|songwriter|record label|concert|festival|album)\b/i.test(
-      text,
+    evidence.length > 1 &&
+    hint &&
+    CULTURAL_MEDIA_SECTORS.includes(
+      hint as (typeof CULTURAL_MEDIA_SECTORS)[number],
+    ) &&
+    evidence.includes(hint as (typeof CULTURAL_MEDIA_SECTORS)[number])
+  )
+    return hint;
+  if (evidence.length > 1) return "industry-events";
+  if (hasAiRelevance(text)) return "ai-policy";
+  if (
+    trustedSourceHint &&
+    hint &&
+    CULTURAL_MEDIA_SECTORS.includes(
+      hint as (typeof CULTURAL_MEDIA_SECTORS)[number],
     )
   )
-    matches.push("music");
-  if (
-    /\b(film|movie|cinema|television|tv|actor|screenwriter|vfx|box office|hollywood)\b/i.test(
-      text,
-    )
-  )
-    matches.push("film");
-  if (
-    /\b(theatre|theater|performing arts|playwright|stage production|broadway)\b/i.test(
-      text,
-    )
-  )
-    matches.push("theatre");
-  if (
-    /\b(video game|gaming|game studio|game developer|game publisher|steam)\b/i.test(
-      text,
-    )
-  )
-    matches.push("gaming");
-  const unique = [...new Set(matches)];
-  if (unique.length === 1) return unique[0];
-  if (hint && hint !== "industry-events") return hint;
-  if (
-    /\b(ai|artificial intelligence|generative)\b/i.test(text) &&
-    unique.length === 0
-  )
-    return "ai-policy";
+    return hint;
+  if (hint === "ai-policy") return hint;
   return "industry-events";
 }
 
-function matchEvent(text: string): RuleMatch | null {
-  const ai = /\b(ai|artificial intelligence|generative ai)\b/i.test(text);
+function matchEvent(
+  text: string,
+  creativeIndustryRelevant: boolean,
+): RuleMatch | null {
+  const ai = hasAiRelevance(text);
   if (
     ai &&
     /\b(replace|replaced|job loss|displace|layoff|redundanc|cut jobs|eliminate roles|automation)\b/i.test(
@@ -110,7 +109,11 @@ function matchEvent(text: string): RuleMatch | null {
       rationale:
         "The article explicitly concerns AI copyright or training-data rights.",
     };
-  if (ai && /\b(licens|royalt|rights deal|consent|compensation)\b/i.test(text))
+  if (
+    ai &&
+    creativeIndustryRelevant &&
+    /\b(licens|royalt|rights deal|consent|compensation)\b/i.test(text)
+  )
     return {
       eventType: "AI_LICENSING",
       polarity: "neutral/ambiguous",
@@ -121,6 +124,7 @@ function matchEvent(text: string): RuleMatch | null {
     };
   if (
     ai &&
+    creativeIndustryRelevant &&
     /\b(union|guild|strike|collective bargaining|contract)\b/i.test(text)
   )
     return {
@@ -143,10 +147,11 @@ function matchEvent(text: string): RuleMatch | null {
       confidence: "high",
       aiImpactType: "POLICY_REGULATION",
       rationale:
-        "The article explicitly concerns AI regulation or public policy affecting creative work.",
+        "The article explicitly concerns AI regulation or public policy.",
     };
   if (
     ai &&
+    creativeIndustryRelevant &&
     /\b(tool|software|platform|launch|assistant|workflow)\b/i.test(text)
   )
     return {
@@ -183,7 +188,10 @@ function matchEvent(text: string): RuleMatch | null {
       rationale: "The article explicitly reports a closure.",
     };
   if (
-    /\b(bankrupt|bankruptcy|insolvent|insolvency|administration|liquidation|receivership)\b/i.test(
+    /\b(bankrupt|bankruptcy|insolvent|insolvency|liquidation|receivership)\b/i.test(
+      text,
+    ) ||
+    /\b(?:enters?|entered|placed|goes?|went)\s+(?:into\s+)?administration\b|\bin administration\b/i.test(
       text,
     )
   )
@@ -301,7 +309,7 @@ function matchEvent(text: string): RuleMatch | null {
       confidence: "low",
       aiImpactType: "AMBIGUOUS",
       rationale:
-        "The article concerns AI and creative work, but the supplied metadata does not establish a specific impact.",
+        "The article concerns AI, but the supplied metadata does not establish a specific impact.",
     };
   return null;
 }
@@ -309,18 +317,26 @@ function matchEvent(text: string): RuleMatch | null {
 function importanceFor(
   match: RuleMatch | null,
   text: string,
+  culturalEconomyRelevant: boolean,
 ): 1 | 2 | 3 | 4 | 5 {
   let value = 1;
   if (match) value += 1;
+  if (!culturalEconomyRelevant) return Math.min(2, value) as 1 | 2;
   if (match?.confidence === "high") value += 1;
   if (
+    match?.eventType === "CLOSURE" ||
+    match?.eventType === "BANKRUPTCY_INSOLVENCY" ||
+    match?.eventType === "LAYOFFS" ||
+    match?.eventType === "FUNDING_CUT" ||
+    match?.eventType === "CONSOLIDATION_ACQUISITION" ||
+    match?.eventType === "INVESTMENT" ||
     match?.aiImpactType === "LABOR_DISPLACEMENT" ||
     match?.aiImpactType === "RIGHTS_LICENSING" ||
     match?.aiImpactType === "POLICY_REGULATION"
   )
     value += 1;
   if (
-    /\b(court|supreme court|government|regulator|union|guild|major|global|thousands?|record)\b/i.test(
+    /\b(court|supreme court|regulator|union|guild|dga|iatse|sag-aftra|major|thousands?|record)\b/i.test(
       text,
     )
   )
@@ -339,7 +355,19 @@ export function classifyMediaArticle(
   const family = article.queryFamily
     ? getMediaQueryFamily(article.queryFamily)
     : undefined;
-  const direct = matchEvent(text);
+  const sectorHint = article.sectorHint ?? family?.sector ?? null;
+  const sectorSlug = classifyMediaSector(
+    text,
+    sectorHint,
+    article.sourceType === "RSS",
+  );
+  const culturalEconomyRelevant =
+    hasCreativeIndustryEvidence(text) ||
+    (article.sourceType === "RSS" &&
+      CULTURAL_MEDIA_SECTORS.includes(
+        sectorSlug as (typeof CULTURAL_MEDIA_SECTORS)[number],
+      ));
+  const direct = matchEvent(text, culturalEconomyRelevant);
   const fallback: RuleMatch | null = family?.fallbackEventType
     ? {
         eventType: family.fallbackEventType,
@@ -354,14 +382,11 @@ export function classifyMediaArticle(
     ...article,
     canonicalUrl,
     countryCode: inferMediaCountry(`${text} ${article.sourceCountry ?? ""}`),
-    sectorSlug: classifyMediaSector(
-      text,
-      article.sectorHint ?? family?.sector ?? null,
-    ),
+    sectorSlug,
     eventType: match?.eventType ?? null,
     polarity: match?.polarity ?? "neutral/ambiguous",
     confidence: match?.confidence ?? "low",
-    importance: importanceFor(match, text),
+    importance: importanceFor(match, text, culturalEconomyRelevant),
     aiImpactType: match?.aiImpactType ?? null,
     reviewState: "unreviewed",
     classificationRationale:

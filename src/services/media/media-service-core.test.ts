@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildMediaHighlights,
   buildSectorMediaTiers,
+  collapseDuplicateStories,
   filterMediaArticles,
+  isAiCreativeWorkEligible,
+  isTopDevelopmentEligible,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
 
@@ -26,6 +29,8 @@ const base: MediaArticleView = {
   aiImpactType: null,
   reviewState: "unreviewed",
   classificationRationale: "test",
+  classificationFeedback: null,
+  storyFingerprint: "story-1",
   possibleDuplicateStory: false,
   sourceMatches: ["RSS"],
 };
@@ -56,7 +61,16 @@ describe("media service presentation", () => {
   it("orders high-signal sections by tracker-derived importance", () => {
     const highlights = buildMediaHighlights([
       base,
-      { ...base, id: "2", importance: 5, polarity: "negative" },
+      {
+        ...base,
+        id: "2",
+        canonicalUrl: "https://example.com/2",
+        title: "Music label announces major layoffs",
+        storyFingerprint: "story-2",
+        importance: 5,
+        polarity: "negative",
+        eventType: "LAYOFFS",
+      },
     ]);
     expect(highlights.topDevelopments[0].id).toBe("2");
     expect(highlights.positiveSignals).toHaveLength(1);
@@ -89,5 +103,206 @@ describe("media service presentation", () => {
         ),
       ).size,
     ).toBe(articles.length);
+  });
+
+  it("excludes generic AI cybersecurity from Film and creative-AI intelligence", () => {
+    const cyberArticle: MediaArticleView = {
+      ...base,
+      title:
+        "China-Linked Hackers Use Autonomous AI Agents to Breach Taiwan Government Systems",
+      description: null,
+      sectorSlug: "film",
+      eventType: "AI_POLICY_REGULATION",
+      aiImpactType: "POLICY_REGULATION",
+      polarity: "neutral/ambiguous",
+      importance: 5,
+      confidence: "high",
+    };
+
+    expect(isTopDevelopmentEligible(cyberArticle)).toBe(false);
+    expect(isAiCreativeWorkEligible(cyberArticle)).toBe(false);
+    const highlights = buildMediaHighlights([cyberArticle]);
+    expect(highlights.topDevelopments).toEqual([]);
+    expect(highlights.aiAndCreativeWork).toEqual([]);
+  });
+
+  it("routes Film consolidation to Top Developments", () => {
+    const consolidation: MediaArticleView = {
+      ...base,
+      title:
+        "DGA and IATSE Push Rob Bonta to Allow Paramount-Warner Bros. Merger With Conditions",
+      sectorSlug: "film",
+      eventType: "CONSOLIDATION_ACQUISITION",
+      polarity: "neutral/ambiguous",
+      importance: 5,
+      confidence: "high",
+    };
+
+    expect(isTopDevelopmentEligible(consolidation)).toBe(true);
+    expect(buildMediaHighlights([consolidation]).topDevelopments).toEqual([
+      consolidation,
+    ]);
+  });
+
+  it("requires both AI and creative-industry evidence for AI & Creative Work", () => {
+    const creativeAi: MediaArticleView = {
+      ...base,
+      title: "Musicians secure licensing deal for generative AI training data",
+      sectorSlug: "music",
+      eventType: "AI_LICENSING",
+      aiImpactType: "RIGHTS_LICENSING",
+      polarity: "neutral/ambiguous",
+      importance: 4,
+      confidence: "high",
+    };
+    const genericPolicy: MediaArticleView = {
+      ...creativeAi,
+      id: "2",
+      title: "Government publishes new AI safety regulation framework",
+      sectorSlug: "ai-policy",
+      eventType: "AI_POLICY_REGULATION",
+      aiImpactType: "POLICY_REGULATION",
+      storyFingerprint: "story-2",
+    };
+
+    expect(isAiCreativeWorkEligible(creativeAi)).toBe(true);
+    expect(isAiCreativeWorkEligible(genericPolicy)).toBe(false);
+    const highlights = buildMediaHighlights([creativeAi, genericPolicy]);
+    expect(highlights.aiAndCreativeWork.map((article) => article.id)).toEqual([
+      "1",
+    ]);
+    expect(highlights.topDevelopments).toEqual([]);
+  });
+
+  it("collapses syndicated headlines but preserves similar distinct developments", () => {
+    const original = {
+      ...base,
+      title: "Major music company announces investment in touring artists",
+    };
+    const syndicated = {
+      ...original,
+      id: "2",
+      canonicalUrl: "https://syndicator.example/story",
+      publisher: "Syndicator",
+      publishedAt: "2026-08-13T06:00:00.000Z",
+      storyFingerprint: "different-ingestion-day-key",
+    };
+    const distinct = {
+      ...base,
+      id: "3",
+      canonicalUrl: "https://example.com/distinct",
+      title: "Music investment fund opens applications for touring artists",
+      publishedAt: "2026-08-13T06:30:00.000Z",
+      storyFingerprint: "story-3",
+    };
+
+    const collapsed = collapseDuplicateStories([
+      original,
+      syndicated,
+      distinct,
+    ]);
+    expect(collapsed.articles).toHaveLength(2);
+    expect(collapsed.suppressedCount).toBe(1);
+    expect(collapsed.articles.map((article) => article.id)).toContain("3");
+    const highlights = buildMediaHighlights([original, syndicated, distinct]);
+    expect(highlights.topDevelopments).toHaveLength(2);
+    expect(highlights.diagnostics.topCandidatesBeforeDeduplication).toBe(3);
+    expect(highlights.diagnostics.topCandidatesAfterDeduplication).toBe(2);
+  });
+
+  it("retains low-signal or irrelevant assignments in the broader sector feed", () => {
+    const genericCyberArticle: MediaArticleView = {
+      ...base,
+      title: "Autonomous AI agents breach government systems",
+      sectorSlug: "film",
+      eventType: "AI_POLICY_REGULATION",
+      aiImpactType: "POLICY_REGULATION",
+      polarity: "neutral/ambiguous",
+      importance: 5,
+      confidence: "high",
+    };
+    const tiers = buildSectorMediaTiers([genericCyberArticle]);
+
+    expect(tiers.industrySignals).toEqual([]);
+    expect(tiers.sectorFeed).toEqual([genericCyberArticle]);
+  });
+
+  it("rejects an ambiguous administration match from Top Developments", () => {
+    const civicCelebration: MediaArticleView = {
+      ...base,
+      title:
+        "Independence Day celebrations to feature fireworks and folk music",
+      description:
+        "The district administration is organising the public celebration.",
+      eventType: "BANKRUPTCY_INSOLVENCY",
+      polarity: "neutral/ambiguous",
+      importance: 3,
+      confidence: "high",
+    };
+
+    expect(isTopDevelopmentEligible(civicCelebration)).toBe(false);
+  });
+
+  it("excludes manually irrelevant articles from curated surfaces but retains them in broader feeds", () => {
+    const flagged: MediaArticleView = {
+      ...base,
+      classificationFeedback: {
+        reasons: ["WRONG_EVENT_TYPE", "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
+        correctedSector: null,
+        correctedEventType: "EXPANSION",
+        correctedAiTag: null,
+        correctedImportance: null,
+        reviewedAt: "2026-08-17T08:00:00.000Z",
+      },
+    };
+    const flaggedAi: MediaArticleView = {
+      ...flagged,
+      id: "2",
+      canonicalUrl: "https://example.com/2",
+      title: "Musicians secure licensing deal for generative AI training data",
+      eventType: "AI_LICENSING",
+      aiImpactType: "RIGHTS_LICENSING",
+      storyFingerprint: "story-2",
+    };
+
+    const highlights = buildMediaHighlights([flagged, flaggedAi]);
+    expect(highlights.topDevelopments).toEqual([]);
+    expect(highlights.aiAndCreativeWork).toEqual([]);
+    expect(highlights.industryHealth).toEqual([]);
+    expect(highlights.positiveSignals).toEqual([]);
+
+    const tiers = buildSectorMediaTiers([flagged]);
+    expect(tiers.industrySignals).toEqual([]);
+    expect(tiers.sectorFeed).toEqual([flagged]);
+
+    expect(
+      filterMediaArticles(
+        [flagged],
+        { hours: 168 },
+        new Date("2026-08-17T08:00:00Z"),
+      ),
+    ).toEqual([flagged]);
+  });
+
+  it("keeps feedback-only error dimensions eligible under machine classification", () => {
+    const flagged: MediaArticleView = {
+      ...base,
+      classificationFeedback: {
+        reasons: [
+          "WRONG_SECTOR",
+          "WRONG_EVENT_TYPE",
+          "WRONG_AI_TAG",
+          "WRONG_IMPORTANCE",
+        ],
+        correctedSector: "gaming",
+        correctedEventType: "EXPANSION",
+        correctedAiTag: "TOOL_ADOPTION",
+        correctedImportance: 1,
+        reviewedAt: "2026-08-17T08:00:00.000Z",
+      },
+    };
+
+    expect(buildMediaHighlights([flagged]).topDevelopments).toEqual([flagged]);
+    expect(buildSectorMediaTiers([flagged]).industrySignals).toEqual([flagged]);
   });
 });

@@ -8,6 +8,7 @@ import {
   buildMediaCounts,
   buildMediaHighlights,
   filterMediaArticles,
+  isCuratedPresentationEligible,
   type MediaArticleView,
   type MediaFilters,
 } from "@/services/media/media-service-core";
@@ -58,6 +59,15 @@ function toView(article: {
   aiImpactType: string | null;
   reviewState: string;
   classificationRationale: string;
+  classificationFeedback: {
+    reasons: string[];
+    correctedSector: string | null;
+    correctedEventType: string | null;
+    correctedAiTag: string | null;
+    correctedImportance: number | null;
+    reviewedAt: Date;
+  } | null;
+  storyFingerprint: string | null;
   possibleDuplicateStory: boolean;
   sourceMatches: { sourceType: string }[];
 }): MediaArticleView | null {
@@ -75,6 +85,30 @@ function toView(article: {
     confidence: article.confidence as MediaArticleView["confidence"],
     aiImpactType: article.aiImpactType as MediaArticleView["aiImpactType"],
     reviewState: article.reviewState as MediaArticleView["reviewState"],
+    classificationFeedback: article.classificationFeedback
+      ? {
+          reasons: article.classificationFeedback.reasons as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["reasons"],
+          correctedSector: article.classificationFeedback
+            .correctedSector as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["correctedSector"],
+          correctedEventType: article.classificationFeedback
+            .correctedEventType as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["correctedEventType"],
+          correctedAiTag: article.classificationFeedback
+            .correctedAiTag as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["correctedAiTag"],
+          correctedImportance: article.classificationFeedback
+            .correctedImportance as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["correctedImportance"],
+          reviewedAt: article.classificationFeedback.reviewedAt.toISOString(),
+        }
+      : null,
     publishedAt: article.publishedAt.toISOString(),
     retrievedAt: article.retrievedAt.toISOString(),
     sourceMatches: [
@@ -108,6 +142,17 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
       aiImpactType: true,
       reviewState: true,
       classificationRationale: true,
+      classificationFeedback: {
+        select: {
+          reasons: true,
+          correctedSector: true,
+          correctedEventType: true,
+          correctedAiTag: true,
+          correctedImportance: true,
+          reviewedAt: true,
+        },
+      },
+      storyFingerprint: true,
       possibleDuplicateStory: true,
       sourceMatches: { select: { sourceType: true } },
     },
@@ -153,8 +198,10 @@ export const getMediaOverview = cache(async () => {
   return {
     databaseStatus: data.databaseStatus,
     total: data.counts.total,
-    highImportance: data.articles.filter((article) => article.importance >= 4)
-      .length,
+    highImportance: data.articles.filter(
+      (article) =>
+        article.importance >= 4 && isCuratedPresentationEligible(article),
+    ).length,
     latestAi: data.highlights.aiAndCreativeWork[0] ?? null,
     latestIndustryHealth: data.highlights.industryHealth[0] ?? null,
     latestPositive: data.highlights.positiveSignals[0] ?? null,

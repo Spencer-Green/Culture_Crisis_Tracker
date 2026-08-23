@@ -1,3 +1,13 @@
+import {
+  AI_IMPACT_TYPES,
+  MEDIA_EVENT_TYPES,
+  type AiImpactType,
+  type ClassifiedMediaArticle,
+  type MediaConfidence,
+  type MediaEventType,
+  type MediaSectorSlug,
+} from "@/data-sources/news/media-types";
+
 export const MEDIA_CLASSIFICATION_FEEDBACK_REASONS = [
   "WRONG_SECTOR",
   "WRONG_EVENT_TYPE",
@@ -8,6 +18,23 @@ export const MEDIA_CLASSIFICATION_FEEDBACK_REASONS = [
 
 export type MediaClassificationFeedbackReason =
   (typeof MEDIA_CLASSIFICATION_FEEDBACK_REASONS)[number];
+
+export const MEDIA_CLASSIFICATION_REVIEW_STATES = [
+  "UNREVIEWED",
+  "CORRECT",
+  "WRONG_CLASSIFICATION",
+] as const;
+
+export type MediaClassificationReviewState =
+  (typeof MEDIA_CLASSIFICATION_REVIEW_STATES)[number];
+
+export type PersistedMediaClassificationReviewState = Exclude<
+  MediaClassificationReviewState,
+  "UNREVIEWED"
+>;
+
+export type MediaClassificationEvaluationState =
+  MediaClassificationReviewState | "REVIEW_OUTDATED";
 
 export const MEDIA_CORRECTABLE_SECTORS = [
   "music",
@@ -24,6 +51,14 @@ export const MEDIA_CORRECTABLE_IMPORTANCE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export type MediaImportance = ClassifiedMediaArticle["importance"];
 
+export type MediaMachineClassificationSnapshot = {
+  sector: MediaSectorSlug;
+  eventType: MediaEventType | null;
+  aiTag: AiImpactType | null;
+  importance: MediaImportance;
+  confidence: MediaConfidence;
+};
+
 export type MediaClassificationCorrections = {
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
@@ -33,7 +68,10 @@ export type MediaClassificationCorrections = {
 
 export type MediaClassificationFeedbackState =
   MediaClassificationCorrections & {
+    reviewState: PersistedMediaClassificationReviewState;
     reasons: MediaClassificationFeedbackReason[];
+    approvedMachineClassification: MediaMachineClassificationSnapshot | null;
+    evaluationState: Exclude<MediaClassificationEvaluationState, "UNREVIEWED">;
     reviewedAt: string;
   };
 
@@ -58,11 +96,3 @@ export const MEDIA_CLASSIFICATION_FEEDBACK_LABELS: Record<
   NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE:
     "Not relevant to cultural intelligence",
 };
-import {
-  AI_IMPACT_TYPES,
-  MEDIA_EVENT_TYPES,
-  type AiImpactType,
-  type ClassifiedMediaArticle,
-  type MediaEventType,
-  type MediaSectorSlug,
-} from "@/data-sources/news/media-types";

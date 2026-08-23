@@ -3,15 +3,26 @@ import { describe, expect, it } from "vitest";
 import {
   InvalidMediaClassificationFeedbackError,
   MediaArticleNotFoundError,
+  mediaClassificationEvaluationState,
   setMediaClassificationFeedback,
   type MediaClassificationFeedbackStore,
   type PersistedMediaClassificationFeedback,
 } from "@/services/media/media-feedback-core";
 import {
-  type MediaClassificationCorrections,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
+  type MediaClassificationCorrections,
   type MediaClassificationFeedbackReason,
+  type MediaMachineClassificationSnapshot,
+  type PersistedMediaClassificationReviewState,
 } from "@/services/media/media-feedback-types";
+
+const MACHINE: MediaMachineClassificationSnapshot = {
+  sector: "music",
+  eventType: "BANKRUPTCY_INSOLVENCY",
+  aiTag: null,
+  importance: 3,
+  confidence: "high",
+};
 
 const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
@@ -21,32 +32,37 @@ const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
 };
 
 class InMemoryFeedbackStore implements MediaClassificationFeedbackStore {
-  readonly machineClassification = {
-    sectorSlug: "music",
-    eventType: "BANKRUPTCY_INSOLVENCY",
-    aiImpactType: null,
-    importance: 3,
-  };
+  machineClassification = { ...MACHINE };
   feedback: PersistedMediaClassificationFeedback | null = null;
   upsertCount = 0;
   deleteCount = 0;
 
   async findArticle(articleId: string) {
     if (articleId !== "article-1") return null;
-    return { id: articleId, classificationFeedback: this.feedback };
+    return {
+      id: articleId,
+      machineClassification: this.machineClassification,
+      classificationFeedback: this.feedback,
+    };
   }
 
   async upsertFeedback(input: {
     articleId: string;
+    reviewState: PersistedMediaClassificationReviewState;
     reasons: MediaClassificationFeedbackReason[];
     corrections: MediaClassificationCorrections;
+    approvedMachineClassification: MediaMachineClassificationSnapshot | null;
     reviewedAt: Date;
   }) {
     this.upsertCount += 1;
     this.feedback = {
       mediaArticleId: input.articleId,
+      reviewState: input.reviewState,
       reasons: [...input.reasons],
       ...input.corrections,
+      approvedMachineClassification: input.approvedMachineClassification
+        ? { ...input.approvedMachineClassification }
+        : null,
       reviewedAt: input.reviewedAt,
     };
     return this.feedback;
@@ -61,314 +77,234 @@ class InMemoryFeedbackStore implements MediaClassificationFeedbackStore {
 const firstReview = new Date("2026-08-17T08:00:00Z");
 const secondReview = new Date("2026-08-17T09:00:00Z");
 
-const correctionCases = [
-  {
-    reason: "WRONG_SECTOR" as const,
-    corrections: { correctedSector: "film" },
-    field: "correctedSector" as const,
-    value: "film",
-  },
-  {
-    reason: "WRONG_EVENT_TYPE" as const,
-    corrections: { correctedEventType: "CLOSURE" },
-    field: "correctedEventType" as const,
-    value: "CLOSURE",
-  },
-  {
-    reason: "WRONG_AI_TAG" as const,
-    corrections: { correctedAiTag: "RIGHTS_LICENSING" },
-    field: "correctedAiTag" as const,
-    value: "RIGHTS_LICENSING",
-  },
-  {
-    reason: "WRONG_IMPORTANCE" as const,
-    corrections: { correctedImportance: 5 },
-    field: "correctedImportance" as const,
-    value: 5,
-  },
-];
+async function saveCorrect(
+  store: InMemoryFeedbackStore,
+  reviewedAt = firstReview,
+) {
+  return setMediaClassificationFeedback(store, {
+    articleId: "article-1",
+    reviewState: "CORRECT",
+    reasons: [],
+    reviewedAt,
+  });
+}
 
-describe("media classification feedback", () => {
-  it.each(MEDIA_CLASSIFICATION_FEEDBACK_REASONS)(
-    "persists %s feedback",
-    async (reason) => {
-      const store = new InMemoryFeedbackStore();
-      const feedback = await setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons: [reason],
-        reviewedAt: firstReview,
-      });
+async function saveWrong(
+  store: InMemoryFeedbackStore,
+  reasons: MediaClassificationFeedbackReason[] = ["WRONG_EVENT_TYPE"],
+  corrections: Partial<MediaClassificationCorrections> = {},
+  reviewedAt = firstReview,
+) {
+  return setMediaClassificationFeedback(store, {
+    articleId: "article-1",
+    reviewState: "WRONG_CLASSIFICATION",
+    reasons,
+    corrections,
+    reviewedAt,
+  });
+}
 
-      expect(feedback).toEqual({
-        mediaArticleId: "article-1",
-        reasons: [reason],
-        ...EMPTY_CORRECTIONS,
-        reviewedAt: firstReview,
-      });
-      expect(store.feedback).toEqual(feedback);
-    },
-  );
-
-  it.each(correctionCases)(
-    "persists an optional $field correction with $reason",
-    async ({ reason, corrections, field, value }) => {
-      const store = new InMemoryFeedbackStore();
-      const feedback = await setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons: [reason],
-        corrections,
-        reviewedAt: firstReview,
-      });
-
-      expect(feedback?.[field]).toBe(value);
-      expect(feedback?.reasons).toEqual([reason]);
-    },
-  );
-
-  it("allows a wrong-classification reason without a correction", async () => {
-    const store = new InMemoryFeedbackStore();
-    const feedback = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE"],
-      reviewedAt: firstReview,
-    });
-
-    expect(feedback).toMatchObject({
-      reasons: ["WRONG_EVENT_TYPE"],
-      ...EMPTY_CORRECTIONS,
-    });
+describe("media classification review states", () => {
+  it("represents an article without feedback as unreviewed", () => {
+    expect(mediaClassificationEvaluationState(MACHINE, null)).toBe(
+      "UNREVIEWED",
+    );
   });
 
-  it("persists multiple independent corrections", async () => {
+  it("saves CORRECT with the reviewed machine snapshot", async () => {
     const store = new InMemoryFeedbackStore();
-    const feedback = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: [
-        "WRONG_SECTOR",
-        "WRONG_EVENT_TYPE",
-        "WRONG_AI_TAG",
-        "WRONG_IMPORTANCE",
-      ],
-      corrections: {
-        correctedSector: "gaming",
-        correctedEventType: "LAYOFFS",
-        correctedAiTag: "LABOR_DISPLACEMENT",
-        correctedImportance: 4,
-      },
-      reviewedAt: firstReview,
-    });
+    const feedback = await saveCorrect(store);
 
-    expect(feedback).toMatchObject({
-      correctedSector: "gaming",
-      correctedEventType: "LAYOFFS",
-      correctedAiTag: "LABOR_DISPLACEMENT",
-      correctedImportance: 4,
-    });
-  });
-
-  it("persists multiple reasons without changing machine classification", async () => {
-    const store = new InMemoryFeedbackStore();
-    const originalClassification = { ...store.machineClassification };
-
-    const feedback = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE", "WRONG_EVENT_TYPE"],
-      corrections: { correctedEventType: "DEMAND_WEAKNESS" },
-      reviewedAt: firstReview,
-    });
-
-    expect(feedback?.reasons).toEqual([
-      "WRONG_EVENT_TYPE",
-      "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
-    ]);
-    expect(store.machineClassification).toEqual(originalClassification);
-  });
-
-  it.each(correctionCases)(
-    "clears $field when $reason is removed",
-    async ({ reason, corrections, field }) => {
-      const store = new InMemoryFeedbackStore();
-      await setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons: [reason, "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
-        corrections,
-        reviewedAt: firstReview,
-      });
-
-      const changed = await setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons: ["NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
-        corrections,
-        reviewedAt: secondReview,
-      });
-
-      expect(changed?.[field]).toBeNull();
-      expect(changed?.reasons).toEqual([
-        "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
-      ]);
-    },
-  );
-
-  it("updates a correction and treats an identical update idempotently", async () => {
-    const store = new InMemoryFeedbackStore();
-    await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_SECTOR"],
-      corrections: { correctedSector: "film" },
-      reviewedAt: firstReview,
-    });
-    const changed = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_SECTOR"],
-      corrections: { correctedSector: "gaming" },
-      reviewedAt: secondReview,
-    });
-    const repeated = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_SECTOR"],
-      corrections: { correctedSector: "gaming" },
-      reviewedAt: new Date("2026-08-17T10:00:00Z"),
-    });
-
-    expect(changed?.correctedSector).toBe("gaming");
-    expect(repeated).toEqual(changed);
-    expect(store.upsertCount).toBe(2);
-  });
-
-  it("adds and removes a correction while retaining its error reason", async () => {
-    const store = new InMemoryFeedbackStore();
-    const withoutCorrection = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE"],
-      reviewedAt: firstReview,
-    });
-    const withCorrection = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE"],
-      corrections: { correctedEventType: "CLOSURE" },
-      reviewedAt: secondReview,
-    });
-    const removedCorrection = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE"],
-      corrections: { correctedEventType: null },
-      reviewedAt: new Date("2026-08-17T10:00:00Z"),
-    });
-
-    expect(withoutCorrection?.correctedEventType).toBeNull();
-    expect(withCorrection?.correctedEventType).toBe("CLOSURE");
-    expect(removedCorrection).toMatchObject({
-      reasons: ["WRONG_EVENT_TYPE"],
-      correctedEventType: null,
-    });
-  });
-
-  it("changes existing feedback and review timestamp", async () => {
-    const store = new InMemoryFeedbackStore();
-    await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_SECTOR"],
-      reviewedAt: firstReview,
-    });
-
-    const changed = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_AI_TAG", "WRONG_IMPORTANCE"],
-      reviewedAt: secondReview,
-    });
-
-    expect(changed).toMatchObject({
-      reasons: ["WRONG_AI_TAG", "WRONG_IMPORTANCE"],
-      reviewedAt: secondReview,
-    });
-    expect(store.upsertCount).toBe(2);
-  });
-
-  it("clears feedback idempotently", async () => {
-    const store = new InMemoryFeedbackStore();
-    await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE"],
-      corrections: { correctedEventType: "CLOSURE" },
-      reviewedAt: firstReview,
-    });
-
-    expect(store.feedback?.correctedEventType).toBe("CLOSURE");
-
-    expect(
-      await setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons: [],
-        reviewedAt: secondReview,
-      }),
-    ).toBeNull();
-    expect(store.feedback).toBeNull();
-    expect(store.deleteCount).toBe(1);
-
-    await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
+    expect(feedback).toEqual({
+      mediaArticleId: "article-1",
+      reviewState: "CORRECT",
       reasons: [],
-      reviewedAt: secondReview,
-    });
-    expect(store.deleteCount).toBe(1);
-  });
-
-  it("does not rewrite identical feedback or its original review timestamp", async () => {
-    const store = new InMemoryFeedbackStore();
-    const first = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_EVENT_TYPE", "WRONG_SECTOR", "WRONG_EVENT_TYPE"],
+      ...EMPTY_CORRECTIONS,
+      approvedMachineClassification: MACHINE,
       reviewedAt: firstReview,
     });
-    const repeated = await setMediaClassificationFeedback(store, {
-      articleId: "article-1",
-      reasons: ["WRONG_SECTOR", "WRONG_EVENT_TYPE"],
-      reviewedAt: secondReview,
-    });
+    expect(mediaClassificationEvaluationState(MACHINE, feedback)).toBe(
+      "CORRECT",
+    );
+  });
+
+  it("saves an identical CORRECT review idempotently", async () => {
+    const store = new InMemoryFeedbackStore();
+    const first = await saveCorrect(store);
+    const repeated = await saveCorrect(store, secondReview);
 
     expect(repeated).toEqual(first);
     expect(repeated?.reviewedAt).toEqual(firstReview);
     expect(store.upsertCount).toBe(1);
   });
 
-  it("rejects unknown reasons and missing articles", async () => {
+  it.each(MEDIA_CLASSIFICATION_FEEDBACK_REASONS)(
+    "preserves existing %s wrong feedback",
+    async (reason) => {
+      const store = new InMemoryFeedbackStore();
+      const feedback = await saveWrong(store, [reason]);
+
+      expect(feedback).toMatchObject({
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: [reason],
+        ...EMPTY_CORRECTIONS,
+        approvedMachineClassification: null,
+      });
+    },
+  );
+
+  it("allows wrong feedback without a correction and multiple corrected reasons", async () => {
+    const store = new InMemoryFeedbackStore();
+    const withoutCorrection = await saveWrong(store);
+    expect(withoutCorrection).toMatchObject(EMPTY_CORRECTIONS);
+
+    const corrected = await saveWrong(
+      store,
+      ["WRONG_SECTOR", "WRONG_EVENT_TYPE", "WRONG_AI_TAG", "WRONG_IMPORTANCE"],
+      {
+        correctedSector: "gaming",
+        correctedEventType: "LAYOFFS",
+        correctedAiTag: "LABOR_DISPLACEMENT",
+        correctedImportance: 5,
+      },
+      secondReview,
+    );
+    expect(corrected).toMatchObject({
+      correctedSector: "gaming",
+      correctedEventType: "LAYOFFS",
+      correctedAiTag: "LABOR_DISPLACEMENT",
+      correctedImportance: 5,
+    });
+  });
+
+  it("switches CORRECT to WRONG and removes the approval snapshot", async () => {
+    const store = new InMemoryFeedbackStore();
+    await saveCorrect(store);
+    const feedback = await saveWrong(
+      store,
+      ["WRONG_IMPORTANCE"],
+      { correctedImportance: 2 },
+      secondReview,
+    );
+
+    expect(feedback).toMatchObject({
+      reviewState: "WRONG_CLASSIFICATION",
+      reasons: ["WRONG_IMPORTANCE"],
+      correctedImportance: 2,
+      approvedMachineClassification: null,
+    });
+  });
+
+  it("switches WRONG to CORRECT and clears reasons, corrections, and NOT_RELEVANT", async () => {
+    const store = new InMemoryFeedbackStore();
+    await saveWrong(
+      store,
+      ["WRONG_SECTOR", "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
+      { correctedSector: "film" },
+    );
+
+    const feedback = await saveCorrect(store, secondReview);
+    expect(feedback).toEqual({
+      mediaArticleId: "article-1",
+      reviewState: "CORRECT",
+      reasons: [],
+      ...EMPTY_CORRECTIONS,
+      approvedMachineClassification: MACHINE,
+      reviewedAt: secondReview,
+    });
+  });
+
+  it.each(["CORRECT", "WRONG_CLASSIFICATION"] as const)(
+    "clears %s to unreviewed idempotently",
+    async (state) => {
+      const store = new InMemoryFeedbackStore();
+      if (state === "CORRECT") await saveCorrect(store);
+      else await saveWrong(store);
+
+      expect(
+        await setMediaClassificationFeedback(store, {
+          articleId: "article-1",
+          reviewState: "UNREVIEWED",
+          reasons: [],
+          reviewedAt: secondReview,
+        }),
+      ).toBeNull();
+      await setMediaClassificationFeedback(store, {
+        articleId: "article-1",
+        reviewState: "UNREVIEWED",
+        reasons: [],
+        reviewedAt: secondReview,
+      });
+      expect(store.deleteCount).toBe(1);
+      expect(mediaClassificationEvaluationState(MACHINE, store.feedback)).toBe(
+        "UNREVIEWED",
+      );
+    },
+  );
+
+  it("does not mutate machine classification during any transition", async () => {
+    const store = new InMemoryFeedbackStore();
+    const original = { ...store.machineClassification };
+    await saveWrong(store, ["WRONG_SECTOR"], { correctedSector: "film" });
+    await saveCorrect(store, secondReview);
+    expect(store.machineClassification).toEqual(original);
+  });
+
+  it("detects classifier drift without deleting the historical approval", async () => {
+    const store = new InMemoryFeedbackStore();
+    const approval = await saveCorrect(store);
+    store.machineClassification = { ...MACHINE, importance: 4 };
+
+    expect(
+      mediaClassificationEvaluationState(store.machineClassification, approval),
+    ).toBe("REVIEW_OUTDATED");
+    expect(approval?.approvedMachineClassification).toEqual(MACHINE);
+  });
+
+  it("clears corrections whose associated wrong reason is removed", async () => {
+    const store = new InMemoryFeedbackStore();
+    await saveWrong(store, ["WRONG_SECTOR", "WRONG_EVENT_TYPE"], {
+      correctedSector: "film",
+      correctedEventType: "CLOSURE",
+    });
+    const changed = await saveWrong(
+      store,
+      ["WRONG_EVENT_TYPE"],
+      { correctedSector: "film", correctedEventType: "CLOSURE" },
+      secondReview,
+    );
+    expect(changed).toMatchObject({
+      correctedSector: null,
+      correctedEventType: "CLOSURE",
+    });
+  });
+
+  it("rejects invalid transitions, values, and missing articles", async () => {
     const store = new InMemoryFeedbackStore();
     await expect(
       setMediaClassificationFeedback(store, {
         articleId: "article-1",
-        reasons: ["NOT_A_REASON"],
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: [],
+        reviewedAt: firstReview,
+      }),
+    ).rejects.toBeInstanceOf(InvalidMediaClassificationFeedbackError);
+    await expect(
+      setMediaClassificationFeedback(store, {
+        articleId: "article-1",
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_IMPORTANCE"],
+        corrections: { correctedImportance: 6 },
         reviewedAt: firstReview,
       }),
     ).rejects.toBeInstanceOf(InvalidMediaClassificationFeedbackError);
     await expect(
       setMediaClassificationFeedback(store, {
         articleId: "missing",
-        reasons: ["WRONG_SECTOR"],
+        reviewState: "CORRECT",
+        reasons: [],
         reviewedAt: firstReview,
       }),
     ).rejects.toBeInstanceOf(MediaArticleNotFoundError);
-  });
-
-  it.each([
-    { reasons: ["WRONG_SECTOR"], corrections: { correctedSector: "sports" } },
-    {
-      reasons: ["WRONG_EVENT_TYPE"],
-      corrections: { correctedEventType: "NOT_AN_EVENT" },
-    },
-    { reasons: ["WRONG_AI_TAG"], corrections: { correctedAiTag: "NONE" } },
-    {
-      reasons: ["WRONG_IMPORTANCE"],
-      corrections: { correctedImportance: 6 },
-    },
-  ])("rejects invalid correction values", async ({ reasons, corrections }) => {
-    const store = new InMemoryFeedbackStore();
-    await expect(
-      setMediaClassificationFeedback(store, {
-        articleId: "article-1",
-        reasons,
-        corrections,
-        reviewedAt: firstReview,
-      }),
-    ).rejects.toBeInstanceOf(InvalidMediaClassificationFeedbackError);
   });
 });

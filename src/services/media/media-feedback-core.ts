@@ -4,33 +4,36 @@ import {
   MEDIA_CORRECTABLE_IMPORTANCE_VALUES,
   MEDIA_CORRECTABLE_SECTORS,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
+  MEDIA_CLASSIFICATION_REVIEW_STATES,
   type MediaClassificationCorrections,
+  type MediaClassificationEvaluationState,
   type MediaClassificationFeedbackReason,
+  type MediaClassificationReviewState,
+  type MediaMachineClassificationSnapshot,
+  type PersistedMediaClassificationReviewState,
 } from "@/services/media/media-feedback-types";
 
 export type PersistedMediaClassificationFeedback =
   MediaClassificationCorrections & {
     mediaArticleId: string;
+    reviewState: PersistedMediaClassificationReviewState;
     reasons: MediaClassificationFeedbackReason[];
+    approvedMachineClassification: MediaMachineClassificationSnapshot | null;
     reviewedAt: Date;
   };
-
-export type MediaClassificationCorrectionInput = {
-  correctedSector?: unknown;
-  correctedEventType?: unknown;
-  correctedAiTag?: unknown;
-  correctedImportance?: unknown;
-};
 
 export interface MediaClassificationFeedbackStore {
   findArticle(articleId: string): Promise<{
     id: string;
+    machineClassification: MediaMachineClassificationSnapshot | null;
     classificationFeedback: PersistedMediaClassificationFeedback | null;
   } | null>;
   upsertFeedback(input: {
     articleId: string;
+    reviewState: PersistedMediaClassificationReviewState;
     reasons: MediaClassificationFeedbackReason[];
     corrections: MediaClassificationCorrections;
+    approvedMachineClassification: MediaMachineClassificationSnapshot | null;
     reviewedAt: Date;
   }): Promise<PersistedMediaClassificationFeedback>;
   deleteFeedback(articleId: string): Promise<void>;
@@ -60,6 +63,13 @@ function optionalTaxonomyValue<T extends string>(
   }
   return value as T;
 }
+
+export type MediaClassificationCorrectionInput = {
+  correctedSector?: unknown;
+  correctedEventType?: unknown;
+  correctedAiTag?: unknown;
+  correctedImportance?: unknown;
+};
 
 export function normaliseMediaClassificationCorrections(
   input: MediaClassificationCorrectionInput,
@@ -104,6 +114,13 @@ export function normaliseMediaClassificationCorrections(
   };
 }
 
+const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
+  correctedSector: null,
+  correctedEventType: null,
+  correctedAiTag: null,
+  correctedImportance: null,
+};
+
 function correctionsEqual(
   left: MediaClassificationCorrections,
   right: MediaClassificationCorrections,
@@ -114,6 +131,36 @@ function correctionsEqual(
     left.correctedAiTag === right.correctedAiTag &&
     left.correctedImportance === right.correctedImportance
   );
+}
+
+export function machineClassificationsEqual(
+  left: MediaMachineClassificationSnapshot | null,
+  right: MediaMachineClassificationSnapshot | null,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return (
+    left.sector === right.sector &&
+    left.eventType === right.eventType &&
+    left.aiTag === right.aiTag &&
+    left.importance === right.importance &&
+    left.confidence === right.confidence
+  );
+}
+
+export function mediaClassificationEvaluationState(
+  current: MediaMachineClassificationSnapshot | null,
+  feedback: PersistedMediaClassificationFeedback | null,
+): MediaClassificationEvaluationState {
+  if (!feedback) return "UNREVIEWED";
+  if (feedback.reviewState === "WRONG_CLASSIFICATION") {
+    return "WRONG_CLASSIFICATION";
+  }
+  return machineClassificationsEqual(
+    current,
+    feedback.approvedMachineClassification,
+  )
+    ? "CORRECT"
+    : "REVIEW_OUTDATED";
 }
 
 export function normaliseMediaClassificationFeedbackReasons(
@@ -135,10 +182,51 @@ export function normaliseMediaClassificationFeedbackReasons(
   );
 }
 
+function normaliseReviewState(
+  value: string | undefined,
+  reasons: readonly MediaClassificationFeedbackReason[],
+): MediaClassificationReviewState {
+  if (value === undefined) {
+    return reasons.length > 0 ? "WRONG_CLASSIFICATION" : "UNREVIEWED";
+  }
+  if (
+    !MEDIA_CLASSIFICATION_REVIEW_STATES.includes(
+      value as MediaClassificationReviewState,
+    )
+  ) {
+    throw new InvalidMediaClassificationFeedbackError();
+  }
+  return value as MediaClassificationReviewState;
+}
+
+function feedbackEqual(
+  existing: PersistedMediaClassificationFeedback,
+  input: {
+    reviewState: PersistedMediaClassificationReviewState;
+    reasons: MediaClassificationFeedbackReason[];
+    corrections: MediaClassificationCorrections;
+    approvedMachineClassification: MediaMachineClassificationSnapshot | null;
+  },
+) {
+  return (
+    existing.reviewState === input.reviewState &&
+    existing.reasons.length === input.reasons.length &&
+    existing.reasons.every(
+      (reason, index) => reason === input.reasons[index],
+    ) &&
+    correctionsEqual(existing, input.corrections) &&
+    machineClassificationsEqual(
+      existing.approvedMachineClassification,
+      input.approvedMachineClassification,
+    )
+  );
+}
+
 export async function setMediaClassificationFeedback(
   store: MediaClassificationFeedbackStore,
   input: {
     articleId: string;
+    reviewState?: string;
     reasons: readonly string[];
     corrections?: MediaClassificationCorrectionInput;
     reviewedAt: Date;
@@ -147,30 +235,44 @@ export async function setMediaClassificationFeedback(
   const article = await store.findArticle(input.articleId);
   if (!article) throw new MediaArticleNotFoundError();
 
-  const reasons = normaliseMediaClassificationFeedbackReasons(input.reasons);
-  const corrections = normaliseMediaClassificationCorrections(
-    input.corrections ?? {},
-    reasons,
+  const suppliedReasons = normaliseMediaClassificationFeedbackReasons(
+    input.reasons,
   );
+  const reviewState = normaliseReviewState(input.reviewState, suppliedReasons);
   const existing = article.classificationFeedback;
-  if (reasons.length === 0) {
+  if (reviewState === "UNREVIEWED") {
     if (existing) await store.deleteFeedback(input.articleId);
     return null;
   }
 
-  if (
-    existing &&
-    existing.reasons.length === reasons.length &&
-    existing.reasons.every((reason, index) => reason === reasons[index]) &&
-    correctionsEqual(existing, corrections)
-  ) {
-    return existing;
+  if (reviewState === "CORRECT" && !article.machineClassification) {
+    throw new InvalidMediaClassificationFeedbackError();
   }
+  if (reviewState === "WRONG_CLASSIFICATION" && suppliedReasons.length === 0) {
+    throw new InvalidMediaClassificationFeedbackError();
+  }
+
+  const reasons = reviewState === "CORRECT" ? [] : suppliedReasons;
+  const corrections =
+    reviewState === "CORRECT"
+      ? EMPTY_CORRECTIONS
+      : normaliseMediaClassificationCorrections(
+          input.corrections ?? {},
+          reasons,
+        );
+  const approvedMachineClassification =
+    reviewState === "CORRECT" ? article.machineClassification : null;
+  const next = {
+    reviewState,
+    reasons,
+    corrections,
+    approvedMachineClassification,
+  };
+  if (existing && feedbackEqual(existing, next)) return existing;
 
   return store.upsertFeedback({
     articleId: input.articleId,
-    reasons,
-    corrections,
+    ...next,
     reviewedAt: input.reviewedAt,
   });
 }

@@ -1082,9 +1082,12 @@ match without duplicating the article. Full article bodies are neither fetched n
 Canonical identity is the normalized HTTPS article URL. Host casing, fragments, trailing slashes,
 and common tracking parameters (`utm_*`, `gclid`, `fbclid`, and `mc_*`) are normalized while
 meaningful query identifiers remain. A repeated or cross-source canonical URL updates
-`lastSeenAt` and adds provenance rather than creating another article. A conservative normalized
-headline/time-window helper flags possible duplicate stories from different publishers; it does
-not merge them automatically.
+`lastSeenAt` and adds provenance rather than creating another article. Raw articles remain
+independent records. Curated presentation and the Daily Culture Brief derive conservative
+story-level clusters at query time from canonical URLs, stored story fingerprints, close
+publication times, matching sector/event labels, and distinctive normalized-headline overlap.
+False merges are treated as more costly than duplicate clusters, and every underlying publisher
+link remains visible.
 
 Classification is deterministic and uses only title, supplied description/snippet, source
 metadata, and a query/feed sector hint. Confidence is `LOW`, `MEDIUM`, or `HIGH`. Importance is a
@@ -1149,16 +1152,62 @@ npm run ingest:media:rss -- --hours=24 --sector=gaming
 
 `/media` is the Culture Intelligence view with 24H/3D/7D and sector/AI filters, high-signal views,
 and a chronological feed. Music, Film, Theatre, and Gaming pages show complementary Recent
-Developments without replacing structured analytics. Overview shows factual 24-hour article
-counts and significant candidates; it does not generate a Daily Brief, sentiment score, AI
-Disruption score, Industry Viability score, or Culture Stress Index.
+Developments without replacing structured analytics.
+
+### Human classification review
+
+Media classification review has three explicit states: no feedback row means `UNREVIEWED`, while
+stored feedback is either `CORRECT` or `WRONG_CLASSIFICATION`. A correct review snapshots the
+machine sector, event type, AI-impact tag, importance, and confidence exactly as they existed at
+review time. If those current machine fields later differ, evaluation reads expose
+`REVIEW_OUTDATED` while preserving the historical approval.
+
+Wrong-classification reasons and optional correction values remain separate from immutable machine
+fields. Switching a wrong review to correct clears all reasons, corrections, and any
+`NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` exclusion; switching to wrong clears the positive snapshot.
+Clearing either state deletes the feedback row and returns the article to unreviewed. Positive
+validation is evaluation data only: it does not affect ranking, routing, eligibility, clustering,
+the Daily Brief, or classifier behavior.
+
+### Daily Culture Brief
+
+Overview contains a compact Daily Culture Brief and `/brief` exposes the full story-level view.
+The default current window is the preceding 24 hours by article publication time. The comparison
+window is the immediately preceding 24 hours; reusable loading supports a 72-hour corpus without
+treating re-ingestion time as recency. The brief is generated on request rather than persisted.
+This keeps it aligned with the latest feedback and freshness state, avoids storing copied article
+content, and leaves a versioned archive as a later product decision.
+
+Story interpretation uses human correction fields only in the brief layer. An explicit corrected
+sector, event type, AI tag, or importance takes precedence over the corresponding machine label
+without modifying `MediaArticle`. Conflicting corrections inside one cluster are marked ambiguous
+and routed conservatively. `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` excludes an article; a cluster
+with no remaining eligible articles disappears from the brief. Human corrections still do not
+change `/media`, sector routing, ingestion, or classifier output.
+
+Top Developments rank material clusters by effective importance, confidence, independent publisher
+count, and recency, in that order. Publisher count is corroborating breadth, not a substitute for
+importance, and syndicated copies do not inflate it. AI & Creative Work additionally requires
+explicit creative-industry evidence, so generic enterprise AI, chips, cybersecurity, and general
+model news remain excluded. Positive openings, hiring, investment, funding, expansion, attendance,
+and revenue developments are retained as counter-signals. Quiet windows explicitly remain quiet;
+the system does not fill sections with low-confidence stories.
+
+All synthesis is deterministic and limited to stored headlines, snippets, classifications,
+feedback, publication metadata, and current structured metrics. Short “why it matters” text is a
+transparent event-type template, not an article-body summary, causal claim, or model-generated
+narrative. The market-context panel uses only latest validated observations with source, date,
+frequency, unit, and scope caveats. It does not claim that daily reporting caused the structured
+metric. The brief also shows the latest RSS/TheNewsAPI refresh and warns when existing scheduler
+freshness marks either media source late or failed. A future optional model-assisted synthesis
+layer could sit behind this deterministic representation, but no external model provider is used.
 
 Important media-methodology limits:
 
 - News coverage is not real-world event incidence, and absence of coverage is not absence of an
   event.
-- Multiple outlets can cover one underlying story; possible-story flags are not validated event
-  clusters.
+- Multiple outlets can cover one underlying story; brief clusters are conservative presentation
+  groups, not validated real-world events.
 - Publisher and feed coverage varies by country and sector.
 - Polarity describes the candidate article, not overall industry health.
 - Importance is tracker-derived, reviewable, and deliberately conservative.
@@ -1401,6 +1450,70 @@ Theatre Recent Developments continues to use the separate MediaArticle candidate
 Broadway, Ticketmaster, or media values are combined into a Theatre Health or Industry Viability
 score.
 
+## Overview analytics phase I
+
+The Overview now separates observed values, derived changes, source-level directions, and
+cross-sector breadth. It does not calculate a 0–100 Industry Viability score. The current breadth
+view uses only comparable changes from existing structured sources:
+
+- **Music:** real BEA recorded-music PCE YoY for streaming/radio and owned media/downloads; MVT
+  audience, employment, and venue-count changes. Census AIES has only one comparable observation
+  and BEA ACPSA is historical, so neither is treated as a current direction.
+- **Film:** equivalent-period YTD US provisional domestic gross and BFI UK reported gross versus
+  the prior year. The US series remains explicitly provisional and Box Office Mojo-derived.
+- **Theatre:** Broadway attendance and nominal gross YoY plus LPA combined Theatre + Musical
+  Theatre attendance and nominal revenue versus the prior comparable year.
+- **Gaming:** rolling 12-month IGDB release activity is displayed as an activity/supply proxy and
+  is excluded from cross-sector economic-viability breadth. Steam samples are not used as a
+  market-wide viability measure.
+- **Ticketmaster:** 90-day supply direction contributes only after a comparable complete snapshot
+  exists. Current listing counts remain context and never become realized demand.
+
+Directions use symmetric neutral bands: ±2 percentage points for participation, real demand, and
+Ticketmaster supply; ±3 points for nominal gross/revenue and rolling release counts. Each source is
+classified as improving, stable, pressured, mixed, or insufficient. Sector and cross-sector states
+aggregate that categorical breadth rather than averaging unrelated raw percentages. A stale or
+recently failed source retains its last valid calculation with a degraded marker; it is never
+silently converted to neutral or zero.
+
+### AI creative disruption
+
+AI Disruption is a deterministic rolling seven-day story-cluster indicator compared with the
+preceding seven days. It reuses the existing conservative Culture Intelligence clustering and
+creative-AI evidence rules. Syndicated articles contribute one cluster, with only a capped 5% per
+additional publisher corroboration adjustment (maximum 15%). Each cluster's internal thresholding
+weight is:
+
+`importance × confidence × disruption type × recency × capped corroboration`
+
+Confidence factors are 1.0 / 0.75 / 0.5 for high / medium / low. Labour displacement and union
+disputes use a 1.5 disruption multiplier; copyright, licensing, rights, and policy use 1.25;
+adoption and creator tools use 0.75; other qualifying creative-AI change uses 1.0. Recency declines
+by 5% per day within the seven-day window, bounded at 0.7. Internal thresholds are `<4 LOW`,
+`<10 MODERATE`, `<24 ELEVATED`, otherwise `HIGH`. A movement greater than ±20% against the prior
+window is increasing/easing; smaller movement is stable. These thresholds organize evidence and
+are not a scientifically calibrated economic score.
+
+Human sector, event, AI-impact, and importance corrections take precedence for this analytical
+routing only. Machine classifications remain unchanged. Articles marked
+`NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` are excluded before clustering. Conflicting corrections are
+handled conservatively by the existing story-cluster layer. Media freshness is shown separately,
+and a thin preceding-window AI corpus is labelled as a limited baseline.
+
+### Middle-tier and future composite scope
+
+Middle-Tier Health remains pending. Current data can describe events per Ticketmaster venue, BFI
+title concentration, and IGDB publisher/developer release shares, but it cannot establish venue or
+company scale, ownership/independence, or revenue/income distribution. Activation requires those
+fields, comparable longitudinal distributions, and coverage across at least two sectors. The
+Overview therefore says `Methodology defined · distribution data required` rather than inferring a
+middle tier from event counts or release attribution.
+
+The Culture Stress Index also remains pending. A future composite may consume Consumer Demand,
+Industry Viability, Middle-Tier Health, Gaming activity, and AI Disruption only after each component
+has adequate coverage and validation. No weights are assigned in this phase, and no weights should
+be backsolved to produce a desired narrative.
+
 ## Current limitations
 
 - ABS, ONS, BEA, FRED, Statistics Canada, Census AIES, GDELT, Ticketmaster, IGDB, Steam, TheNewsAPI, curated
@@ -1408,8 +1521,8 @@ score.
   and provisional Broadway Business data are active sources;
   Eurostat remains enabled as the EU Structural Benchmark; every other provider remains
   unimplemented and disabled
-- No scheduled jobs or general retry framework; ONS, GDELT, Ticketmaster, IGDB, and Steam use
-  source-specific bounded retries
+- The central scheduler coordinates bounded refreshes, while provider adapters retain their own
+  source-specific retry behavior; it remains optimized for local/private deployment
 - No computed Culture Stress Index
 - No authentication or user accounts
 - No deployment configuration
@@ -1422,9 +1535,10 @@ score.
   The static catalogue remains authoritative for multi-country and multi-sector coverage during the
   MVP; join tables can be introduced later if database queries require them.
 
-Consumer Demand uses indexed persisted observations. Industry Viability remains unscored while
-GDELT collects candidate evidence and Ticketmaster accumulates forward supply snapshots. Other
-composite indicators remain explicit empty states; they do not contain fabricated data.
+Consumer Demand uses indexed persisted observations. Industry Viability is an unscored categorical
+breadth view, AI Disruption is a deterministic story-cluster evidence indicator, and Gaming reports
+release activity rather than financial health. Culture Stress and Middle-Tier Health remain explicit
+pending states; they do not contain fabricated data.
 
 ## Planned ingestion phases
 

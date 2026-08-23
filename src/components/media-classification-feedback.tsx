@@ -14,6 +14,7 @@ import {
   type MediaClassificationCorrections,
   type MediaClassificationFeedbackReason,
   type MediaClassificationFeedbackState,
+  type MediaClassificationReviewState,
 } from "@/services/media/media-feedback-types";
 
 const NOT_RELEVANT = "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE";
@@ -118,7 +119,10 @@ export function MediaClassificationFeedback({
     });
   };
 
-  const persist = async (reasons: MediaClassificationFeedbackReason[]) => {
+  const persist = async (
+    reviewState: MediaClassificationReviewState,
+    reasons: MediaClassificationFeedbackReason[],
+  ) => {
     setSaving(true);
     setError(null);
     const wasNotRelevant = feedback?.reasons.includes(NOT_RELEVANT) === true;
@@ -128,7 +132,7 @@ export function MediaClassificationFeedback({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reasons, ...corrections }),
+          body: JSON.stringify({ reviewState, reasons, ...corrections }),
         },
       );
       const payload = (await response.json()) as FeedbackResponse;
@@ -136,11 +140,15 @@ export function MediaClassificationFeedback({
 
       const next = payload.data
         ? {
+            reviewState: payload.data.reviewState,
             reasons: payload.data.reasons,
             correctedSector: payload.data.correctedSector,
             correctedEventType: payload.data.correctedEventType,
             correctedAiTag: payload.data.correctedAiTag,
             correctedImportance: payload.data.correctedImportance,
+            approvedMachineClassification:
+              payload.data.approvedMachineClassification,
+            evaluationState: payload.data.evaluationState,
             reviewedAt: payload.data.reviewedAt,
           }
         : null;
@@ -170,19 +178,102 @@ export function MediaClassificationFeedback({
   const busy = saving || isRefreshing;
 
   if (!expanded) {
+    if (feedback?.reviewState === "CORRECT") {
+      return (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-wide uppercase">
+          <span
+            className={
+              feedback.evaluationState === "REVIEW_OUTDATED"
+                ? "text-amber-500"
+                : "text-emerald-500"
+            }
+          >
+            {feedback.evaluationState === "REVIEW_OUTDATED"
+              ? "Review outdated"
+              : "✓ Classification verified"}
+          </span>
+          {feedback.evaluationState === "REVIEW_OUTDATED" ? (
+            <button
+              type="button"
+              onClick={() => void persist("CORRECT", [])}
+              disabled={busy}
+              className="text-zinc-600 transition-colors hover:text-emerald-500 disabled:opacity-40"
+            >
+              ✓ Verify current
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="text-zinc-600 transition-colors hover:text-zinc-400"
+          >
+            Change review
+          </button>
+          <button
+            type="button"
+            onClick={() => void persist("UNREVIEWED", [])}
+            disabled={busy}
+            className="text-zinc-700 transition-colors hover:text-zinc-400 disabled:opacity-40"
+          >
+            Clear
+          </button>
+          {error ? <span className="text-red-400">{error}</span> : null}
+        </div>
+      );
+    }
+
+    if (feedback?.reviewState === "WRONG_CLASSIFICATION") {
+      return (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-wide uppercase">
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="text-amber-500 transition-colors hover:text-amber-300"
+            aria-expanded="false"
+          >
+            ⚑ Classification flagged
+          </button>
+          <button
+            type="button"
+            onClick={() => void persist("CORRECT", [])}
+            disabled={busy}
+            className="text-zinc-700 transition-colors hover:text-emerald-500 disabled:opacity-40"
+          >
+            ✓ Mark correct
+          </button>
+          <button
+            type="button"
+            onClick={() => void persist("UNREVIEWED", [])}
+            disabled={busy}
+            className="text-zinc-700 transition-colors hover:text-zinc-400 disabled:opacity-40"
+          >
+            Clear
+          </button>
+          {error ? <span className="text-red-400">{error}</span> : null}
+        </div>
+      );
+    }
+
     return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className={`mt-3 text-[10px] tracking-wide uppercase transition-colors ${
-          feedback
-            ? "text-amber-500 hover:text-amber-300"
-            : "text-zinc-700 hover:text-zinc-400"
-        }`}
-        aria-expanded="false"
-      >
-        {feedback ? "⚑ Classification flagged" : "Wrong classification"}
-      </button>
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10px] tracking-wide uppercase">
+        <button
+          type="button"
+          onClick={() => void persist("CORRECT", [])}
+          disabled={busy}
+          className="text-zinc-700 transition-colors hover:text-emerald-500 disabled:opacity-40"
+        >
+          ✓ Correct
+        </button>
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-zinc-700 transition-colors hover:text-amber-500"
+          aria-expanded="false"
+        >
+          Wrong classification
+        </button>
+        {error ? <span className="text-red-400">{error}</span> : null}
+      </div>
     );
   }
 
@@ -293,7 +384,7 @@ export function MediaClassificationFeedback({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => void persist(selected)}
+          onClick={() => void persist("WRONG_CLASSIFICATION", selected)}
           disabled={busy || selected.length === 0}
           className="rounded-md border border-amber-900/70 px-2 py-1 text-[10px] text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
         >
@@ -302,7 +393,7 @@ export function MediaClassificationFeedback({
         {feedback ? (
           <button
             type="button"
-            onClick={() => void persist([])}
+            onClick={() => void persist("UNREVIEWED", [])}
             disabled={busy}
             className="rounded-md border border-zinc-800 px-2 py-1 text-[10px] text-zinc-500 disabled:opacity-40"
           >

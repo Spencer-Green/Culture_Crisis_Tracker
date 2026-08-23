@@ -1,8 +1,4 @@
-import {
-  DashboardCard,
-  EmptyChart,
-  EmptyList,
-} from "@/components/dashboard-card";
+import { DashboardCard, EmptyList } from "@/components/dashboard-card";
 import { DemandIndexChart } from "@/components/demand-index-chart";
 import {
   buildNominalDemandSeries,
@@ -15,11 +11,14 @@ import type { OverviewState, SourceFreshness } from "@/services/overview-core";
 import { getOverviewState } from "@/services/overview";
 import { getGdeltCorpusOverview } from "@/services/industry-events/events";
 import { getTicketmasterCrossSectorTrends } from "@/services/industry-events/ticketmaster-longitudinal";
-import { getTicketmasterSupplyOverview } from "@/services/industry-events/ticketmaster-supply";
-import { getGamingOverview } from "@/services/gaming/analytics";
-import { MediaArticleList } from "@/components/media-article-list";
-import { getMediaOverview } from "@/services/media/media";
-import { getSchedulerFreshness } from "@/services/scheduler/freshness";
+import { DailyBriefOverview } from "@/components/daily-culture-brief";
+import { getDailyCultureBrief } from "@/services/media/daily-brief";
+import { getOverviewAnalytics } from "@/services/overview-analytics";
+import type {
+  AiDisruptionDirection,
+  AnalyticalDirection,
+  IndustryViability,
+} from "@/services/overview-analytics-core";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +37,114 @@ function formatTimestamp(value: string | null, emptyMessage: string): string {
 function formatSupplyDelta(value: number | null): string {
   if (value === null) return "Insufficient history";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function analyticalTone(direction: AnalyticalDirection): string {
+  if (direction === "improving") return "text-emerald-300";
+  if (direction === "pressured") return "text-rose-300";
+  if (direction === "mixed") return "text-amber-300";
+  if (direction === "stable") return "text-blue-300";
+  return "text-zinc-400";
+}
+
+function directionLabel(direction: AnalyticalDirection): string {
+  return {
+    improving: "Improving",
+    stable: "Stable",
+    pressured: "Pressured",
+    mixed: "Mixed",
+    insufficient: "Insufficient history",
+  }[direction];
+}
+
+function aiDirectionSymbol(direction: AiDisruptionDirection): string {
+  return direction === "increasing"
+    ? "↑"
+    : direction === "easing"
+      ? "↓"
+      : direction === "stable"
+        ? "→"
+        : "";
+}
+
+function IndustryViabilityPanel({
+  viability,
+}: {
+  viability: IndustryViability;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs text-zinc-500">Current breadth</p>
+          <p className="mt-1 text-xl font-medium text-zinc-100">
+            {viability.label}
+          </p>
+          <p className="mt-1 text-xs text-zinc-600">
+            {viability.directionLabel}
+          </p>
+        </div>
+        <p className="font-data text-xs text-zinc-500">
+          {viability.coveredSectorCount} viability sectors covered
+        </p>
+      </div>
+      <div className="space-y-3">
+        {viability.sectors.map((sector) => (
+          <section
+            key={sector.sector}
+            className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">
+                  {sector.label}
+                </p>
+                <p className="mt-1 text-[11px] text-zinc-600">
+                  {sector.basis === "activity-proxy"
+                    ? "Activity / supply proxy; excluded from cross-sector viability breadth"
+                    : `${sector.comparableComponentCount} comparable source ${sector.comparableComponentCount === 1 ? "signal" : "signals"}`}
+                </p>
+              </div>
+              <span
+                className={`text-xs font-medium ${analyticalTone(sector.direction)}`}
+              >
+                {directionLabel(sector.direction)}
+              </span>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {sector.components.map((component) => (
+                <li
+                  key={component.id}
+                  className="flex flex-col gap-1 border-t border-zinc-900 pt-2 text-xs first:border-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                >
+                  <div>
+                    <p className="text-zinc-400">{component.label}</p>
+                    <p className="mt-0.5 text-[10px] text-zinc-700">
+                      {component.geography} · {component.frequency}
+                    </p>
+                    <p className="mt-0.5 leading-5 text-zinc-600">
+                      {component.detail}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 ${analyticalTone(component.direction)}`}
+                  >
+                    {directionLabel(component.direction)}
+                    {component.freshness === "degraded" ? " · degraded" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      <p className="text-xs leading-5 text-zinc-600">
+        Source-level directions use like-for-like changes and transparent
+        neutral bands. Raw percentages are not averaged. Gaming release supply
+        is shown separately and does not count as economic viability.
+      </p>
+    </div>
+  );
 }
 
 function formatObservationPeriod(
@@ -182,21 +289,18 @@ export default async function OverviewPage() {
     overview,
     consumerSpending,
     gdeltCorpus,
-    ticketmasterSupply,
     crossSectorTrends,
-    gamingOverview,
-    mediaOverview,
-    schedulerFreshness,
+    dailyBrief,
+    overviewAnalytics,
   ] = await Promise.all([
     getOverviewState(),
     getConsumerSpendingData(),
     getGdeltCorpusOverview(),
-    getTicketmasterSupplyOverview(),
     getTicketmasterCrossSectorTrends(),
-    getGamingOverview(),
-    getMediaOverview(),
-    getSchedulerFreshness(),
+    getDailyCultureBrief({ includeMarketContext: false }),
+    getOverviewAnalytics(),
   ]);
+  const schedulerFreshness = dailyBrief.schedulerFreshness;
   const currentObservations = consumerSpending.observations.filter(
     (observation) => isCurrentSource(observation.sourceSlug),
   );
@@ -227,47 +331,52 @@ export default async function OverviewPage() {
     },
     {
       title: "Industry Viability",
-      status:
-        ticketmasterSupply.summary.events > 0
-          ? "Collecting supply data"
-          : gdeltCorpus.stats.total > 0
-            ? "Collecting evidence"
-            : "Pending",
-      detail:
-        ticketmasterSupply.summary.events > 0
-          ? "Ticketmaster forward supply active; no score"
-          : gdeltCorpus.stats.total > 0
-            ? "GDELT candidate corpus active; no score"
-            : "No media-event candidates",
+      status: overviewAnalytics.industryViability.label,
+      detail: `${overviewAnalytics.industryViability.pressuredSectorCount} pressured · ${overviewAnalytics.industryViability.improvingSectorCount} improving · ${overviewAnalytics.industryViability.mixedSectorCount} mixed · ${overviewAnalytics.industryViability.coveredSectorCount} sectors${overviewAnalytics.industryViability.degradedComponentCount > 0 ? ` · ${overviewAnalytics.industryViability.degradedComponentCount} sources degraded` : ""}`,
       tone:
-        ticketmasterSupply.summary.events > 0 || gdeltCorpus.stats.total > 0
-          ? "text-blue-300"
-          : "text-zinc-300",
+        overviewAnalytics.industryViability.state === "broadly-improving"
+          ? "text-emerald-300"
+          : overviewAnalytics.industryViability.state === "broadly-pressured"
+            ? "text-rose-300"
+            : overviewAnalytics.industryViability.state === "mixed"
+              ? "text-amber-300"
+              : "text-blue-300",
     },
     {
       title: "Middle-Tier Health",
       status: "Pending",
-      detail: "No observations",
+      detail: overviewAnalytics.middleTier.label,
       tone: "text-zinc-300",
     },
     {
       title: "Gaming",
-      status:
-        gamingOverview.trackedGames > 0 ? "Collecting market data" : "Pending",
-      detail:
-        gamingOverview.trackedGames > 0
-          ? `${gamingOverview.trackedGames.toLocaleString()} releases · ${gamingOverview.steamMappedGames.toLocaleString()} Steam mapped`
-          : "No structured game records",
-      tone: gamingOverview.trackedGames > 0 ? "text-blue-300" : "text-zinc-300",
+      status: overviewAnalytics.gaming
+        ? overviewAnalytics.gaming.direction === "improving"
+          ? "Release activity rising"
+          : overviewAnalytics.gaming.direction === "pressured"
+            ? "Release activity lower"
+            : "Release activity stable"
+        : "Pending",
+      detail: overviewAnalytics.gaming
+        ? `${overviewAnalytics.gaming.latestTwelveMonthReleases.toLocaleString()} latest 12M · ${formatSupplyDelta(overviewAnalytics.gaming.changePct)} · ${overviewAnalytics.gaming.upcoming90.toLocaleString()} upcoming 90D${overviewAnalytics.gaming.freshness === "degraded" ? " · degraded freshness" : ""}`
+        : "No structured game records",
+      tone: overviewAnalytics.gaming
+        ? analyticalTone(overviewAnalytics.gaming.direction)
+        : "text-zinc-300",
     },
     {
       title: "AI Disruption",
-      status: "Pending",
-      detail:
-        mediaOverview.total > 0
-          ? `${mediaOverview.total} media candidates · no score`
-          : "No policy events",
-      tone: "text-zinc-300",
+      status:
+        `${overviewAnalytics.aiDisruption.state} ${aiDirectionSymbol(overviewAnalytics.aiDisruption.direction)}`.trim(),
+      detail: `${overviewAnalytics.aiDisruption.clusterCount} qualifying clusters · ${overviewAnalytics.aiDisruption.sectorBreadth} sectors · 7-day signal${overviewAnalytics.aiFreshness === "degraded" ? " · freshness degraded" : ""}`,
+      tone:
+        overviewAnalytics.aiDisruption.state === "HIGH"
+          ? "text-rose-300"
+          : overviewAnalytics.aiDisruption.state === "ELEVATED"
+            ? "text-amber-300"
+            : overviewAnalytics.aiDisruption.state === "MODERATE"
+              ? "text-blue-300"
+              : "text-emerald-300",
     },
   ];
   const contributingSourceCount = overview.contributingSourceCount;
@@ -403,37 +512,7 @@ export default async function OverviewPage() {
         ))}
       </div>
 
-      <DashboardCard
-        title="Culture Intelligence · Latest 24 hours"
-        description="High-signal media candidates; no narrative brief or sentiment score"
-      >
-        <div className="grid gap-5 xl:grid-cols-[14rem_1fr]">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-              <p className="text-xs text-zinc-500">Article candidates</p>
-              <p className="font-data mt-2 text-2xl text-zinc-100">
-                {mediaOverview.total}
-              </p>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-              <p className="text-xs text-zinc-500">Importance 4–5</p>
-              <p className="font-data mt-2 text-2xl text-zinc-100">
-                {mediaOverview.highImportance}
-              </p>
-            </div>
-          </div>
-          <MediaArticleList
-            compact
-            feedbackEnabled
-            articles={[
-              mediaOverview.latestAi,
-              mediaOverview.latestIndustryHealth,
-              mediaOverview.latestPositive,
-            ].filter((article) => article !== null)}
-            emptyMessage="No media developments were ingested in the latest 24-hour window."
-          />
-        </div>
-      </DashboardCard>
+      <DailyBriefOverview brief={dailyBrief} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <DashboardCard
@@ -448,73 +527,81 @@ export default async function OverviewPage() {
         </DashboardCard>
         <DashboardCard
           title="Industry Viability"
-          description="Structured supply and media candidates; no viability score"
+          description="Comparable demand, participation, and business-viability breadth; no composite score"
         >
-          {ticketmasterSupply.summary.events > 0 ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["Events · 30d", ticketmasterSupply.summary.events],
-                  ["Venues", ticketmasterSupply.summary.venues],
-                  [
-                    "Cancelled",
-                    (ticketmasterSupply.summary.statuses.cancelled ?? 0) +
-                      (ticketmasterSupply.summary.statuses.canceled ?? 0),
-                  ],
-                  [
-                    "Price ranges",
-                    ticketmasterSupply.summary.priceCoveragePercent === null
-                      ? "N/A"
-                      : `${ticketmasterSupply.summary.priceCoveragePercent.toFixed(1)}%`,
-                  ],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-                  >
-                    <p className="text-xs text-zinc-500">{label}</p>
-                    <p className="font-data mt-2 text-xl text-zinc-100">
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs leading-5 text-zinc-600">
-                Ticketmaster-covered supply is a current forward snapshot, not a
-                historical trend or market-wide census. GDELT retrieval remains
-                upstream-blocked when no candidates are present.
-              </p>
-            </div>
-          ) : gdeltCorpus.stats.total > 0 ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["Candidates · 30d", gdeltCorpus.stats.total],
-                  ["Negative", gdeltCorpus.stats.negative],
-                  ["Positive", gdeltCorpus.stats.positive],
-                  ["High confidence", gdeltCorpus.stats.highConfidence],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-                  >
-                    <p className="text-xs text-zinc-500">{label}</p>
-                    <p className="font-data mt-2 text-xl text-zinc-100">
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs leading-5 text-zinc-600">
-                Article candidates are not confirmed business outcomes. Raw
-                media volume is not treated as a trend or score.
-              </p>
-            </div>
-          ) : (
-            <EmptyChart label="Industry viability evidence corpus" />
-          )}
+          <IndustryViabilityPanel
+            viability={overviewAnalytics.industryViability}
+          />
         </DashboardCard>
       </div>
+
+      <DashboardCard
+        title="AI Creative Disruption — 7-Day Evidence"
+        description="Deterministic story-cluster signal; article volume is deduplicated"
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              ["Current state", overviewAnalytics.aiDisruption.state],
+              [
+                "Direction",
+                overviewAnalytics.aiDisruption.direction.replaceAll("-", " "),
+              ],
+              ["Story clusters", overviewAnalytics.aiDisruption.clusterCount],
+              [
+                "Cultural sectors",
+                overviewAnalytics.aiDisruption.sectorBreadth,
+              ],
+              [
+                "Previous 7D",
+                overviewAnalytics.aiDisruption.previousClusterCount,
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+              >
+                <p className="text-xs text-zinc-500">{label}</p>
+                <p className="font-data mt-2 text-lg text-zinc-100 capitalize">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <p className="text-xs text-zinc-500">
+                Rights, policy, and labour
+              </p>
+              <p className="font-data mt-2 text-xl text-zinc-100">
+                {overviewAnalytics.aiDisruption.rightsPolicyLaborCount}
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <p className="text-xs text-zinc-500">
+                Adoption and creator tools
+              </p>
+              <p className="font-data mt-2 text-xl text-zinc-100">
+                {overviewAnalytics.aiDisruption.adoptionToolCount}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs leading-5 text-zinc-600">
+            Each story cluster contributes once. Internal thresholding weights
+            corrected importance, confidence, disruption type, recency, and a
+            capped corroboration factor (current evidence weight{" "}
+            {overviewAnalytics.aiDisruption.score.toFixed(1)}). Human
+            corrections route this analytical view without changing stored
+            machine classifications.
+            {overviewAnalytics.aiDisruption.baselineLimited
+              ? " The preceding-window AI baseline is limited."
+              : ""}
+            {overviewAnalytics.aiFreshness === "degraded"
+              ? " RSS or TheNewsAPI refresh is overdue or recently failed; the last valid result is retained with degraded coverage."
+              : ""}
+          </p>
+        </div>
+      </DashboardCard>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <DashboardCard

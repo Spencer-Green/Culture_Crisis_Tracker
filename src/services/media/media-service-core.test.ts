@@ -6,6 +6,7 @@ import {
   collapseDuplicateStories,
   filterMediaArticles,
   isAiCreativeWorkEligible,
+  isCuratedPresentationEligible,
   isTopDevelopmentEligible,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
@@ -247,11 +248,14 @@ describe("media service presentation", () => {
     const flagged: MediaArticleView = {
       ...base,
       classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
         reasons: ["WRONG_EVENT_TYPE", "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
         correctedSector: null,
         correctedEventType: "EXPANSION",
         correctedAiTag: null,
         correctedImportance: null,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
         reviewedAt: "2026-08-17T08:00:00.000Z",
       },
     };
@@ -288,6 +292,7 @@ describe("media service presentation", () => {
     const flagged: MediaArticleView = {
       ...base,
       classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
         reasons: [
           "WRONG_SECTOR",
           "WRONG_EVENT_TYPE",
@@ -298,11 +303,54 @@ describe("media service presentation", () => {
         correctedEventType: "EXPANSION",
         correctedAiTag: "TOOL_ADOPTION",
         correctedImportance: 1,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
         reviewedAt: "2026-08-17T08:00:00.000Z",
       },
     };
 
     expect(buildMediaHighlights([flagged]).topDevelopments).toEqual([flagged]);
     expect(buildSectorMediaTiers([flagged]).industrySignals).toEqual([flagged]);
+  });
+
+  it("keeps positive validation inert for ranking, routing, and eligibility", () => {
+    const verified: MediaArticleView = {
+      ...base,
+      classificationFeedback: {
+        reviewState: "CORRECT",
+        reasons: [],
+        correctedSector: null,
+        correctedEventType: null,
+        correctedAiTag: null,
+        correctedImportance: null,
+        approvedMachineClassification: {
+          sector: base.sectorSlug,
+          eventType: base.eventType,
+          aiTag: base.aiImpactType,
+          importance: base.importance as 4,
+          confidence: base.confidence,
+        },
+        evaluationState: "CORRECT",
+        reviewedAt: "2026-08-17T08:00:00.000Z",
+      },
+    };
+
+    const verifiedHighlights = buildMediaHighlights([verified]);
+    const unreviewedHighlights = buildMediaHighlights([base]);
+    for (const key of [
+      "topDevelopments",
+      "aiAndCreativeWork",
+      "industryHealth",
+      "positiveSignals",
+    ] as const) {
+      expect(verifiedHighlights[key].map((article) => article.id)).toEqual(
+        unreviewedHighlights[key].map((article) => article.id),
+      );
+    }
+    expect(buildSectorMediaTiers([verified])).toMatchObject({
+      industrySignals: [verified],
+      sectorFeed: [],
+    });
+    expect(isCuratedPresentationEligible(verified)).toBe(true);
   });
 });

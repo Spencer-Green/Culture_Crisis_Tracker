@@ -15,6 +15,11 @@ enum MediaClassificationFeedbackReason {
   NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE
 }
 
+enum MediaClassificationReviewState {
+  CORRECT
+  WRONG_CLASSIFICATION
+}
+
 model Country {
   id                 String              @id @default(uuid()) @db.Uuid
   code               String              @unique @db.VarChar(3)
@@ -459,19 +464,26 @@ model MediaArticle {
 }
 
 model MediaClassificationFeedback {
-  id                  String                              @id @default(uuid()) @db.Uuid
-  mediaArticleId      String                              @unique @db.Uuid
-  reasons             MediaClassificationFeedbackReason[]
-  correctedSector     String?
-  correctedEventType  String?
-  correctedAiTag      String?
-  correctedImportance Int?
-  reviewedAt          DateTime                            @db.Timestamptz(3)
-  createdAt           DateTime                            @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime                            @updatedAt @db.Timestamptz(3)
-  mediaArticle        MediaArticle                        @relation(fields: [mediaArticleId], references: [id], onDelete: Cascade)
+  id                       String                              @id @default(uuid()) @db.Uuid
+  mediaArticleId           String                              @unique @db.Uuid
+  reviewState              MediaClassificationReviewState
+  reasons                  MediaClassificationFeedbackReason[]
+  correctedSector          String?
+  correctedEventType       String?
+  correctedAiTag           String?
+  correctedImportance      Int?
+  approvedSector           String?
+  approvedEventType        String?
+  approvedAiTag            String?
+  approvedImportance       Int?
+  approvedConfidence       String?
+  reviewedAt               DateTime                            @db.Timestamptz(3)
+  createdAt                DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                            @updatedAt @db.Timestamptz(3)
+  mediaArticle             MediaArticle                        @relation(fields: [mediaArticleId], references: [id], onDelete: Cascade)
 
   @@index([reviewedAt])
+  @@index([reviewState, reviewedAt])
 }
 
 model MediaArticleSourceMatch {

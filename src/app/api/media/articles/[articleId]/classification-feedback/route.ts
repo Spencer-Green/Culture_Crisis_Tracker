@@ -11,10 +11,12 @@ import {
   MEDIA_CORRECTABLE_EVENT_TYPES,
   MEDIA_CORRECTABLE_SECTORS,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
+  MEDIA_CLASSIFICATION_REVIEW_STATES,
 } from "@/services/media/media-feedback-types";
 
 const feedbackRequestSchema = z
   .object({
+    reviewState: z.enum(MEDIA_CLASSIFICATION_REVIEW_STATES).optional(),
     reasons: z
       .array(z.enum(MEDIA_CLASSIFICATION_FEEDBACK_REASONS))
       .max(MEDIA_CLASSIFICATION_FEEDBACK_REASONS.length),
@@ -45,6 +47,7 @@ export async function PATCH(
   try {
     const feedback = await updateMediaClassificationFeedback({
       articleId,
+      reviewState: parsed.data.reviewState,
       reasons: parsed.data.reasons,
       corrections: {
         correctedSector: parsed.data.correctedSector,
@@ -57,11 +60,15 @@ export async function PATCH(
       data: feedback
         ? {
             articleId: feedback.mediaArticleId,
+            reviewState: feedback.reviewState,
             reasons: feedback.reasons,
             correctedSector: feedback.correctedSector,
             correctedEventType: feedback.correctedEventType,
             correctedAiTag: feedback.correctedAiTag,
             correctedImportance: feedback.correctedImportance,
+            approvedMachineClassification:
+              feedback.approvedMachineClassification,
+            evaluationState: feedback.reviewState,
             reviewedAt: feedback.reviewedAt.toISOString(),
           }
         : null,

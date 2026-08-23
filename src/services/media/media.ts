@@ -13,6 +13,14 @@ import {
   type MediaFilters,
 } from "@/services/media/media-service-core";
 import type { MediaSectorSlug } from "@/data-sources/news/media-types";
+import { mediaClassificationEvaluationState } from "@/services/media/media-feedback-core";
+import type {
+  MediaClassificationCorrections,
+  MediaClassificationFeedbackReason,
+  MediaImportance,
+  MediaMachineClassificationSnapshot,
+  PersistedMediaClassificationReviewState,
+} from "@/services/media/media-feedback-types";
 
 const DATABASE_UNAVAILABLE_CODES = new Set([
   "P1000",
@@ -60,11 +68,17 @@ function toView(article: {
   reviewState: string;
   classificationRationale: string;
   classificationFeedback: {
+    reviewState: string;
     reasons: string[];
     correctedSector: string | null;
     correctedEventType: string | null;
     correctedAiTag: string | null;
     correctedImportance: number | null;
+    approvedSector: string | null;
+    approvedEventType: string | null;
+    approvedAiTag: string | null;
+    approvedImportance: number | null;
+    approvedConfidence: string | null;
     reviewedAt: Date;
   } | null;
   storyFingerprint: string | null;
@@ -76,6 +90,46 @@ function toView(article: {
     !["THENEWSAPI", "RSS"].includes(article.sourceType)
   )
     return null;
+  const rawFeedback = article.classificationFeedback;
+  const currentMachineClassification = {
+    sector: article.sectorSlug,
+    eventType: article.eventType,
+    aiTag: article.aiImpactType,
+    importance: article.importance,
+    confidence: article.confidence,
+  } as MediaMachineClassificationSnapshot;
+  const approvedMachineClassification =
+    rawFeedback?.approvedSector !== null &&
+    rawFeedback?.approvedSector !== undefined &&
+    rawFeedback.approvedImportance !== null &&
+    rawFeedback.approvedConfidence !== null
+      ? ({
+          sector: rawFeedback.approvedSector,
+          eventType: rawFeedback.approvedEventType,
+          aiTag: rawFeedback.approvedAiTag,
+          importance: rawFeedback.approvedImportance,
+          confidence: rawFeedback.approvedConfidence,
+        } as MediaMachineClassificationSnapshot)
+      : null;
+  const persistedFeedback = rawFeedback
+    ? {
+        mediaArticleId: article.id,
+        reviewState:
+          rawFeedback.reviewState as PersistedMediaClassificationReviewState,
+        reasons: rawFeedback.reasons as MediaClassificationFeedbackReason[],
+        correctedSector:
+          rawFeedback.correctedSector as MediaClassificationCorrections["correctedSector"],
+        correctedEventType:
+          rawFeedback.correctedEventType as MediaClassificationCorrections["correctedEventType"],
+        correctedAiTag:
+          rawFeedback.correctedAiTag as MediaClassificationCorrections["correctedAiTag"],
+        correctedImportance:
+          rawFeedback.correctedImportance as MediaImportance | null,
+        approvedMachineClassification,
+        reviewedAt: rawFeedback.reviewedAt,
+      }
+    : null;
+
   return {
     ...article,
     sourceType: article.sourceType as MediaArticleView["sourceType"],
@@ -85,28 +139,33 @@ function toView(article: {
     confidence: article.confidence as MediaArticleView["confidence"],
     aiImpactType: article.aiImpactType as MediaArticleView["aiImpactType"],
     reviewState: article.reviewState as MediaArticleView["reviewState"],
-    classificationFeedback: article.classificationFeedback
+    classificationFeedback: rawFeedback
       ? {
-          reasons: article.classificationFeedback.reasons as NonNullable<
+          reviewState:
+            rawFeedback.reviewState as PersistedMediaClassificationReviewState,
+          reasons: rawFeedback.reasons as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["reasons"],
-          correctedSector: article.classificationFeedback
-            .correctedSector as NonNullable<
+          correctedSector: rawFeedback.correctedSector as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedSector"],
-          correctedEventType: article.classificationFeedback
-            .correctedEventType as NonNullable<
+          correctedEventType: rawFeedback.correctedEventType as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedEventType"],
-          correctedAiTag: article.classificationFeedback
-            .correctedAiTag as NonNullable<
+          correctedAiTag: rawFeedback.correctedAiTag as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedAiTag"],
-          correctedImportance: article.classificationFeedback
-            .correctedImportance as NonNullable<
+          correctedImportance: rawFeedback.correctedImportance as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedImportance"],
-          reviewedAt: article.classificationFeedback.reviewedAt.toISOString(),
+          approvedMachineClassification,
+          evaluationState: mediaClassificationEvaluationState(
+            currentMachineClassification,
+            persistedFeedback,
+          ) as NonNullable<
+            MediaArticleView["classificationFeedback"]
+          >["evaluationState"],
+          reviewedAt: rawFeedback.reviewedAt.toISOString(),
         }
       : null,
     publishedAt: article.publishedAt.toISOString(),
@@ -144,11 +203,17 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
       classificationRationale: true,
       classificationFeedback: {
         select: {
+          reviewState: true,
           reasons: true,
           correctedSector: true,
           correctedEventType: true,
           correctedAiTag: true,
           correctedImportance: true,
+          approvedSector: true,
+          approvedEventType: true,
+          approvedAiTag: true,
+          approvedImportance: true,
+          approvedConfidence: true,
           reviewedAt: true,
         },
       },
@@ -160,6 +225,67 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
   return rows
     .map(toView)
     .filter((article): article is MediaArticleView => article !== null);
+}
+
+export async function getMediaArticlesPublishedBetween(input: {
+  start: Date;
+  end: Date;
+  limit?: number;
+}): Promise<MediaArticleView[]> {
+  try {
+    const rows = await getPrisma().mediaArticle.findMany({
+      where: {
+        publishedAt: { gte: input.start, lt: input.end },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: input.limit ?? 2_000,
+      select: {
+        id: true,
+        sourceType: true,
+        canonicalUrl: true,
+        title: true,
+        description: true,
+        publisher: true,
+        sourceDomain: true,
+        publishedAt: true,
+        retrievedAt: true,
+        countryCode: true,
+        sectorSlug: true,
+        eventType: true,
+        polarity: true,
+        confidence: true,
+        importance: true,
+        aiImpactType: true,
+        reviewState: true,
+        classificationRationale: true,
+        classificationFeedback: {
+          select: {
+            reviewState: true,
+            reasons: true,
+            correctedSector: true,
+            correctedEventType: true,
+            correctedAiTag: true,
+            correctedImportance: true,
+            approvedSector: true,
+            approvedEventType: true,
+            approvedAiTag: true,
+            approvedImportance: true,
+            approvedConfidence: true,
+            reviewedAt: true,
+          },
+        },
+        storyFingerprint: true,
+        possibleDuplicateStory: true,
+        sourceMatches: { select: { sourceType: true } },
+      },
+    });
+    return rows
+      .map(toView)
+      .filter((article): article is MediaArticleView => article !== null);
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) return [];
+    throw new MediaLoadError(error);
+  }
 }
 
 export async function getMediaPageData(filters: MediaFilters) {

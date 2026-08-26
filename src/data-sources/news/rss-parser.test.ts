@@ -25,6 +25,11 @@ const feed: RssFeedDefinition = {
   enabled: true,
   tier: "SPECIALIST",
   geography: "GB",
+  evidenceRole: "JOURNALISTIC_REPORTING",
+  sourcePerspective: "JOURNALISTIC",
+  jurisdiction: "GB",
+  sourceSpecialisms: [],
+  schedulingGroup: "CURATED_MEDIA",
   notes: "test",
 };
 
@@ -46,6 +51,27 @@ describe("RSS and Atom parsing", () => {
     expect(parsed.articles[0]).toMatchObject({
       externalId: "tag:example.com,2026:1",
       url: "https://example.com/games/hiring",
+    });
+  });
+
+  it("propagates trusted source-role metadata separately from feed content", () => {
+    const parsed = parseRssOrAtom(atom, {
+      ...feed,
+      evidenceRole: "PRIMARY_DOCUMENT",
+      sourcePerspective: "OFFICIAL",
+      jurisdiction: "GB",
+      sourceSpecialisms: ["AI_POLICY", "COPYRIGHT"],
+      schedulingGroup: "INSTITUTIONAL",
+    });
+
+    expect(parsed.articles[0].sourceMetadata).toEqual({
+      feedFormat: "Atom",
+      sourceTier: "SPECIALIST",
+      evidenceRole: "PRIMARY_DOCUMENT",
+      sourcePerspective: "OFFICIAL",
+      jurisdiction: "GB",
+      sourceSpecialisms: ["AI_POLICY", "COPYRIGHT"],
+      institution: "Fixture",
     });
   });
 

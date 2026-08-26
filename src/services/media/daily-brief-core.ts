@@ -5,12 +5,14 @@ import type {
   MediaPolarity,
   MediaSectorSlug,
 } from "@/data-sources/news/media-types";
+import { isInstitutionalRssSource } from "@/data-sources/news/rss-registry";
 import {
   likelyDuplicateStory,
   normaliseHeadline,
 } from "@/data-sources/news/media-dedup";
 import {
   isAiCreativeWorkEligible,
+  isAiIntelligenceEligible,
   isCuratedPresentationEligible,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
@@ -148,8 +150,10 @@ export function deriveBriefMediaFreshness(input: {
     lastSuccessAt: string | null;
   }[];
 }): BriefMediaFreshness {
-  const mediaSources = input.sources.filter((source) =>
-    ["rss", "thenewsapi"].includes(source.sourceId),
+  const mediaSources = input.sources.filter(
+    (source) =>
+      ["rss", "thenewsapi"].includes(source.sourceId) ||
+      isInstitutionalRssSource(source.sourceId),
   );
   const mediaLastRefresh =
     mediaSources
@@ -174,7 +178,7 @@ export function deriveBriefMediaFreshness(input: {
   };
 }
 
-type EffectiveLabels = {
+export type EffectiveMediaLabels = {
   sector: MediaSectorSlug;
   eventType: MediaEventType | null;
   aiImpactType: AiImpactType | null;
@@ -186,7 +190,9 @@ type EffectiveLabels = {
   corrected: boolean;
 };
 
-function effectiveLabels(article: MediaArticleView): EffectiveLabels {
+export function getEffectiveMediaLabels(
+  article: MediaArticleView,
+): EffectiveMediaLabels {
   const feedback = article.classificationFeedback;
   const correctedSector = feedback?.reasons.includes("WRONG_SECTOR")
     ? feedback.correctedSector
@@ -237,8 +243,8 @@ function sameStory(left: MediaArticleView, right: MediaArticleView): boolean {
     left.storyFingerprint === right.storyFingerprint
   )
     return true;
-  const leftLabels = effectiveLabels(left);
-  const rightLabels = effectiveLabels(right);
+  const leftLabels = getEffectiveMediaLabels(left);
+  const rightLabels = getEffectiveMediaLabels(right);
   return (
     leftLabels.sector === rightLabels.sector &&
     leftLabels.eventType === rightLabels.eventType &&
@@ -250,8 +256,8 @@ function sameStory(left: MediaArticleView, right: MediaArticleView): boolean {
 }
 
 function rankArticles(left: MediaArticleView, right: MediaArticleView): number {
-  const leftLabels = effectiveLabels(left);
-  const rightLabels = effectiveLabels(right);
+  const leftLabels = getEffectiveMediaLabels(left);
+  const rightLabels = getEffectiveMediaLabels(right);
   return (
     rightLabels.importance - leftLabels.importance ||
     CONFIDENCE_RANK[right.confidence] - CONFIDENCE_RANK[left.confidence] ||
@@ -393,7 +399,7 @@ function hasBriefEventEvidence(cluster: MediaStoryCluster): boolean {
     case "AI_CREATOR_TOOL":
     case "AI_SYNTHETIC_CONTENT":
     case "AI_UNION_DISPUTE":
-      return isCreativeAiStory(cluster);
+      return isAiIntelligenceStory(cluster);
     default:
       return false;
   }
@@ -413,7 +419,7 @@ function comparisonKey(
 function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
   const articles = group.slice().sort(rankArticles);
   const representative = articles[0];
-  const labels = articles.map(effectiveLabels);
+  const labels = articles.map(getEffectiveMediaLabels);
   const sectorCorrection = distinctCorrections(
     labels.map((label) => label.correctedSector),
   );
@@ -431,7 +437,7 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
     eventCorrection.conflict ||
     aiCorrection.conflict ||
     importanceCorrection.conflict;
-  const representativeLabels = effectiveLabels(representative);
+  const representativeLabels = getEffectiveMediaLabels(representative);
   const sector = sectorCorrection.conflict
     ? null
     : (sectorCorrection.value ?? representativeLabels.sector);
@@ -559,7 +565,8 @@ export function rankClusters(
   );
 }
 
-function isSignal(cluster: MediaStoryCluster): boolean {
+export function isMaterialStorySignal(cluster: MediaStoryCluster): boolean {
+  if (isAiIntelligenceStory(cluster)) return cluster.importance >= 2;
   return (
     cluster.eventType !== null &&
     MATERIAL_EVENTS.has(cluster.eventType) &&
@@ -577,6 +584,19 @@ export function isCreativeAiStory(cluster: MediaStoryCluster): boolean {
     return false;
   return cluster.articles.some((article) =>
     isAiCreativeWorkEligible({
+      ...article,
+      sectorSlug: cluster.sector ?? article.sectorSlug,
+      eventType: cluster.eventType,
+      aiImpactType: cluster.aiImpactType,
+      importance: cluster.importance,
+    }),
+  );
+}
+
+export function isAiIntelligenceStory(cluster: MediaStoryCluster): boolean {
+  if (cluster.ambiguousHumanCorrections) return false;
+  return cluster.articles.some((article) =>
+    isAiIntelligenceEligible({
       ...article,
       sectorSlug: cluster.sector ?? article.sectorSlug,
       eventType: cluster.eventType,
@@ -634,8 +654,8 @@ function buildDelta(
   current: readonly MediaStoryCluster[],
   previous: readonly MediaStoryCluster[],
 ): DailyBriefDelta {
-  const currentSignals = current.filter(isSignal);
-  const previousSignals = previous.filter(isSignal);
+  const currentSignals = current.filter(isMaterialStorySignal);
+  const previousSignals = previous.filter(isMaterialStorySignal);
   const newStories = currentSignals.filter(
     (cluster) =>
       !previousSignals.some((candidate) => clustersMatch(cluster, candidate)),
@@ -649,8 +669,8 @@ function buildDelta(
     ]),
   ) as Record<BriefSector, number>;
   const aiChange =
-    current.filter(isCreativeAiStory).length -
-    previous.filter(isCreativeAiStory).length;
+    current.filter(isAiIntelligenceStory).length -
+    previous.filter(isAiIntelligenceStory).length;
   const positiveChange =
     current.filter(isPositiveCounterSignal).length -
     previous.filter(isPositiveCounterSignal).length;
@@ -671,7 +691,7 @@ function buildDelta(
   }
   if (aiChange !== 0)
     bullets.push(
-      `AI & Creative Work changed by ${signed(aiChange)} qualifying ${Math.abs(aiChange) === 1 ? "development" : "developments"}.`,
+      `AI Intelligence changed by ${signed(aiChange)} qualifying ${Math.abs(aiChange) === 1 ? "development" : "developments"}.`,
     );
   if (positiveChange !== 0)
     bullets.push(
@@ -725,8 +745,8 @@ function buildTopLine(
   return [
     `${top.length} top ${top.length === 1 ? "development" : "developments"} met the brief's materiality threshold in the last 24 hours.`,
     ai.length > 0
-      ? `${ai.length} ${ai.length === 1 ? "story had" : "stories had"} a direct AI and creative-work connection.`
-      : "No qualifying AI and creative-work development was identified.",
+      ? `${ai.length} materially relevant AI ${ai.length === 1 ? "development was" : "developments were"} identified.`
+      : "No qualifying material AI development was identified.",
   ];
 }
 
@@ -749,12 +769,14 @@ export function buildDailyCultureBriefCore(input: {
   );
   const currentClusters = buildMediaStoryClusters(currentArticles);
   const previousClusters = buildMediaStoryClusters(previousArticles);
-  const signalClusters = currentClusters.filter(isSignal).sort(rankClusters);
+  const signalClusters = currentClusters
+    .filter(isMaterialStorySignal)
+    .sort(rankClusters);
   const topDevelopments = signalClusters
     .filter((cluster) => cluster.importance >= 3)
     .slice(0, 5);
   const aiAndCreativeWork = currentClusters
-    .filter(isCreativeAiStory)
+    .filter(isAiIntelligenceStory)
     .sort(rankClusters)
     .slice(0, 4);
   const topIds = new Set(topDevelopments.map((cluster) => cluster.clusterId));

@@ -7,6 +7,7 @@ import { steamAdapter } from "@/data-sources/entertainment/steam";
 import { ticketmasterAdapter } from "@/data-sources/entertainment/ticketmaster";
 import { usBoxOfficeAdapter } from "@/data-sources/film/us-box-office";
 import { bfiAdapter } from "@/data-sources/film/bfi";
+import { screenAustraliaAdapter } from "@/data-sources/film/screen-australia";
 import { mvtAdapter } from "@/data-sources/music/mvt";
 import { censusAdapter } from "@/data-sources/music/census";
 import { absAdapter } from "@/data-sources/macro/abs";
@@ -50,6 +51,7 @@ export const adapters: readonly DataSourceAdapter[] = [
   usBoxOfficeAdapter,
   broadwayBusinessAdapter,
   bfiAdapter,
+  screenAustraliaAdapter,
   mvtAdapter,
   censusAdapter,
   lpaAdapter,

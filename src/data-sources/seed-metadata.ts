@@ -36,6 +36,7 @@ export function buildSourceSeedOperation(
     name: source.name,
     provider: source.provider,
     baseUrl:
+      source.sourceUrl ??
       environment[source.baseUrlEnvironmentKey] ??
       (source.slug === "us-box-office"
         ? "https://www.kaggle.com/api/v1"
@@ -43,13 +44,15 @@ export function buildSourceSeedOperation(
           ? "https://broadwaybusiness.com/grosses"
           : source.slug === "bfi"
             ? "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures"
-            : source.slug === "mvt"
-              ? "https://www.musicvenuetrust.com/resources/"
-              : source.slug === "census"
-                ? "https://www2.census.gov/programs-surveys/aies/data"
-                : source.slug === "lpa"
-                  ? "https://reports.liveperformance.com.au/"
-                  : ""),
+            : source.slug === "screen-australia"
+              ? "https://box-office-widget.twistedpear-wgp.workers.dev"
+              : source.slug === "mvt"
+                ? "https://www.musicvenuetrust.com/resources/"
+                : source.slug === "census"
+                  ? "https://www2.census.gov/programs-surveys/aies/data"
+                  : source.slug === "lpa"
+                    ? "https://reports.liveperformance.com.au/"
+                    : ""),
     countryCode,
     sectorSlug,
     requiresAuthentication: source.requiresAuthentication,
@@ -69,9 +72,19 @@ export function buildSourceSeedOperation(
       "steam",
       "thenewsapi",
       "rss",
+      "copyright-newsnet",
+      "cfpb-newsroom",
+      "ftc-competition",
+      "ftc-consumer-protection",
+      "nist-information-technology",
+      "uk-dsit",
+      "uk-ipo",
+      "uk-cma",
+      "eu-dg-connect",
       "us-box-office",
       "broadway-business",
       "bfi",
+      "screen-australia",
       "mvt",
       "census",
       "lpa",

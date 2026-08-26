@@ -1079,6 +1079,12 @@ tracker-derived sector/theme/polarity/confidence/importance/AI-impact tags, revi
 compact provenance. `MediaArticleSourceMatch` preserves every NewsAPI query-family or RSS-feed
 match without duplicating the article. Full article bodies are neither fetched nor stored.
 
+Source registry metadata distinguishes `PRIMARY_DOCUMENT`, `JOURNALISTIC_REPORTING`, and
+`SPECIALIST_ANALYSIS` evidence roles, along with institutional perspective, jurisdiction, and
+bounded source specialisms. This is provenance, not a truth score. Primary documents establish
+what the issuing institution did, announced, proposed, published, concluded, or stated; they do
+not independently establish downstream employment, market, adoption, or creator-response effects.
+
 Canonical identity is the normalized HTTPS article URL. Host casing, fragments, trailing slashes,
 and common tracking parameters (`utm_*`, `gclid`, `fbclid`, and `mc_*`) are normalized while
 meaningful query identifiers remain. A repeated or cross-source canonical URL updates
@@ -1150,6 +1156,52 @@ npm run ingest:media:rss -- --hours=72
 npm run ingest:media:rss -- --hours=24 --sector=gaming
 ```
 
+### Authoritative institutional feeds
+
+Nine official recurring feeds use the same bounded RSS/Atom parser but run as distinct sources so
+their cadence, ingestion runs, and freshness remain auditable:
+
+- U.S. Copyright Office NewsNet — `https://www.copyright.gov/rss/newsnet.xml`
+- CFPB Newsroom — `https://www.consumerfinance.gov/about-us/newsroom/feed/`
+- FTC Competition — `https://www.ftc.gov/feeds/press-release-competition.xml`
+- FTC Consumer Protection — `https://www.ftc.gov/feeds/press-release-consumer-protection.xml`
+- NIST Information Technology — `https://www.nist.gov/news-events/information%20technology/rss.xml`
+- UK DSIT — `https://www.gov.uk/government/organisations/department-for-science-innovation-and-technology.atom`
+- UK Intellectual Property Office — `https://www.gov.uk/government/organisations/intellectual-property-office.atom`
+- UK Competition and Markets Authority — `https://www.gov.uk/government/organisations/competition-and-markets-authority.atom`
+- European Commission DG CONNECT — `https://ec.europa.eu/commission/presscorner/api/rss?language=en&pagesize=20&dept=CONNECT`
+
+Each is `PRIMARY_DOCUMENT` / `OFFICIAL`. Retrieval is sequential, limited to one feed request per
+source run, a trailing 72-hour publication window, and at most 50 accepted items. There is no
+pagination, archive crawl, full-document fetch, or external-link following. Copyright NewsNet and
+NIST run daily; the other feeds run every 12 hours and are deliberately excluded from the existing
+three-hour journalism RSS cycle. Manual refresh uses the existing command, for example:
+
+```bash
+npm run ingest:media:rss -- --hours=72 --source=copyright-newsnet
+```
+
+Primary-source guardrails treat reports, research, guidance, proposals, and consultations as
+documents rather than completed real-world events. A discrete event classification requires an
+explicit institutional actor/action in the supplied title. Official or forceful wording does not
+by itself raise importance, and an authoritative source establishes what that institution did or
+said rather than proving a forecast or downstream effect. The current event taxonomy cannot
+encode every regulatory procedure or proposal status, so unsupported cases retain a null event
+type rather than adding broad new categories.
+
+GOV.UK feed content is attributed to the named department or agency; reuse of Crown material must
+follow the Open Government Licence and its attribution requirements. All other official-source
+terms and attribution requirements continue to apply. Institutional claims remain distinct from
+independent journalistic evidence. Specialist-analysis feeds are intentionally deferred to the
+next source-expansion phase.
+
+Live validation on 26 August 2026 found that the supplied DG CONNECT Press Corner URL returned a
+general `Press releases - RSS` channel and item-level `POLICY_AREA` metadata, including items not
+specific to DG CONNECT. The tracker preserves the requested endpoint provenance but does not infer
+DG CONNECT authorship from the query parameter: unrelated items remain low-importance,
+`industry-events` records with null event types. The endpoint's department filtering should be
+revalidated before treating this feed as complete DG CONNECT coverage.
+
 `/media` is the Culture Intelligence view with 24H/3D/7D and sector/AI filters, high-signal views,
 and a chronological feed. Music, Film, Theatre, and Gaming pages show complementary Recent
 Developments without replacing structured analytics.
@@ -1187,11 +1239,27 @@ change `/media`, sector routing, ingestion, or classifier output.
 
 Top Developments rank material clusters by effective importance, confidence, independent publisher
 count, and recency, in that order. Publisher count is corroborating breadth, not a substitute for
-importance, and syndicated copies do not inflate it. AI & Creative Work additionally requires
-explicit creative-industry evidence, so generic enterprise AI, chips, cybersecurity, and general
-model news remain excluded. Positive openings, hiring, investment, funding, expansion, attendance,
-and revenue developments are retained as counter-signals. Quiet windows explicitly remain quiet;
-the system does not fill sections with low-confidence stories.
+importance, and syndicated copies do not inflate it. AI Intelligence is a first-class analytical
+domain: a material AI rule, frontier-model release, creator-tool deployment, labour development,
+rights action, accelerator/export-control change, infrastructure investment, or attributed
+economic signal can qualify without naming Music, Film, Theatre, or Gaming. Eligibility still
+requires a supported material development; tutorials, incidental mentions, minor features, generic
+opinion, and unsupported predictions remain excluded. Attributed forecasts establish that a named
+speaker expressed a view, not that the predicted outcome is true. Positive openings, hiring,
+investment, funding, expansion, attendance, and revenue developments are retained as
+counter-signals. Quiet windows explicitly remain quiet; the system does not fill sections with
+low-confidence stories.
+
+AI importance assesses the supported development itself rather than requiring already-observed
+downstream employment or revenue effects. Binding market-access rules and national or
+precedent-setting policy can reach importance 5; major proposals, substantial deployment,
+frontier capability, or material compute/capital changes can reach importance 4. Confidence is
+separate: one explicit credible source can strongly support the narrow claim that an action was
+taken or a statement was made, while uncertainty about consequences remains visible. The derived
+AI category vocabulary is query-time application logic and does not add persisted Prisma enums;
+existing event and AI-impact values remain the stored taxonomy. This domain/materiality/evidence
+separation is designed to admit a future Consumer/Credit intelligence domain without treating
+media signals as measured macroeconomic observations.
 
 All synthesis is deterministic and limited to stored headlines, snippets, classifications,
 feedback, publication metadata, and current structured metrics. Short “why it matters” text is a
@@ -1199,8 +1267,55 @@ transparent event-type template, not an article-body summary, causal claim, or m
 narrative. The market-context panel uses only latest validated observations with source, date,
 frequency, unit, and scope caveats. It does not claim that daily reporting caused the structured
 metric. The brief also shows the latest RSS/TheNewsAPI refresh and warns when existing scheduler
-freshness marks either media source late or failed. A future optional model-assisted synthesis
-layer could sit behind this deterministic representation, but no external model provider is used.
+freshness marks either media source late or failed. The production brief uses no external model;
+the optional manual experiment described next is isolated from its request path.
+
+Phase 1 includes a manual, ephemeral GPT-5.6 Luna story-synthesis experiment without changing the
+Daily Brief or any production page. It accepts one currently eligible deterministic story cluster,
+removes `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` evidence, applies the existing human-correction
+precedence, and sends at most six stored headline/snippet records in a 12,000-character evidence
+packet. Trusted grounding instructions are separated from the untrusted article metadata, tools
+and web search are disabled, SDK retries are disabled, strict structured output is validated, and
+no result is written to Prisma or OpenAI storage. List candidates or synthesize one explicitly:
+
+```bash
+npm run llm:synthesize-story -- --list
+npm run llm:synthesize-story -- <cluster-or-article-id>
+npm run llm:synthesize-story -- <cluster-or-article-id> --yes
+```
+
+Interactive use requires confirmation before the one API request unless `--yes` is supplied.
+Usage reporting separates uncached input, cached input, and output tokens. Estimated cost uses the
+current documented GPT-5.6 Luna standard rates of USD $0.20, $0.02, and $1.20 per million tokens,
+respectively; it is an estimate rather than an organization billing query. The model output cannot
+change classifications, eligibility, materiality, ranking, clustering, or presentation.
+
+Phase 1B adds a manual evaluation harness without changing that authority. Luna now returns an
+independent qualitative materiality level (`VERY_LOW`, `LOW`, `MODERATE`, `HIGH`, or `VERY_HIGH`)
+and rationale alongside evidence strength. Evidence strength asks how directly the stored evidence
+supports the synthesis; materiality asks how consequential the supported development could be for
+cultural-sector economics, structure, labour, rights, production, distribution, demand, or
+technology. A one-publisher report may therefore have high evidence strength for a narrow claim,
+while high potential materiality may coexist with weak evidence when uncertainty is explicit.
+
+The evaluation-only comparison maps deterministic importance 1–5 to `VERY_LOW` through
+`VERY_HIGH` to flag `ALIGNED`, `LLM_HIGHER`, or `LLM_LOWER` results. These scales are not claimed to
+be mathematically equivalent, and the comparison never changes production importance. Candidate
+sampling greedily covers sectors, event themes, importance bands, positive/AI signals, source
+breadth, and reviewed/corrected evidence. Dry-run before authorizing a bounded live run:
+
+```bash
+npm run llm:evaluate-stories -- --dry-run --limit=15
+npm run llm:evaluate-stories -- --limit=15
+npm run llm:evaluate-stories -- --limit=15 --yes
+```
+
+The command never exceeds 20 calls, executes sequentially without retries, shows an upper-bound
+cost before confirmation, and reports actual token, cost, median-latency, and p95-latency totals.
+Interactive runs can record optional synthesis-quality, materiality, grounding, and note fields.
+Run artifacts are written under gitignored `data/evaluations/story-synthesis/`; they contain cluster
+evidence, results, comparisons, usage, flags, and optional human judgments, but no API key. They are
+evaluation data only and are not persisted to Prisma or used by production pages.
 
 Important media-methodology limits:
 
@@ -1433,18 +1548,52 @@ LPA and Ticketmaster remain semantically distinct: LPA describes realized annual
 revenue, while Ticketmaster describes forward listing and venue supply. Neither is a complete
 census of Australian theatre and no combined Theatre score is produced.
 
-### Screen Australia access review
+### Screen Australia current box-office ingestion
 
 Screen Australia's official
-[cinema attendance-pattern](https://www.screenaustralia.gov.au/fact-finders/cinema/audiences/attendance-patterns)
-and [box-office](https://www.screenaustralia.gov.au/insights-and-trends/cinema-industry-trends/box-office/)
-pages expose useful annual series, but no separately licensed public download or API was found.
-The site's [Terms and Conditions](https://www.screenaustralia.gov.au/corporate-documents/terms-and-conditions/)
-reserve database rights and restrict copying, reproduction, publication, deep-linking, and
-derivative use of site information. Under this task's mandatory access gate, the source is
-classified `PROHIBITED`; no Screen Australia model, source entry, ingestion command, network
-client, persisted data, or Film-page presentation was added. A licensed machine-readable export
-would be required before implementation.
+[Current Box Office widget page](https://www.screenaustralia.gov.au/insights-and-trends/research-widget/)
+publishes the public `https://box-office-widget.twistedpear-wgp.workers.dev` widget. The tracker
+retrieves that exact server-rendered HTML once per refresh and deterministically parses only its
+four named current tables. This is not an API. Acquisition is classified as public widget HTML,
+provisional private/non-commercial research use. No explicit automation prohibition was found for
+the widget endpoint, but Screen Australia's broader
+[Terms and Conditions](https://www.screenaustralia.gov.au/corporate-documents/terms-and-conditions/)
+restrict copying, redistribution, derivative use, and commercial reuse. Permission, attribution,
+and republication rights must be reassessed before public or commercial deployment.
+
+The fetcher uses a bounded timeout, response-size limit, explicit research user agent, and no inline
+retry. Every inspection, manual ingestion, or scheduled ingestion performs exactly one GET. It does
+not crawl Screen Australia, enumerate archives, execute browser automation, or contact Box Office
+Mojo or Numero. Screen Australia says title lists normally update weekly, usually Monday, so the
+central scheduler checks once every seven days and never requests historical data.
+
+The parser validates the exact view IDs, headings, date labels, table labels, row semantics, ranks,
+and numeric data attributes. A changed layout fails the run rather than silently assigning the
+wrong table. Four report views are persisted:
+
+- Top 5 Films weekly: week-ending date, rank, title, weeks in release, weekly gross, cumulative gross.
+- Top Australian YTD: as-at date, rank, title, release-period label, current-year gross, cumulative gross.
+- Top 20 Films monthly: four-week-ending date, rank, title, weeks in release, four-week gross, cumulative gross.
+- Top 50 Films YTD: as-at date, rank, title, current-year gross, cumulative gross.
+
+`ScreenAustraliaBoxOfficeObservation` uses source, report date, view, rank, and normalized title as
+deterministic identity. Repeated runs update the same observations, including revised gross values.
+Only rank, title, source-published period/release label, period gross, cumulative gross, report date,
+and provenance are stored. No full-market gross, release count, distributor, theatre count,
+market-share denominator, or revision policy is invented.
+
+Inspect and ingest with:
+
+```bash
+npm run screenaustralia:inspect
+npm run ingest:screenaustralia
+```
+
+There is no historical endpoint or backfill. Local longitudinal history begins with the first
+ingested snapshot, and rank or aggregate changes must wait until enough compatible local snapshots
+exist. Retrieval freshness and the source report date remain separate: a successful HTTP request
+does not make a stale published report current. The Film page shows the report date and a warning
+when it is beyond the weekly publication tolerance. The original iframe has been removed.
 
 Theatre Recent Developments continues to use the separate MediaArticle candidate layer. No
 Broadway, Ticketmaster, or media values are combined into a Theatre Health or Industry Viability
@@ -1804,8 +1953,18 @@ serialized. All timestamps and cadence arithmetic use UTC.
 | Steam                     | Daily / 24h         | Stable 100-title sample; up to three Valve requests per title, no catalog enumeration          |
 | TheNewsAPI                | High frequency / 3h | Ten targeted requests per run, maximum 80/day under default cadence                            |
 | Curated RSS               | High frequency / 3h | Enabled feeds sequentially, using a 24-hour entry window                                       |
+| Copyright Office NewsNet  | Daily / 24h         | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| CFPB Newsroom             | Release-aware / 12h | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| FTC Competition           | Release-aware / 12h | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| FTC Consumer Protection   | Release-aware / 12h | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| NIST IT                   | Daily / 24h         | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| UK DSIT                   | Release-aware / 12h | One official Atom request, trailing 72 hours, maximum 50 accepted items                        |
+| UK IPO                    | Release-aware / 12h | One official Atom request, trailing 72 hours, maximum 50 accepted items                        |
+| UK CMA                    | Release-aware / 12h | One official Atom request, trailing 72 hours, maximum 50 accepted items                        |
+| EU DG CONNECT             | Release-aware / 12h | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
 | US provisional box office | Daily / 24h         | Current calendar-year dataset rows only                                                        |
 | BFI                       | Daily / 24h         | Current-year weekly reports and published structural tables                                    |
+| Screen Australia          | Weekly / 7d         | One current public-widget HTML request; no archive, secondary request, or backfill             |
 | Broadway Business         | Daily / 24h         | Recent 91-day structured query; no historical backfill                                         |
 | LPA                       | Monthly / 30d       | Latest two report years from the official bundle                                               |
 | MVT                       | Monthly / 30d       | Re-applies reviewed official-report mappings; it cannot discover an unregistered future report |

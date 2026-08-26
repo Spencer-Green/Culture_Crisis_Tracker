@@ -86,7 +86,7 @@ export default async function MediaPage({
       <div className="grid gap-5 xl:grid-cols-4">
         {[
           ["Top Developments", data.highlights.topDevelopments],
-          ["AI & Creative Work", data.highlights.aiAndCreativeWork],
+          ["AI Intelligence", data.highlights.aiAndCreativeWork],
           ["Industry Health", data.highlights.industryHealth],
           ["Positive Signals", data.highlights.positiveSignals],
         ].map(([title, articles]) => (

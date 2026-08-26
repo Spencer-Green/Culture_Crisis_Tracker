@@ -279,11 +279,11 @@ export function DailyBriefFull({ brief }: { brief: DailyCultureBrief }) {
           quietMessage="No story met the materiality and confidence threshold in this window."
         />
         <StorySection
-          title="AI & Creative Work"
-          description="Only AI developments with explicit creative-work or cultural-industry evidence."
+          title="AI Intelligence"
+          description="Material AI developments, including creative-work, policy, labour, infrastructure, and market-structure signals."
           stories={brief.aiAndCreativeWork}
           generatedAt={brief.generatedAt}
-          quietMessage="No qualifying AI and creative-work development was identified."
+          quietMessage="No qualifying material AI development was identified."
         />
       </div>
 

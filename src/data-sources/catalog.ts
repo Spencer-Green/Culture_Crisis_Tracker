@@ -4,8 +4,13 @@ import type {
   BaseUrlEnvironmentKey,
   SecretEnvironmentKey,
 } from "@/lib/env-schema";
+import type {
+  MediaEvidenceRole,
+  MediaSourcePerspective,
+  MediaSourceSpecialism,
+} from "@/data-sources/news/rss-registry";
 
-type SourceDefinitionShape = {
+export type SourceDefinitionShape = {
   slug: string;
   name: string;
   provider: string;
@@ -15,6 +20,11 @@ type SourceDefinitionShape = {
   sectors: readonly SectorSlug[];
   requiresAuthentication: boolean;
   implementationStatus: ImplementationStatus;
+  sourceUrl?: string;
+  evidenceRole?: MediaEvidenceRole;
+  sourcePerspective?: MediaSourcePerspective;
+  jurisdiction?: string;
+  sourceSpecialisms?: readonly MediaSourceSpecialism[];
 };
 
 const ALL_COUNTRIES = ["AU", "US", "GB", "CA", "NZ", "EU"] as const;
@@ -198,6 +208,166 @@ export const SOURCE_DEFINITIONS = [
     implementationStatus: "implemented",
   },
   {
+    slug: "copyright-newsnet",
+    name: "U.S. Copyright Office NewsNet",
+    provider: "U.S. Copyright Office",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl: "https://www.copyright.gov/rss/newsnet.xml",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+  },
+  {
+    slug: "cfpb-newsroom",
+    name: "CFPB Newsroom",
+    provider: "Consumer Financial Protection Bureau",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl: "https://www.consumerfinance.gov/about-us/newsroom/feed/",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["CONSUMER_PROTECTION", "DIGITAL_MARKETS"],
+  },
+  {
+    slug: "ftc-competition",
+    name: "FTC Competition Press Releases",
+    provider: "Federal Trade Commission",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl: "https://www.ftc.gov/feeds/press-release-competition.xml",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["COMPETITION", "DIGITAL_MARKETS", "AI_POLICY"],
+  },
+  {
+    slug: "ftc-consumer-protection",
+    name: "FTC Consumer Protection Press Releases",
+    provider: "Federal Trade Commission",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://www.ftc.gov/feeds/press-release-consumer-protection.xml",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["CONSUMER_PROTECTION", "DIGITAL_MARKETS", "AI_POLICY"],
+  },
+  {
+    slug: "nist-information-technology",
+    name: "NIST Information Technology",
+    provider: "National Institute of Standards and Technology",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["US"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://www.nist.gov/news-events/information%20technology/rss.xml",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "STANDARDS"],
+  },
+  {
+    slug: "uk-dsit",
+    name: "UK Department for Science, Innovation and Technology",
+    provider: "UK Government",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["GB"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://www.gov.uk/government/organisations/department-for-science-innovation-and-technology.atom",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: ["AI_POLICY", "DIGITAL_MARKETS", "STANDARDS"],
+  },
+  {
+    slug: "uk-ipo",
+    name: "UK Intellectual Property Office",
+    provider: "UK Government",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["GB"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://www.gov.uk/government/organisations/intellectual-property-office.atom",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+  },
+  {
+    slug: "uk-cma",
+    name: "UK Competition and Markets Authority",
+    provider: "UK Government",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["GB"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://www.gov.uk/government/organisations/competition-and-markets-authority.atom",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: [
+      "AI_POLICY",
+      "COMPETITION",
+      "CONSUMER_PROTECTION",
+      "DIGITAL_MARKETS",
+    ],
+  },
+  {
+    slug: "eu-dg-connect",
+    name: "European Commission DG CONNECT",
+    provider: "European Commission",
+    baseUrlEnvironmentKey: "RSS_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["EU"],
+    sectors: ["ai-policy"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+    sourceUrl:
+      "https://ec.europa.eu/commission/presscorner/api/rss?language=en&pagesize=20&dept=CONNECT",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "EU",
+    sourceSpecialisms: [
+      "AI_POLICY",
+      "COMPETITION",
+      "DIGITAL_MARKETS",
+      "STANDARDS",
+    ],
+  },
+  {
     slug: "mediastack",
     name: "Mediastack",
     provider: "APILayer",
@@ -242,6 +412,17 @@ export const SOURCE_DEFINITIONS = [
     implementationStatus: "implemented",
   },
   {
+    slug: "screen-australia",
+    name: "Screen Australia Box Office",
+    provider: "Screen Australia",
+    baseUrlEnvironmentKey: "SCREEN_AUSTRALIA_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ["AU"],
+    sectors: ["film"],
+    requiresAuthentication: false,
+    implementationStatus: "implemented",
+  },
+  {
     slug: "mvt",
     name: "Music Venue Trust",
     provider: "Music Venue Trust",
@@ -276,7 +457,8 @@ export const SOURCE_DEFINITIONS = [
   },
 ] as const satisfies readonly SourceDefinitionShape[];
 
-export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number];
+export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number] &
+  SourceDefinitionShape;
 export type SourceSlug = SourceDefinition["slug"];
 
 export function getSourceDefinition(slug: SourceSlug): SourceDefinition {

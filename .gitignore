@@ -16,6 +16,7 @@ node_modules/
 
 # testing
 /coverage
+/data/evaluations/
 
 # Prisma generated client
 src/generated/

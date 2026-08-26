@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getSourceDefinition } from "@/data-sources/catalog";
-import { enabledRssFeeds } from "@/data-sources/news/rss-registry";
+import { getSourceDefinition, type SourceSlug } from "@/data-sources/catalog";
+import { enabledRssFeeds, getRssFeed } from "@/data-sources/news/rss-registry";
 import { theNewsApiAdapter } from "@/data-sources/news/thenewsapi";
 import { getPrisma } from "@/lib/prisma";
 import { runNewsApiIngestion } from "@/services/media/media-ingestion-core";
@@ -28,10 +28,16 @@ export function ingestRss(
     "sourceDefinition" | "store" | "feeds"
   >,
 ) {
+  const selectedFeed = input.sourceSlug
+    ? getRssFeed(input.sourceSlug)
+    : undefined;
+  const sourceDefinition = selectedFeed?.dataSourceSlug
+    ? getSourceDefinition(selectedFeed.dataSourceSlug as SourceSlug)
+    : getSourceDefinition("rss");
   return runRssIngestion({
     ...input,
-    sourceDefinition: getSourceDefinition("rss"),
-    feeds: enabledRssFeeds(),
+    sourceDefinition,
+    feeds: selectedFeed ? [selectedFeed] : enabledRssFeeds(),
     store: new PrismaMediaIngestionStore(getPrisma()),
   });
 }

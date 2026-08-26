@@ -17,12 +17,16 @@ async function main() {
     `Feed failures: ${result.feedFailures.map((item) => item.slug).join(", ") || "none"}`,
   );
   console.log(`Entries read: ${result.entriesRead}`);
+  console.log(`Entries accepted: ${result.entriesAccepted}`);
+  console.log(`Entries skipped: ${result.entriesSkipped}`);
   console.log(`Canonical duplicates: ${result.canonicalDuplicates}`);
   console.log(`Created: ${result.created}`);
   console.log(`Updated: ${result.updated}`);
   console.log(`Cross-source matches: ${result.crossSourceMatches}`);
   console.log(`Sectors: ${JSON.stringify(result.sectorDistribution)}`);
   console.log(`Themes: ${JSON.stringify(result.eventTypeDistribution)}`);
+  console.log(`AI impacts: ${JSON.stringify(result.aiImpactDistribution)}`);
+  console.log(`Latest publication: ${result.latestPublicationDate ?? "none"}`);
   console.log(`Duration: ${result.durationMs}ms`);
 }
 

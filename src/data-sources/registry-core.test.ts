@@ -34,6 +34,8 @@ describe("source registry", () => {
       BROADWAY_BUSINESS_BASE_URL: "https://broadwaybusiness.com/grosses",
       BFI_BASE_URL:
         "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+      SCREEN_AUSTRALIA_BASE_URL:
+        "https://box-office-widget.twistedpear-wgp.workers.dev",
       MVT_BASE_URL: "https://www.musicvenuetrust.com/resources/",
       LPA_BASE_URL: "https://reports.liveperformance.com.au/",
       CENSUS_BASE_URL: "https://www2.census.gov/programs-surveys/aies/data",
@@ -41,10 +43,10 @@ describe("source registry", () => {
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(21);
+    expect(sources).toHaveLength(31);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(18);
+    ).toHaveLength(28);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -107,6 +109,17 @@ describe("source registry", () => {
       isPublic: true,
     });
     expect(
+      sources.find((source) => source.slug === "copyright-newsnet"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      sourceUrl: "https://www.copyright.gov/rss/newsnet.xml",
+      evidenceRole: "PRIMARY_DOCUMENT",
+      sourcePerspective: "OFFICIAL",
+      jurisdiction: "US",
+      sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+    });
+    expect(
       sources.find((source) => source.slug === "us-box-office"),
     ).toMatchObject({
       configured: true,
@@ -129,6 +142,15 @@ describe("source registry", () => {
       implementationStatus: "implemented",
       isPublic: true,
       countries: ["GB"],
+      sectors: ["film"],
+    });
+    expect(
+      sources.find((source) => source.slug === "screen-australia"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      isPublic: true,
+      countries: ["AU"],
       sectors: ["film"],
     });
     expect(sources.find((source) => source.slug === "mvt")).toMatchObject({

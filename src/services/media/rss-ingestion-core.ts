@@ -34,13 +34,17 @@ export type RssIngestionResult = {
   feedsSucceeded: number;
   feedFailures: { slug: string; error: string }[];
   entriesRead: number;
+  entriesAccepted: number;
+  entriesSkipped: number;
   canonicalDuplicates: number;
   created: number;
   updated: number;
   crossSourceMatches: number;
   sectorDistribution: Record<string, number>;
   eventTypeDistribution: Record<string, number>;
+  aiImpactDistribution: Record<string, number>;
   publisherDistribution: Record<string, number>;
+  latestPublicationDate: string | null;
   durationMs: number;
 };
 
@@ -58,12 +62,16 @@ export async function runRssIngestion(input: {
   const source = await input.store.findSource(input.sourceDefinition.slug);
   if (!source)
     throw new IngestionPolicyError(
-      'Source "rss" is not present. Run the seed first.',
+      `Source "${input.sourceDefinition.slug}" is not present. Run the seed first.`,
     );
   if (input.sourceDefinition.implementationStatus !== "implemented")
-    throw new IngestionPolicyError('Source "rss" is not implemented.');
+    throw new IngestionPolicyError(
+      `Source "${input.sourceDefinition.slug}" is not implemented.`,
+    );
   if (!source.enabled)
-    throw new IngestionPolicyError('Source "rss" is disabled.');
+    throw new IngestionPolicyError(
+      `Source "${input.sourceDefinition.slug}" is disabled.`,
+    );
   let feeds = input.feeds.filter((feed) => feed.enabled);
   if (input.sourceSlug)
     feeds = feeds.filter((feed) => feed.slug === input.sourceSlug);
@@ -97,9 +105,13 @@ export async function runRssIngestion(input: {
         succeeded += 1;
         entriesRead += response.articles.length;
         raw.push(
-          ...response.articles.filter(
-            (article) => article.publishedAt >= input.startDate,
-          ),
+          ...response.articles
+            .filter(
+              (article) =>
+                article.publishedAt >= input.startDate &&
+                article.publishedAt <= startedAt,
+            )
+            .slice(0, feed.schedulingGroup === "INSTITUTIONAL" ? 50 : 100),
         );
       } catch {
         failures.push({
@@ -129,6 +141,8 @@ export async function runRssIngestion(input: {
       feedsSucceeded: succeeded,
       feedFailures: failures,
       entriesRead,
+      entriesAccepted: classified.length,
+      entriesSkipped: Math.max(0, entriesRead - classified.length),
       canonicalDuplicates: deduped.duplicateCount,
       created: persisted.recordsCreated,
       updated: persisted.recordsUpdated,
@@ -139,9 +153,13 @@ export async function runRssIngestion(input: {
       eventTypeDistribution: countBy(
         articles.map((article) => article.eventType),
       ),
+      aiImpactDistribution: countBy(
+        articles.map((article) => article.aiImpactType),
+      ),
       publisherDistribution: countBy(
         articles.map((article) => article.publisher),
       ),
+      latestPublicationDate: articles[0]?.publishedAt.toISOString() ?? null,
       durationMs: retrievedAt.getTime() - startedAt.getTime(),
     };
     await input.store.completeRun({

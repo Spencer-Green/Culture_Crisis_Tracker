@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getRssFeed } from "@/data-sources/news/rss-registry";
 import { getPrisma } from "@/lib/prisma";
 import {
   buildOperationalFreshness,
@@ -28,7 +29,11 @@ async function latestObservation(
       period: datePeriod(metric.periodStart, metric.periodEnd),
       observedAt: metric.periodEnd.toISOString(),
     };
-  if (sourceId === "rss" || sourceId === "thenewsapi") {
+  if (
+    sourceId === "rss" ||
+    sourceId === "thenewsapi" ||
+    getRssFeed(sourceId)?.dataSourceSlug === sourceId
+  ) {
     const source = await prisma.dataSource.findUnique({
       where: { slug: sourceId },
       select: { id: true },
@@ -105,6 +110,17 @@ async function latestObservation(
       return {
         period: `Weekend ending ${datePeriod(value.weekendEnd)}`,
         observedAt: value.weekendEnd.toISOString(),
+      };
+  }
+  if (sourceId === "screen-australia") {
+    const value = await prisma.screenAustraliaBoxOfficeObservation.findFirst({
+      orderBy: { reportDate: "desc" },
+      select: { reportDate: true },
+    });
+    if (value)
+      return {
+        period: `Source report ${datePeriod(value.reportDate)}`,
+        observedAt: value.reportDate.toISOString(),
       };
   }
   if (sourceId === "broadway-business") {

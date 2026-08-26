@@ -3,6 +3,42 @@ import type { MediaSectorSlug } from "@/data-sources/news/media-types";
 export type RssSourceTier =
   "PRIMARY_TRADE" | "MAJOR_GENERAL" | "SPECIALIST" | "OFFICIAL";
 
+export const MEDIA_EVIDENCE_ROLES = [
+  "PRIMARY_DOCUMENT",
+  "JOURNALISTIC_REPORTING",
+  "SPECIALIST_ANALYSIS",
+] as const;
+
+export type MediaEvidenceRole = (typeof MEDIA_EVIDENCE_ROLES)[number];
+
+export const MEDIA_SOURCE_PERSPECTIVES = [
+  "OFFICIAL",
+  "JOURNALISTIC",
+  "LEGAL",
+  "POLICY",
+  "RESEARCH",
+  "ADVOCACY",
+  "LABOUR",
+  "INDUSTRY",
+  "ANALYTICAL",
+] as const;
+
+export type MediaSourcePerspective = (typeof MEDIA_SOURCE_PERSPECTIVES)[number];
+
+export const MEDIA_SOURCE_SPECIALISMS = [
+  "AI_POLICY",
+  "COPYRIGHT",
+  "CREATOR_RIGHTS",
+  "COMPETITION",
+  "CONSUMER_PROTECTION",
+  "STANDARDS",
+  "DIGITAL_MARKETS",
+] as const;
+
+export type MediaSourceSpecialism = (typeof MEDIA_SOURCE_SPECIALISMS)[number];
+
+export type RssSchedulingGroup = "CURATED_MEDIA" | "INSTITUTIONAL";
+
 export type RssFeedDefinition = {
   slug: string;
   name: string;
@@ -12,6 +48,12 @@ export type RssFeedDefinition = {
   enabled: boolean;
   tier: RssSourceTier;
   geography: string | null;
+  evidenceRole: MediaEvidenceRole;
+  sourcePerspective: MediaSourcePerspective;
+  jurisdiction: string | null;
+  sourceSpecialisms: readonly MediaSourceSpecialism[];
+  schedulingGroup: RssSchedulingGroup;
+  dataSourceSlug?: string;
   notes: string;
 };
 
@@ -25,6 +67,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: null,
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: null,
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Music business trade coverage.",
   },
   {
@@ -36,6 +83,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Music industry and chart news.",
   },
   {
@@ -47,6 +99,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "GB",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "GB",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Music news feed.",
   },
   {
@@ -58,6 +115,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Recorded and live music news.",
   },
   {
@@ -69,6 +131,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Film trade reporting.",
   },
   {
@@ -80,6 +147,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Film business and production news.",
   },
   {
@@ -91,6 +163,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Movie industry news.",
   },
   {
@@ -102,6 +179,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Independent film and industry news.",
   },
   {
@@ -113,6 +195,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Theatre news.",
   },
   {
@@ -124,6 +211,11 @@ export const RSS_FEEDS = [
     enabled: false,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Disabled after live validation returned HTTP 403.",
   },
   {
@@ -135,6 +227,11 @@ export const RSS_FEEDS = [
     enabled: false,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Disabled after the endpoint returned no parseable feed items.",
   },
   {
@@ -146,6 +243,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "AU",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "AU",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Australian arts and cultural-sector coverage.",
   },
   {
@@ -157,6 +259,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "GB",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "GB",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Games business trade coverage.",
   },
   {
@@ -168,6 +275,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "PRIMARY_TRADE",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "INDUSTRY",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Game-development business and workforce news.",
   },
   {
@@ -179,6 +291,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: null,
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: null,
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "PC gaming news.",
   },
   {
@@ -190,6 +307,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Gaming and entertainment coverage.",
   },
   {
@@ -201,6 +323,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "MAJOR_GENERAL",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "DIGITAL_MARKETS"],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "AI product, policy, and business reporting.",
   },
   {
@@ -212,6 +339,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "SPECIALIST",
     geography: "US",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "DIGITAL_MARKETS"],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Technology and AI reporting.",
   },
   {
@@ -223,6 +355,11 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "OFFICIAL",
     geography: "US",
+    evidenceRole: "SPECIALIST_ANALYSIS",
+    sourcePerspective: "ADVOCACY",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Digital rights and policy advocacy updates.",
   },
   {
@@ -234,10 +371,199 @@ export const RSS_FEEDS = [
     enabled: true,
     tier: "MAJOR_GENERAL",
     geography: "GB",
+    evidenceRole: "JOURNALISTIC_REPORTING",
+    sourcePerspective: "JOURNALISTIC",
+    jurisdiction: "GB",
+    sourceSpecialisms: [],
+    schedulingGroup: "CURATED_MEDIA",
     notes: "Cross-sector culture reporting.",
+  },
+  {
+    slug: "copyright-newsnet",
+    name: "U.S. Copyright Office NewsNet",
+    sector: "ai-policy",
+    feedUrl: "https://www.copyright.gov/rss/newsnet.xml",
+    publisherDomain: "copyright.gov",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "US",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "copyright-newsnet",
+    notes: "Official Copyright Office NewsNet announcements.",
+  },
+  {
+    slug: "cfpb-newsroom",
+    name: "CFPB Newsroom",
+    sector: "ai-policy",
+    feedUrl: "https://www.consumerfinance.gov/about-us/newsroom/feed/",
+    publisherDomain: "consumerfinance.gov",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "US",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["CONSUMER_PROTECTION", "DIGITAL_MARKETS"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "cfpb-newsroom",
+    notes: "Official Consumer Financial Protection Bureau newsroom releases.",
+  },
+  {
+    slug: "ftc-competition",
+    name: "FTC Competition Press Releases",
+    sector: "ai-policy",
+    feedUrl: "https://www.ftc.gov/feeds/press-release-competition.xml",
+    publisherDomain: "ftc.gov",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "US",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["COMPETITION", "DIGITAL_MARKETS", "AI_POLICY"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "ftc-competition",
+    notes: "Official FTC competition press releases only.",
+  },
+  {
+    slug: "ftc-consumer-protection",
+    name: "FTC Consumer Protection Press Releases",
+    sector: "ai-policy",
+    feedUrl: "https://www.ftc.gov/feeds/press-release-consumer-protection.xml",
+    publisherDomain: "ftc.gov",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "US",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["CONSUMER_PROTECTION", "DIGITAL_MARKETS", "AI_POLICY"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "ftc-consumer-protection",
+    notes: "Official FTC consumer-protection press releases only.",
+  },
+  {
+    slug: "nist-information-technology",
+    name: "NIST Information Technology",
+    sector: "ai-policy",
+    feedUrl:
+      "https://www.nist.gov/news-events/information%20technology/rss.xml",
+    publisherDomain: "nist.gov",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "US",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "US",
+    sourceSpecialisms: ["AI_POLICY", "STANDARDS"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "nist-information-technology",
+    notes: "Official NIST information-technology news and publications.",
+  },
+  {
+    slug: "uk-dsit",
+    name: "UK Department for Science, Innovation and Technology",
+    sector: "ai-policy",
+    feedUrl:
+      "https://www.gov.uk/government/organisations/department-for-science-innovation-and-technology.atom",
+    publisherDomain: "gov.uk",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "GB",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: ["AI_POLICY", "DIGITAL_MARKETS", "STANDARDS"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "uk-dsit",
+    notes: "Official GOV.UK DSIT publication feed.",
+  },
+  {
+    slug: "uk-ipo",
+    name: "UK Intellectual Property Office",
+    sector: "ai-policy",
+    feedUrl:
+      "https://www.gov.uk/government/organisations/intellectual-property-office.atom",
+    publisherDomain: "gov.uk",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "GB",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "uk-ipo",
+    notes: "Official GOV.UK Intellectual Property Office publication feed.",
+  },
+  {
+    slug: "uk-cma",
+    name: "UK Competition and Markets Authority",
+    sector: "ai-policy",
+    feedUrl:
+      "https://www.gov.uk/government/organisations/competition-and-markets-authority.atom",
+    publisherDomain: "gov.uk",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "GB",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "GB",
+    sourceSpecialisms: [
+      "AI_POLICY",
+      "COMPETITION",
+      "CONSUMER_PROTECTION",
+      "DIGITAL_MARKETS",
+    ],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "uk-cma",
+    notes: "Official GOV.UK CMA publication feed.",
+  },
+  {
+    slug: "eu-dg-connect",
+    name: "European Commission DG CONNECT",
+    sector: "ai-policy",
+    feedUrl:
+      "https://ec.europa.eu/commission/presscorner/api/rss?language=en&pagesize=20&dept=CONNECT",
+    publisherDomain: "ec.europa.eu",
+    enabled: true,
+    tier: "OFFICIAL",
+    geography: "EU",
+    evidenceRole: "PRIMARY_DOCUMENT",
+    sourcePerspective: "OFFICIAL",
+    jurisdiction: "EU",
+    sourceSpecialisms: [
+      "AI_POLICY",
+      "COMPETITION",
+      "DIGITAL_MARKETS",
+      "STANDARDS",
+    ],
+    schedulingGroup: "INSTITUTIONAL",
+    dataSourceSlug: "eu-dg-connect",
+    notes: "Official European Commission DG CONNECT press-corner feed.",
   },
 ] as const satisfies readonly RssFeedDefinition[];
 
-export function enabledRssFeeds(): RssFeedDefinition[] {
-  return RSS_FEEDS.filter((feed) => feed.enabled);
+export function enabledRssFeeds(
+  schedulingGroup: RssSchedulingGroup = "CURATED_MEDIA",
+): RssFeedDefinition[] {
+  return RSS_FEEDS.filter(
+    (feed) => feed.enabled && feed.schedulingGroup === schedulingGroup,
+  );
+}
+
+export function institutionalRssFeeds(): RssFeedDefinition[] {
+  return enabledRssFeeds("INSTITUTIONAL");
+}
+
+export function getRssFeed(slug: string): RssFeedDefinition | undefined {
+  return RSS_FEEDS.find((feed) => feed.slug === slug);
+}
+
+export function isInstitutionalRssSource(slug: string): boolean {
+  return getRssFeed(slug)?.schedulingGroup === "INSTITUTIONAL";
 }

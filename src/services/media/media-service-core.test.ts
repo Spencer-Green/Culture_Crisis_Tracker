@@ -6,6 +6,7 @@ import {
   collapseDuplicateStories,
   filterMediaArticles,
   isAiCreativeWorkEligible,
+  isAiIntelligenceEligible,
   isCuratedPresentationEligible,
   isTopDevelopmentEligible,
   type MediaArticleView,
@@ -145,7 +146,7 @@ describe("media service presentation", () => {
     ]);
   });
 
-  it("requires both AI and creative-industry evidence for AI & Creative Work", () => {
+  it("keeps creative AI narrow while allowing material structural AI intelligence", () => {
     const creativeAi: MediaArticleView = {
       ...base,
       title: "Musicians secure licensing deal for generative AI training data",
@@ -168,9 +169,11 @@ describe("media service presentation", () => {
 
     expect(isAiCreativeWorkEligible(creativeAi)).toBe(true);
     expect(isAiCreativeWorkEligible(genericPolicy)).toBe(false);
+    expect(isAiIntelligenceEligible(genericPolicy)).toBe(true);
     const highlights = buildMediaHighlights([creativeAi, genericPolicy]);
     expect(highlights.aiAndCreativeWork.map((article) => article.id)).toEqual([
       "1",
+      "2",
     ]);
     expect(highlights.topDevelopments).toEqual([]);
   });
@@ -286,6 +289,32 @@ describe("media service presentation", () => {
         new Date("2026-08-17T08:00:00Z"),
       ),
     ).toEqual([flagged]);
+  });
+
+  it("honours a human importance correction for an existing AI classification", () => {
+    const reviewedSignal: MediaArticleView = {
+      ...base,
+      title: "AI lab CEO describes a new model as strategically significant",
+      sectorSlug: "ai-policy",
+      eventType: "AI_ADOPTION",
+      aiImpactType: "AMBIGUOUS",
+      importance: 2,
+      confidence: "low",
+      classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_IMPORTANCE"],
+        correctedSector: null,
+        correctedEventType: null,
+        correctedAiTag: null,
+        correctedImportance: 4,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
+        reviewedAt: "2026-08-26T08:00:00.000Z",
+      },
+    };
+
+    expect(isAiIntelligenceEligible(reviewedSignal)).toBe(true);
+    expect(reviewedSignal).toMatchObject({ importance: 2, confidence: "low" });
   });
 
   it("keeps feedback-only error dimensions eligible under machine classification", () => {

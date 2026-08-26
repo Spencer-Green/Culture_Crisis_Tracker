@@ -137,7 +137,7 @@ describe("Daily Culture Brief UI", () => {
     expect(html).toContain("relatively quiet");
     expect(html).toContain("No story met the materiality");
     expect(html).toContain(
-      "No qualifying AI and creative-work development was identified",
+      "No qualifying material AI development was identified",
     );
   });
 });

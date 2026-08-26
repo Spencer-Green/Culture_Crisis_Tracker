@@ -5,6 +5,7 @@ import {
   buildDailyCultureBriefCore,
   buildMediaStoryClusters,
   deriveBriefMediaFreshness,
+  isAiIntelligenceStory,
   isCreativeAiStory,
   isPositiveCounterSignal,
   mediaArticlesInWindow,
@@ -221,6 +222,68 @@ describe("daily brief eligibility and ranking", () => {
         clusters.find((item) => item.clusterId.includes("creative-ai"))!,
       ),
     ).toBe(true);
+  });
+
+  it("routes material structural AI without requiring a creative-sector term", () => {
+    const [cluster] = buildMediaStoryClusters([
+      article({
+        id: "frontier-model",
+        title: "OpenAI releases new frontier model",
+        description:
+          "The next-generation foundation model is now broadly available.",
+        sectorSlug: "ai-policy",
+        eventType: "AI_ADOPTION",
+        aiImpactType: "INDUSTRY_EFFICIENCY",
+        importance: 4,
+        confidence: "high",
+      }),
+    ]);
+
+    expect(isCreativeAiStory(cluster)).toBe(false);
+    expect(isAiIntelligenceStory(cluster)).toBe(true);
+    expect(
+      buildDailyCultureBriefCore({ now: NOW, articles: cluster.articles })
+        .aiAndCreativeWork,
+    ).toHaveLength(1);
+  });
+
+  it("uses corrected ARIA policy labels for AI and Top Developments eligibility", () => {
+    const aria = article({
+      id: "aria-ai-chart-policy",
+      title: "AI-generated songs banned from Australian charts",
+      description:
+        "Songs made entirely using AI may have accreditations withdrawn and will no longer be eligible for the ARIA Charts.",
+      sectorSlug: "ai-policy",
+      eventType: "AI_ADOPTION",
+      aiImpactType: "AMBIGUOUS",
+      importance: 2,
+      confidence: "low",
+      classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_EVENT_TYPE", "WRONG_AI_TAG", "WRONG_IMPORTANCE"],
+        correctedSector: null,
+        correctedEventType: "AI_POLICY_REGULATION",
+        correctedAiTag: "POLICY_REGULATION",
+        correctedImportance: 5,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
+        reviewedAt: "2026-08-22T10:00:00.000Z",
+      },
+    });
+
+    const brief = buildDailyCultureBriefCore({ now: NOW, articles: [aria] });
+    expect(brief.aiAndCreativeWork).toHaveLength(1);
+    expect(brief.topDevelopments).toHaveLength(1);
+    expect(brief.topDevelopments[0]).toMatchObject({
+      eventType: "AI_POLICY_REGULATION",
+      importance: 5,
+      humanReviewState: "corrected",
+    });
+    expect(aria).toMatchObject({
+      eventType: "AI_ADOPTION",
+      importance: 2,
+      confidence: "low",
+    });
   });
 
   it("includes positive counter-signals without a sentiment score", () => {

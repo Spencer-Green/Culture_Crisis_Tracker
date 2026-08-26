@@ -1,5 +1,9 @@
 import { getMediaQueryFamily } from "@/data-sources/news/media-queries";
 import {
+  assessAiIntelligence,
+  type AiIntelligenceAssessment,
+} from "@/data-sources/news/ai-intelligence";
+import {
   canonicaliseMediaUrl,
   storyFingerprint,
 } from "@/data-sources/news/media-dedup";
@@ -80,88 +84,18 @@ export function classifyMediaSector(
 
 function matchEvent(
   text: string,
-  creativeIndustryRelevant: boolean,
+  aiAssessment: AiIntelligenceAssessment | null,
 ): RuleMatch | null {
-  const ai = hasAiRelevance(text);
-  if (
-    ai &&
-    /\b(replace|replaced|job loss|displace|layoff|redundanc|cut jobs|eliminate roles|automation)\b/i.test(
-      text,
-    )
-  )
-    return {
-      eventType: "AI_LABOR_DISPLACEMENT",
-      polarity: "negative",
-      confidence: "high",
-      aiImpactType: "LABOR_DISPLACEMENT",
-      rationale:
-        "The title or supplied snippet explicitly links AI with workforce displacement.",
-    };
-  if (
-    ai &&
-    /\b(copyright|training data|fair use|infringement|lawsuit)\b/i.test(text)
-  )
-    return {
-      eventType: "AI_COPYRIGHT",
-      polarity: "neutral/ambiguous",
-      confidence: "high",
-      aiImpactType: "RIGHTS_LICENSING",
-      rationale:
-        "The article explicitly concerns AI copyright or training-data rights.",
-    };
-  if (
-    ai &&
-    creativeIndustryRelevant &&
-    /\b(licens|royalt|rights deal|consent|compensation)\b/i.test(text)
-  )
-    return {
-      eventType: "AI_LICENSING",
-      polarity: "neutral/ambiguous",
-      confidence: "high",
-      aiImpactType: "RIGHTS_LICENSING",
-      rationale:
-        "The article explicitly concerns AI licensing or creator compensation.",
-    };
-  if (
-    ai &&
-    creativeIndustryRelevant &&
-    /\b(union|guild|strike|collective bargaining|contract)\b/i.test(text)
-  )
-    return {
-      eventType: "AI_UNION_DISPUTE",
-      polarity: "neutral/ambiguous",
-      confidence: "high",
-      aiImpactType: "POLICY_REGULATION",
-      rationale:
-        "The article explicitly links AI with a creative-worker union or guild dispute.",
-    };
-  if (
-    ai &&
-    /\b(regulat\w*|legislation|lawmakers|government|policy|rule|framework)\b/i.test(
-      text,
-    )
-  )
-    return {
-      eventType: "AI_POLICY_REGULATION",
-      polarity: "neutral/ambiguous",
-      confidence: "high",
-      aiImpactType: "POLICY_REGULATION",
-      rationale:
-        "The article explicitly concerns AI regulation or public policy.",
-    };
-  if (
-    ai &&
-    creativeIndustryRelevant &&
-    /\b(tool|software|platform|launch|assistant|workflow)\b/i.test(text)
-  )
-    return {
-      eventType: "AI_CREATOR_TOOL",
-      polarity: "neutral/ambiguous",
-      confidence: "medium",
-      aiImpactType: "TOOL_ADOPTION",
-      rationale:
-        "The article reports an AI tool or workflow for creative production.",
-    };
+  if (aiAssessment)
+    return aiAssessment.eventType
+      ? {
+          eventType: aiAssessment.eventType,
+          polarity: aiAssessment.polarity,
+          confidence: aiAssessment.confidence,
+          aiImpactType: aiAssessment.aiImpactType,
+          rationale: aiAssessment.rationale,
+        }
+      : null;
   if (
     /\b(could close|may close|might close|at risk|under threat|facing closure)\b/i.test(
       text,
@@ -302,23 +236,45 @@ function matchEvent(
       aiImpactType: null,
       rationale: "The article reports expansion.",
     };
-  if (ai)
-    return {
-      eventType: "AI_ADOPTION",
-      polarity: "neutral/ambiguous",
-      confidence: "low",
-      aiImpactType: "AMBIGUOUS",
-      rationale:
-        "The article concerns AI, but the supplied metadata does not establish a specific impact.",
-    };
   return null;
+}
+
+function isPrimaryDocument(article: MediaSourceArticle): boolean {
+  return article.sourceMetadata.evidenceRole === "PRIMARY_DOCUMENT";
+}
+
+const PRIMARY_DOCUMENT_ANALYSIS_PATTERN =
+  /\b(analysis|blog|consultation|discussion paper|guidance|hearing testimony|policy paper|proposal|proposed rule|report|research|remarks|request for comments|speech|study|white paper)\b/i;
+
+const PRIMARY_DOCUMENT_ACTION_PATTERN =
+  /\b(adopts?|announces?|approves?|bans?|blocks?|challenges?|charges?|enacts?|files?|finali[sz]es?|issues?|launches?|opens? (?:an? )?(?:case|enforcement action|investigation)|orders?|prohibits?|publishes?|releases?|requires?|settles?|sues?)\b/i;
+
+function guardPrimaryDocumentEvent(
+  article: MediaSourceArticle,
+  match: RuleMatch | null,
+): RuleMatch | null {
+  if (!match || !isPrimaryDocument(article)) return match;
+  const title = article.title.replace(/\s+/g, " ").trim();
+  if (PRIMARY_DOCUMENT_ANALYSIS_PATTERN.test(title)) return null;
+  if (!PRIMARY_DOCUMENT_ACTION_PATTERN.test(title)) return null;
+  if (
+    match.eventType === "CONSOLIDATION_ACQUISITION" &&
+    !/\b(approves?|blocks?|challenges?|files?|orders?|requires?|settles?|sues?)\b/i.test(
+      title,
+    )
+  )
+    return null;
+  return match;
 }
 
 function importanceFor(
   match: RuleMatch | null,
   text: string,
   culturalEconomyRelevant: boolean,
+  aiAssessment: AiIntelligenceAssessment | null,
+  primaryDocument = false,
 ): 1 | 2 | 3 | 4 | 5 {
+  if (aiAssessment) return aiAssessment.importance;
   let value = 1;
   if (match) value += 1;
   if (!culturalEconomyRelevant) return Math.min(2, value) as 1 | 2;
@@ -336,6 +292,7 @@ function importanceFor(
   )
     value += 1;
   if (
+    !primaryDocument &&
     /\b(court|supreme court|regulator|union|guild|dga|iatse|sag-aftra|major|thousands?|record)\b/i.test(
       text,
     )
@@ -355,7 +312,13 @@ export function classifyMediaArticle(
   const family = article.queryFamily
     ? getMediaQueryFamily(article.queryFamily)
     : undefined;
-  const sectorHint = article.sectorHint ?? family?.sector ?? null;
+  const suppliedSectorHint = article.sectorHint ?? family?.sector ?? null;
+  const sectorHint =
+    isPrimaryDocument(article) &&
+    suppliedSectorHint === "ai-policy" &&
+    !hasAiRelevance(text)
+      ? null
+      : suppliedSectorHint;
   const sectorSlug = classifyMediaSector(
     text,
     sectorHint,
@@ -367,7 +330,22 @@ export function classifyMediaArticle(
       CULTURAL_MEDIA_SECTORS.includes(
         sectorSlug as (typeof CULTURAL_MEDIA_SECTORS)[number],
       ));
-  const direct = matchEvent(text, culturalEconomyRelevant);
+  const aiAssessment = assessAiIntelligence({
+    title: article.title,
+    description: article.description,
+    evidenceRole:
+      typeof article.sourceMetadata.evidenceRole === "string"
+        ? article.sourceMetadata.evidenceRole
+        : null,
+    sourcePerspective:
+      typeof article.sourceMetadata.sourcePerspective === "string"
+        ? article.sourceMetadata.sourcePerspective
+        : null,
+  });
+  const direct = guardPrimaryDocumentEvent(
+    article,
+    matchEvent(text, aiAssessment),
+  );
   const fallback: RuleMatch | null = family?.fallbackEventType
     ? {
         eventType: family.fallbackEventType,
@@ -377,7 +355,7 @@ export function classifyMediaArticle(
         rationale: `The article matched the ${family.name.toLowerCase()} query, but its supplied title and snippet do not confirm the event.`,
       }
     : null;
-  const match = direct ?? fallback;
+  const match = direct ?? (aiAssessment ? null : fallback);
   return {
     ...article,
     canonicalUrl,
@@ -385,12 +363,19 @@ export function classifyMediaArticle(
     sectorSlug,
     eventType: match?.eventType ?? null,
     polarity: match?.polarity ?? "neutral/ambiguous",
-    confidence: match?.confidence ?? "low",
-    importance: importanceFor(match, text, culturalEconomyRelevant),
-    aiImpactType: match?.aiImpactType ?? null,
+    confidence: match?.confidence ?? aiAssessment?.confidence ?? "low",
+    importance: importanceFor(
+      match,
+      text,
+      culturalEconomyRelevant,
+      aiAssessment,
+      isPrimaryDocument(article),
+    ),
+    aiImpactType: match?.aiImpactType ?? aiAssessment?.aiImpactType ?? null,
     reviewState: "unreviewed",
     classificationRationale:
       match?.rationale ??
+      aiAssessment?.rationale ??
       "No high-confidence event classification was supported by the supplied title and snippet.",
     storyFingerprint: storyFingerprint(article.title, article.publishedAt),
   };

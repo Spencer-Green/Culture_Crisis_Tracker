@@ -6,6 +6,7 @@ import type {
 } from "@/services/scheduler/types";
 
 const DAY_MINUTES = 24 * 60;
+const WEEK_MINUTES = 7 * DAY_MINUTES;
 const MONTH_MINUTES = 30 * DAY_MINUTES;
 
 export type SchedulerPolicyConfig = {
@@ -249,6 +250,74 @@ export function buildScheduledSourceDefinitions(
         command("Curated RSS", "scripts/ingest-media-rss.ts", ["--hours=24"]),
       ],
     },
+    ...[
+      {
+        sourceId: "copyright-newsnet" as const,
+        cadenceMinutes: DAY_MINUTES,
+        publicationFrequency: "Irregular official announcements",
+      },
+      {
+        sourceId: "cfpb-newsroom" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official newsroom releases",
+      },
+      {
+        sourceId: "ftc-competition" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official competition releases",
+      },
+      {
+        sourceId: "ftc-consumer-protection" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official consumer-protection releases",
+      },
+      {
+        sourceId: "nist-information-technology" as const,
+        cadenceMinutes: DAY_MINUTES,
+        publicationFrequency: "Irregular official publications and news",
+      },
+      {
+        sourceId: "uk-dsit" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official GOV.UK publications",
+      },
+      {
+        sourceId: "uk-ipo" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official GOV.UK publications",
+      },
+      {
+        sourceId: "uk-cma" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular official GOV.UK publications",
+      },
+      {
+        sourceId: "eu-dg-connect" as const,
+        cadenceMinutes: 12 * 60,
+        publicationFrequency: "Irregular European Commission releases",
+      },
+    ].map(
+      ({ sourceId, cadenceMinutes, publicationFrequency }) =>
+        ({
+          sourceId,
+          schedulingClass:
+            cadenceMinutes === DAY_MINUTES ? "DAILY" : "RELEASE_AWARE",
+          cadenceMinutes,
+          automatic: true,
+          networkKind: "networked",
+          publicationFrequency,
+          requestIntensity: "Minimal; one bounded RSS or Atom request",
+          routineScope: "Single feed, trailing 72-hour window; no pagination",
+          commands: () => [
+            command(sourceId, "scripts/ingest-media-rss.ts", [
+              "--hours=72",
+              `--source=${sourceId}`,
+            ]),
+          ],
+          notes:
+            "Primary institutional evidence; scheduled separately from the three-hour media cycle.",
+        }) satisfies ScheduledSourceDefinition,
+    ),
     {
       sourceId: "us-box-office",
       schedulingClass: "DAILY",
@@ -291,6 +360,24 @@ export function buildScheduledSourceDefinitions(
           `--since=${now.getUTCFullYear()}`,
         ]),
       ],
+    },
+    {
+      sourceId: "screen-australia",
+      schedulingClass: "WEEKLY",
+      cadenceMinutes: WEEK_MINUTES,
+      automatic: true,
+      networkKind: "networked",
+      publicationFrequency: "Weekly public widget, generally updated Monday",
+      requestIntensity: "Minimal; exactly one public HTML request",
+      routineScope: "Current widget snapshot only; no archive or backfill",
+      commands: () => [
+        command(
+          "Screen Australia current box office",
+          "scripts/ingest-screen-australia.ts",
+        ),
+      ],
+      notes:
+        "Provisional private/research ingestion; public deployment rights require reassessment.",
     },
     {
       sourceId: "mvt",

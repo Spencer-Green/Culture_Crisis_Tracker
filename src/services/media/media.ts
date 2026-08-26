@@ -14,6 +14,7 @@ import {
 } from "@/services/media/media-service-core";
 import type { MediaSectorSlug } from "@/data-sources/news/media-types";
 import { mediaClassificationEvaluationState } from "@/services/media/media-feedback-core";
+import { readMediaSourceEvidenceMetadata } from "@/data-sources/news/media-source-metadata";
 import type {
   MediaClassificationCorrections,
   MediaClassificationFeedbackReason,
@@ -67,6 +68,7 @@ function toView(article: {
   aiImpactType: string | null;
   reviewState: string;
   classificationRationale: string;
+  metadata: unknown;
   classificationFeedback: {
     reviewState: string;
     reasons: string[];
@@ -173,6 +175,7 @@ function toView(article: {
     sourceMatches: [
       ...new Set(article.sourceMatches.map((match) => match.sourceType)),
     ],
+    sourceEvidence: readMediaSourceEvidenceMetadata(article.metadata),
   };
 }
 
@@ -201,6 +204,7 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
       aiImpactType: true,
       reviewState: true,
       classificationRationale: true,
+      metadata: true,
       classificationFeedback: {
         select: {
           reviewState: true,
@@ -258,6 +262,7 @@ export async function getMediaArticlesPublishedBetween(input: {
         aiImpactType: true,
         reviewState: true,
         classificationRationale: true,
+        metadata: true,
         classificationFeedback: {
           select: {
             reviewState: true,

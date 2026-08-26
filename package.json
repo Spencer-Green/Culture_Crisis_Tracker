@@ -48,6 +48,8 @@
     "ingest:broadwaybusiness": "node --conditions=react-server --import tsx scripts/ingest-broadway-business.ts",
     "bfi:inspect": "node --conditions=react-server --import tsx scripts/bfi-inspect.ts",
     "ingest:bfi": "node --conditions=react-server --import tsx scripts/ingest-bfi.ts",
+    "screenaustralia:inspect": "node --conditions=react-server --import tsx scripts/screen-australia-inspect.ts",
+    "ingest:screenaustralia": "node --conditions=react-server --import tsx scripts/ingest-screen-australia.ts",
     "mvt:inspect": "node --conditions=react-server --import tsx scripts/mvt-inspect.ts",
     "ingest:mvt": "node --conditions=react-server --import tsx scripts/ingest-mvt.ts",
     "census:music:inspect": "node --conditions=react-server --import tsx scripts/census-music-inspect.ts",
@@ -58,7 +60,10 @@
     "ingest:lpa": "node --conditions=react-server --import tsx scripts/ingest-lpa.ts",
     "scheduler": "node --conditions=react-server --import tsx scripts/scheduler-worker.ts",
     "scheduler:once": "node --conditions=react-server --import tsx scripts/scheduler-once.ts",
-    "scheduler:inspect": "node --conditions=react-server --import tsx scripts/scheduler-inspect.ts"
+    "scheduler:inspect": "node --conditions=react-server --import tsx scripts/scheduler-inspect.ts",
+    "llm:smoke": "node --import tsx scripts/llm-smoke.ts",
+    "llm:synthesize-story": "node --conditions=react-server --import tsx scripts/llm-synthesize-story.ts",
+    "llm:evaluate-stories": "node --conditions=react-server --import tsx scripts/llm-evaluate-stories.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -68,6 +73,7 @@
     "fast-xml-parser": "^5.10.1",
     "fflate": "^0.8.3",
     "next": "^16.2.12",
+    "openai": "^7.5.0",
     "pg": "^8.22.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

@@ -166,6 +166,16 @@ export default async function DataSourcesPage() {
                     <p className="mt-1 text-xs text-zinc-500">
                       {source.provider}
                     </p>
+                    {source.sourceUrl ? (
+                      <a
+                        className="mt-2 block max-w-72 truncate text-[11px] text-blue-400 hover:text-blue-300"
+                        href={source.sourceUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Source feed
+                      </a>
+                    ) : null}
                   </th>
                   <td className="max-w-52 px-5 py-5 text-xs leading-5 text-zinc-400">
                     {source.countries
@@ -218,8 +228,17 @@ export default async function DataSourcesPage() {
                           {enabledRssFeeds().length} feeds enabled
                         </Badge>
                       ) : null}
+                      {source.evidenceRole ? (
+                        <Badge tone="info">
+                          {source.evidenceRole.replaceAll("_", " ")}
+                        </Badge>
+                      ) : null}
+                      {source.jurisdiction ? (
+                        <Badge>{source.jurisdiction}</Badge>
+                      ) : null}
                       {source.slug === "us-box-office" ||
-                      source.slug === "broadway-business" ? (
+                      source.slug === "broadway-business" ||
+                      source.slug === "screen-australia" ? (
                         <Badge tone="warning">Provisional / Research</Badge>
                       ) : null}
                       <HealthBadge status={source.healthStatus} />

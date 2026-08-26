@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 
 import { DashboardCard, EmptyChart } from "@/components/dashboard-card";
 import { BFIBoxOfficeChart } from "@/components/bfi-box-office-chart";
+import { ScreenAustraliaBoxOffice } from "@/components/screen-australia-box-office";
 import { SectorMediaDevelopments } from "@/components/sector-media-developments";
 import { USBoxOfficeChart } from "@/components/us-box-office-chart";
 import { US_BOX_OFFICE_PROVENANCE } from "@/data-sources/film/us-box-office-types";
 import { getUSBoxOfficeData } from "@/services/film/us-box-office";
 import { getBFIFilmData } from "@/services/film/bfi";
+import { getScreenAustraliaFilmData } from "@/services/film/screen-australia";
 import { getRecentMediaDevelopments } from "@/services/media/media";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +58,10 @@ function Metric({
 }
 
 export default async function FilmPage() {
-  const [boxOffice, bfi, developments] = await Promise.all([
+  const [boxOffice, bfi, screenAustralia, developments] = await Promise.all([
     getUSBoxOfficeData(),
     getBFIFilmData(),
+    getScreenAustraliaFilmData(),
     getRecentMediaDevelopments("film"),
   ]);
   const analytics = boxOffice.analytics;
@@ -73,8 +76,9 @@ export default async function FilmPage() {
           Film
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-          Cinema demand in the US and UK, official UK structural statistics, and
-          current film-industry developments.
+          Cinema demand in the US and UK, current Australian box-office
+          reporting, official UK structural statistics, and current
+          film-industry developments.
         </p>
       </div>
 
@@ -378,6 +382,14 @@ export default async function FilmPage() {
           />
         </DashboardCard>
       )}
+
+      <ScreenAustraliaBoxOffice
+        views={screenAustralia.views}
+        databaseStatus={screenAustralia.databaseStatus}
+        lastSuccessfulAt={screenAustralia.lastSuccessfulAt}
+        nextScheduledAt={screenAustralia.nextScheduledAt}
+        lastRunFailed={screenAustralia.lastRunFailed}
+      />
 
       {analytics && uk ? (
         <DashboardCard

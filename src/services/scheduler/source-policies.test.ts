@@ -47,6 +47,34 @@ describe("scheduler source inventory", () => {
     ]);
   });
 
+  it("schedules institutional feeds independently from the three-hour media cycle", () => {
+    expect(source("copyright-newsnet")).toMatchObject({
+      schedulingClass: "DAILY",
+      cadenceMinutes: 1_440,
+    });
+    expect(source("nist-information-technology").cadenceMinutes).toBe(1_440);
+    for (const sourceId of [
+      "cfpb-newsroom",
+      "ftc-competition",
+      "ftc-consumer-protection",
+      "uk-dsit",
+      "uk-ipo",
+      "uk-cma",
+      "eu-dg-connect",
+    ]) {
+      const definition = source(sourceId);
+      expect(definition).toMatchObject({
+        schedulingClass: "RELEASE_AWARE",
+        cadenceMinutes: 720,
+      });
+      expect(definition.commands(new Date())[0].args).toEqual([
+        "--hours=72",
+        `--source=${sourceId}`,
+      ]);
+    }
+    expect(source("rss").commands(new Date())[0].args).toEqual(["--hours=24"]);
+  });
+
   it("marks GDELT blocked and ACPSA's provider note structural", () => {
     expect(source("gdelt")).toMatchObject({
       automatic: false,
@@ -67,6 +95,22 @@ describe("scheduler source inventory", () => {
     ]);
     expect(source("bfi").commands(now)[0].args).toEqual(["--since=2026"]);
     expect(source("lpa").commands(now)[0].args).toEqual(["--since=2025"]);
+  });
+
+  it("checks Screen Australia weekly with one current-snapshot command", () => {
+    expect(source("screen-australia")).toMatchObject({
+      schedulingClass: "WEEKLY",
+      cadenceMinutes: 10_080,
+      automatic: true,
+      routineScope: "Current widget snapshot only; no archive or backfill",
+    });
+    expect(source("screen-australia").commands(new Date())).toEqual([
+      {
+        label: "Screen Australia current box office",
+        script: "scripts/ingest-screen-australia.ts",
+        args: [],
+      },
+    ]);
   });
 
   it("bounds the daily StatCan refresh to eight validated quarters", () => {

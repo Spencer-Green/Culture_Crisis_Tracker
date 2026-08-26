@@ -11,7 +11,7 @@ export type CulturalMediaSector = (typeof CULTURAL_MEDIA_SECTORS)[number];
 
 const SECTOR_PATTERNS: Record<CulturalMediaSector, readonly RegExp[]> = {
   music: [
-    /\b(music|musicians?|songwriters?|singers?|record labels?|recording artists?|albums?|concerts?|music festivals?|music publishing)\b/i,
+    /\b(music|musicians?|songs?|songwriters?|singers?|record labels?|recording artists?|albums?|concerts?|music festivals?|music publishing|music charts?|chart authority|aria charts?)\b/i,
     /\b(spotify|warner music|universal music|sony music|live nation)\b/i,
   ],
   film: [

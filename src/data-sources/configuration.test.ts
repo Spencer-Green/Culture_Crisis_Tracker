@@ -77,6 +77,15 @@ describe("source configuration status", () => {
     ).toEqual({ configured: true, missingConfiguration: [] });
   });
 
+  it("configures the public Screen Australia widget without credentials", () => {
+    expect(
+      getSourceConfigurationStatus(getSourceDefinition("screen-australia"), {
+        SCREEN_AUSTRALIA_BASE_URL:
+          "https://box-office-widget.twistedpear-wgp.workers.dev",
+      }),
+    ).toEqual({ configured: true, missingConfiguration: [] });
+  });
+
   it("configures public MVT reports without credentials", () => {
     expect(
       getSourceConfigurationStatus(getSourceDefinition("mvt"), {

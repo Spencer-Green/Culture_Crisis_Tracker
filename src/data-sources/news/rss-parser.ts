@@ -120,6 +120,11 @@ function itemToArticle(
     sourceMetadata: {
       feedFormat: atom ? "Atom" : "RSS 2.0",
       sourceTier: feed.tier,
+      evidenceRole: feed.evidenceRole,
+      sourcePerspective: feed.sourcePerspective,
+      jurisdiction: feed.jurisdiction,
+      sourceSpecialisms: [...feed.sourceSpecialisms],
+      institution: feed.name,
     },
   };
 }

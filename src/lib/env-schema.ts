@@ -33,6 +33,7 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "US_BOX_OFFICE_BASE_URL",
   "BROADWAY_BUSINESS_BASE_URL",
   "BFI_BASE_URL",
+  "SCREEN_AUSTRALIA_BASE_URL",
   "MVT_BASE_URL",
   "CENSUS_BASE_URL",
   "LPA_BASE_URL",
@@ -115,6 +116,9 @@ export const serverEnvSchema = z.object({
   ),
   BFI_BASE_URL: optionalUrl("BFI_BASE_URL").default(
     "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
+  ),
+  SCREEN_AUSTRALIA_BASE_URL: optionalUrl("SCREEN_AUSTRALIA_BASE_URL").default(
+    "https://box-office-widget.twistedpear-wgp.workers.dev",
   ),
   MVT_BASE_URL: optionalUrl("MVT_BASE_URL").default(
     "https://www.musicvenuetrust.com/resources/",

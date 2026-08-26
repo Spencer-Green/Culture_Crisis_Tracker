@@ -30,6 +30,7 @@ describe("source seed metadata", () => {
       getSourceDefinition("us-box-office"),
       getSourceDefinition("broadway-business"),
       getSourceDefinition("bfi"),
+      getSourceDefinition("screen-australia"),
       getSourceDefinition("mvt"),
       getSourceDefinition("lpa"),
       getSourceDefinition("census"),
@@ -92,24 +93,30 @@ describe("source seed metadata", () => {
                                           BFI_BASE_URL:
                                             "https://www.bfi.org.uk/industry-data-insights/weekend-box-office-figures",
                                         }
-                                      : source.slug === "mvt"
+                                      : source.slug === "screen-australia"
                                         ? {
-                                            MVT_BASE_URL:
-                                              "https://www.musicvenuetrust.com/resources/",
+                                            SCREEN_AUSTRALIA_BASE_URL:
+                                              "https://box-office-widget.twistedpear-wgp.workers.dev",
                                           }
-                                        : source.slug === "lpa"
+                                        : source.slug === "mvt"
                                           ? {
-                                              LPA_BASE_URL:
-                                                "https://reports.liveperformance.com.au/",
+                                              MVT_BASE_URL:
+                                                "https://www.musicvenuetrust.com/resources/",
                                             }
-                                          : {
-                                              CENSUS_BASE_URL:
-                                                "https://www2.census.gov/programs-surveys/aies/data",
-                                            },
+                                          : source.slug === "lpa"
+                                            ? {
+                                                LPA_BASE_URL:
+                                                  "https://reports.liveperformance.com.au/",
+                                              }
+                                            : {
+                                                CENSUS_BASE_URL:
+                                                  "https://www2.census.gov/programs-surveys/aies/data",
+                                              },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
       (source) =>
+        !("evidenceRole" in source) &&
         ![
           "abs",
           "bea",
@@ -126,6 +133,7 @@ describe("source seed metadata", () => {
           "us-box-office",
           "broadway-business",
           "bfi",
+          "screen-australia",
           "mvt",
           "lpa",
           "census",
@@ -148,6 +156,7 @@ describe("source seed metadata", () => {
       "us-box-office",
       "broadway-business",
       "bfi",
+      "screen-australia",
       "mvt",
       "lpa",
       "census",
@@ -191,5 +200,25 @@ describe("source seed metadata", () => {
     expect(operation.create.baseUrl).toBe("https://www.kaggle.com/api/v1");
     expect(operation.create.requiresAuthentication).toBe(false);
     expect(operation.create.enabled).toBe(true);
+  });
+
+  it("enables institutional feeds with their exact public source URLs", () => {
+    for (const slug of [
+      "copyright-newsnet",
+      "cfpb-newsroom",
+      "ftc-competition",
+      "ftc-consumer-protection",
+      "nist-information-technology",
+      "uk-dsit",
+      "uk-ipo",
+      "uk-cma",
+      "eu-dg-connect",
+    ] as const) {
+      const definition = getSourceDefinition(slug);
+      const operation = buildSourceSeedOperation(definition, {});
+      expect(operation.create.enabled).toBe(true);
+      expect(operation.create.baseUrl).toBe(definition.sourceUrl);
+      expect(operation.create.requiresAuthentication).toBe(false);
+    }
   });
 });

@@ -1,7 +1,7 @@
 import type { MediaArticleView } from "@/services/media/media-service-core";
 import {
   buildMediaStoryClusters,
-  isCreativeAiStory,
+  isAiIntelligenceStory,
   type MediaStoryCluster,
 } from "@/services/media/daily-brief-core";
 
@@ -328,7 +328,7 @@ function aiState(score: number): AiDisruptionState {
 }
 
 function qualifyingAiClusters(articles: readonly MediaArticleView[]) {
-  return buildMediaStoryClusters(articles).filter(isCreativeAiStory);
+  return buildMediaStoryClusters(articles).filter(isAiIntelligenceStory);
 }
 
 export function buildAiDisruptionIndicator(input: {

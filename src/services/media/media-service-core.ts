@@ -7,6 +7,10 @@ import type {
   MediaSectorSlug,
   MediaSourceType,
 } from "@/data-sources/news/media-types";
+import {
+  assessAiIntelligence,
+  isMaterialAiAssessment,
+} from "@/data-sources/news/ai-intelligence";
 import { likelyDuplicateStory } from "@/data-sources/news/media-dedup";
 import {
   CULTURAL_MEDIA_SECTORS,
@@ -15,6 +19,7 @@ import {
   hasSectorEvidence,
 } from "@/data-sources/news/media-evidence";
 import type { MediaClassificationFeedbackState } from "@/services/media/media-feedback-types";
+import type { MediaSourceEvidenceMetadata } from "@/data-sources/news/media-source-metadata";
 
 export type MediaArticleView = {
   id: string;
@@ -39,6 +44,7 @@ export type MediaArticleView = {
   storyFingerprint: string | null;
   possibleDuplicateStory: boolean;
   sourceMatches: string[];
+  sourceEvidence?: MediaSourceEvidenceMetadata | null;
 };
 
 export type MediaFilters = {
@@ -142,6 +148,49 @@ export function isAiCreativeWorkEligible(article: MediaArticleView): boolean {
   );
 }
 
+function correctedClassificationValue<T>(
+  article: MediaArticleView,
+  reason: "WRONG_EVENT_TYPE" | "WRONG_AI_TAG" | "WRONG_IMPORTANCE",
+  value: T | null | undefined,
+): T | null {
+  return article.classificationFeedback?.reasons.includes(reason) === true
+    ? (value ?? null)
+    : null;
+}
+
+export function isAiIntelligenceEligible(article: MediaArticleView): boolean {
+  const assessment = assessAiIntelligence({
+    title: article.title,
+    description: article.description,
+    evidenceRole: article.sourceEvidence?.evidenceRole,
+    sourcePerspective: article.sourceEvidence?.sourcePerspective,
+  });
+  if (!assessment) return false;
+
+  const correctedEventType = correctedClassificationValue(
+    article,
+    "WRONG_EVENT_TYPE",
+    article.classificationFeedback?.correctedEventType,
+  );
+  const correctedAiTag = correctedClassificationValue(
+    article,
+    "WRONG_AI_TAG",
+    article.classificationFeedback?.correctedAiTag,
+  );
+  const correctedImportance = correctedClassificationValue(
+    article,
+    "WRONG_IMPORTANCE",
+    article.classificationFeedback?.correctedImportance,
+  );
+  const humanMaterialCorrection =
+    correctedImportance !== null &&
+    correctedImportance >= 3 &&
+    ((correctedEventType ?? article.eventType)?.startsWith("AI_") === true ||
+      (correctedAiTag ?? article.aiImpactType) !== null);
+
+  return isMaterialAiAssessment(assessment) || humanMaterialCorrection;
+}
+
 function hasClassificationEventEvidence(article: MediaArticleView): boolean {
   const text = articleText(article);
   return (
@@ -156,6 +205,16 @@ function hasClassificationEventEvidence(article: MediaArticleView): boolean {
 }
 
 export function isTopDevelopmentEligible(article: MediaArticleView): boolean {
+  const correctedImportance = correctedClassificationValue(
+    article,
+    "WRONG_IMPORTANCE",
+    article.classificationFeedback?.correctedImportance,
+  );
+  if (
+    isAiIntelligenceEligible(article) &&
+    (correctedImportance ?? article.importance) >= 3
+  )
+    return true;
   return (
     hasCredibleCulturalRelevance(article) &&
     hasClassificationEventEvidence(article) &&
@@ -263,10 +322,10 @@ function rankArticles(articles: readonly MediaArticleView[]) {
 
 export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
   const curatedArticles = articles.filter(isCuratedPresentationEligible);
-  const aiCandidates = curatedArticles.filter(isAiCreativeWorkEligible);
+  const aiCandidates = curatedArticles.filter(isAiIntelligenceEligible);
   const topCandidates = curatedArticles.filter(
     (article) =>
-      isTopDevelopmentEligible(article) && !isAiCreativeWorkEligible(article),
+      isTopDevelopmentEligible(article) && !isAiIntelligenceEligible(article),
   );
   const healthCandidates = curatedArticles.filter(
     (article) =>
@@ -306,7 +365,7 @@ export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
         (article) =>
           !isCuratedPresentationEligible(article) ||
           (!isTopDevelopmentEligible(article) &&
-            !isAiCreativeWorkEligible(article)),
+            !isAiIntelligenceEligible(article)),
       ).length,
     },
   };
@@ -316,6 +375,7 @@ export function buildSectorMediaTiers(articles: readonly MediaArticleView[]) {
   const isSignal = (article: MediaArticleView) =>
     isCuratedPresentationEligible(article) &&
     (article.reviewState === "accepted" ||
+      isAiIntelligenceEligible(article) ||
       (hasCredibleCulturalRelevance(article) &&
         hasClassificationEventEvidence(article) &&
         article.importance >= 2 &&

@@ -77,6 +77,30 @@ describe("media classification", () => {
       eventType: "AI_ADOPTION",
       confidence: "low",
       aiImpactType: "AMBIGUOUS",
+      importance: 1,
+    });
+  });
+
+  it("does not turn an attributed AI forecast into a fallback event", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "AI lab CEO estimates a $30T addressable market",
+          "The chief executive predicts the market opportunity but reports no observed economic outcome.",
+          {
+            sourceType: "THENEWSAPI",
+            queryFamily: "ai-rights-policy",
+            feedSlug: null,
+            sectorHint: "ai-policy",
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: null,
+      aiImpactType: "AMBIGUOUS",
+      confidence: "high",
+      importance: 4,
     });
   });
 
@@ -96,8 +120,8 @@ describe("media classification", () => {
 
     expect(classified).toMatchObject({
       sectorSlug: "ai-policy",
-      eventType: "AI_POLICY_REGULATION",
-      importance: 2,
+      eventType: "AI_ADOPTION",
+      importance: 1,
     });
     expect(classified?.sectorSlug).not.toBe("film");
   });
@@ -132,7 +156,7 @@ describe("media classification", () => {
     });
   });
 
-  it("keeps generic AI policy outside cultural sectors", () => {
+  it("treats a substantive AI safety framework as first-class AI intelligence", () => {
     expect(
       classifyMediaArticle(
         article("Government publishes new AI safety regulation framework"),
@@ -140,7 +164,141 @@ describe("media classification", () => {
     ).toMatchObject({
       sectorSlug: "ai-policy",
       eventType: "AI_POLICY_REGULATION",
+      confidence: "high",
+      importance: 5,
+    });
+  });
+
+  it("does not turn primary-source analysis into a completed event", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "Research report analyses AI layoffs and copyright litigation",
+          "The report discusses workforce and court developments.",
+          {
+            sectorHint: "ai-policy",
+            sourceMetadata: { evidenceRole: "PRIMARY_DOCUMENT" },
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: null,
       importance: 2,
+    });
+  });
+
+  it("classifies national cultural-market AI eligibility rules as very high materiality", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "AI-generated songs banned from Australian charts",
+          "Songs made entirely using AI may have accreditations withdrawn and will no longer be eligible for the ARIA Charts.",
+          { sectorHint: "music" },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "music",
+      eventType: "AI_POLICY_REGULATION",
+      aiImpactType: "POLICY_REGULATION",
+      confidence: "high",
+      importance: 5,
+    });
+  });
+
+  it("preserves an explicit primary competition action without regulator inflation", () => {
+    expect(
+      classifyMediaArticle(
+        article("FTC challenges proposed film studio acquisition", null, {
+          sectorHint: "ai-policy",
+          sourceMetadata: { evidenceRole: "PRIMARY_DOCUMENT" },
+        }),
+      ),
+    ).toMatchObject({
+      sectorSlug: "film",
+      eventType: "CONSOLIDATION_ACQUISITION",
+      confidence: "high",
+      importance: 4,
+    });
+  });
+
+  it("gives an explicit official AI standard high claim confidence", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "NIST adopts national AI risk-management standard",
+          "The agency adopted binding requirements for covered AI systems.",
+          {
+            sectorHint: "ai-policy",
+            sourceMetadata: {
+              evidenceRole: "PRIMARY_DOCUMENT",
+              sourcePerspective: "OFFICIAL",
+            },
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: "AI_POLICY_REGULATION",
+      confidence: "high",
+      importance: 5,
+    });
+  });
+
+  it("keeps a major official AI proposal proposed while preserving materiality", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "Government consultation on proposed national AI regulation",
+          "The government proposes binding rules for frontier AI systems.",
+          {
+            sectorHint: "ai-policy",
+            sourceMetadata: {
+              evidenceRole: "PRIMARY_DOCUMENT",
+              sourcePerspective: "OFFICIAL",
+            },
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: null,
+      aiImpactType: "POLICY_REGULATION",
+      confidence: "medium",
+      importance: 4,
+    });
+  });
+
+  it("keeps a primary consultation proposed rather than classifying an enacted event", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "Government consultation on proposed AI copyright rules",
+          null,
+          {
+            sectorHint: "ai-policy",
+            sourceMetadata: { evidenceRole: "PRIMARY_DOCUMENT" },
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: null,
+    });
+  });
+
+  it("does not route broad official material to AI policy from the feed hint alone", () => {
+    expect(
+      classifyMediaArticle(
+        article("Patent Journal special notices", null, {
+          sectorHint: "ai-policy",
+          sourceMetadata: { evidenceRole: "PRIMARY_DOCUMENT" },
+        }),
+      ),
+    ).toMatchObject({
+      sectorSlug: "industry-events",
+      eventType: null,
+      importance: 1,
     });
   });
 });

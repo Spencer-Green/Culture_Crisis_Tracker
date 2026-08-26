@@ -229,7 +229,8 @@ export function buildScheduledSourceDefinitions(
       publicationFrequency: "Continuous",
       requestIntensity:
         "Ten requests per run; at three hours, at most 80 requests/day",
-      routineScope: "Existing targeted families, 24-hour article window",
+      routineScope:
+        "Five structural AI and five cultural-industry event families, 24-hour article window",
       commands: () => [
         command("TheNewsAPI", "scripts/ingest-media-newsapi.ts", [
           "--hours=24",

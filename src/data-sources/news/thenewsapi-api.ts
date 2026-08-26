@@ -105,7 +105,7 @@ export function buildTheNewsApiUrl(input: {
   );
   url.searchParams.set("published_before", formatTheNewsApiDate(input.endDate));
   url.searchParams.set("limit", String(THENEWSAPI_RESULTS_PER_REQUEST));
-  url.searchParams.set("sort", "published_at");
+  url.searchParams.set("sort", input.family.sort ?? "published_at");
   return url;
 }
 

@@ -1122,21 +1122,25 @@ GET https://api.thenewsapi.com/v1/news/all
 The token is attached as `api_token` only at request time and removed from safe provenance URLs,
 errors, logs, and frontend data. Queries use the documented phrase, prefix, grouping, AND (`+`),
 OR (`|`), and exclusion syntax and are restricted to title, description, and keywords to reduce
-main-text false positives. Named families cover AI/creative work, closures, layoffs, insolvency,
-cancellations, demand weakness, funding cuts, consolidation, openings, investment, attendance or
-revenue growth, and expansion. Counter-signals are deliberately collected alongside stress
-candidates.
+main-text false positives. Five scheduled AI discovery families cover frontier capabilities,
+compute/infrastructure, policy/governance, labour/economics, and rights/creative-industry
+developments. They rank the bounded result set by API relevance; family membership is not event,
+importance, or AI-relevance evidence, and these families therefore have no fallback event type.
+Named non-AI families continue to cover closures, layoffs, insolvency, cancellations, demand
+weakness, funding cuts, consolidation, openings, investment, attendance or revenue growth, and
+expansion. Counter-signals are deliberately collected alongside stress candidates.
 
 The free-plan operating policy assumes 100 requests/day and three articles/request. A run defaults
 to 15 sequential targeted requests, has a hard application cap of 25, and reports usage. HTTP 429
 and transient 5xx responses receive at most two bounded retries. The source accepts UTC date-times
-in `YYYY-MM-DDTHH:mm:ss` format. Inspection uses only three representative requests and never
-writes to the database:
+in `YYYY-MM-DDTHH:mm:ss` format. The scheduler remains bounded to ten requests every three hours
+(at most 80/day): the five structural AI families plus the first five cultural-industry event
+families. Inspection uses only three representative requests and never writes to the database:
 
 ```bash
 npm run media:newsapi:inspect
 npm run ingest:media:newsapi -- --hours=24 --max-requests=15
-npm run ingest:media:newsapi -- --hours=72 --family=ai-music
+npm run ingest:media:newsapi -- --hours=72 --family=ai-frontier-capabilities
 ```
 
 ### Curated RSS and Atom

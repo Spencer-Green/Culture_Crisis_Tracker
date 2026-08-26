@@ -5,8 +5,16 @@ import { parseNewsApiCli, parseRssCli } from "@/data-sources/news/media-cli";
 describe("media CLI", () => {
   it("parses bounded NewsAPI and RSS options", () => {
     expect(
-      parseNewsApiCli(["--hours=24", "--max-requests=15", "--family=ai-music"]),
-    ).toMatchObject({ hours: 24, maxRequests: 15, family: "ai-music" });
+      parseNewsApiCli([
+        "--hours=24",
+        "--max-requests=15",
+        "--family=ai-frontier-capabilities",
+      ]),
+    ).toMatchObject({
+      hours: 24,
+      maxRequests: 15,
+      family: "ai-frontier-capabilities",
+    });
     expect(parseRssCli(["--hours=72", "--sector=gaming"])).toMatchObject({
       hours: 72,
       sector: "gaming",

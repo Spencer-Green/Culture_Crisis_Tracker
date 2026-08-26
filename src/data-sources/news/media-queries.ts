@@ -8,6 +8,7 @@ export type MediaQueryFamily = {
   id: string;
   name: string;
   search: string;
+  sort?: "published_at" | "relevance_score";
   sector: MediaSectorSlug;
   fallbackEventType: MediaEventType | null;
   fallbackPolarity: MediaPolarity;
@@ -16,50 +17,57 @@ export type MediaQueryFamily = {
 
 export const MEDIA_QUERY_FAMILIES = [
   {
-    id: "ai-music",
-    name: "AI and music",
-    search: '(AI | "generative AI") + (music | musician* | songwriter*)',
-    sector: "music",
-    fallbackEventType: "AI_ADOPTION",
-    fallbackPolarity: "neutral/ambiguous",
-    aiRelated: true,
-  },
-  {
-    id: "ai-film-tv",
-    name: "AI and film or television",
+    id: "ai-frontier-capabilities",
+    name: "AI frontier models and capabilities",
     search:
-      '(AI | "generative AI") + (film | television | actor* | screenwriter* | VFX | Hollywood)',
-    sector: "film",
-    fallbackEventType: "AI_ADOPTION",
-    fallbackPolarity: "neutral/ambiguous",
-    aiRelated: true,
-  },
-  {
-    id: "ai-theatre",
-    name: "AI and performing arts",
-    search: 'AI + (theatre | "performing arts" | playwright*)',
-    sector: "theatre",
-    fallbackEventType: "AI_ADOPTION",
-    fallbackPolarity: "neutral/ambiguous",
-    aiRelated: true,
-  },
-  {
-    id: "ai-gaming",
-    name: "AI and games",
-    search:
-      'AI + ("video games" | "game developer" | "game studio" | ("voice actor" + games))',
-    sector: "gaming",
-    fallbackEventType: "AI_ADOPTION",
-    fallbackPolarity: "neutral/ambiguous",
-    aiRelated: true,
-  },
-  {
-    id: "ai-rights-policy",
-    name: "AI creative rights and policy",
-    search:
-      'AI + ((copyright + artist*) | (licensing + creative*) | ("training data" + music) | (regulation + "creative industr*"))',
+      '(AI | "artificial intelligence") + ("frontier model" | "foundation model" | "reasoning model" | "multimodal model" | "AI agent" | "inference model") + (launch* | release* | deploy* | benchmark* | capability | reasoning | inference) -guide -tutorial',
+    sort: "relevance_score",
     sector: "ai-policy",
-    fallbackEventType: "AI_POLICY_REGULATION",
+    fallbackEventType: null,
+    fallbackPolarity: "neutral/ambiguous",
+    aiRelated: true,
+  },
+  {
+    id: "ai-compute-infrastructure",
+    name: "AI compute, semiconductors, infrastructure, and energy",
+    search:
+      'AI + (GPU* | accelerator* | "AI chip" | semiconductor* | "data center" | "data centre" | "compute capacity" | "power agreement" | "nuclear power") + (launch* | build* | expand* | invest* | capacity | supply | export* | restriction*) -guide -review',
+    sort: "relevance_score",
+    sector: "ai-policy",
+    fallbackEventType: null,
+    fallbackPolarity: "neutral/ambiguous",
+    aiRelated: true,
+  },
+  {
+    id: "ai-policy-governance",
+    name: "AI policy, governance, competition, and export controls",
+    search:
+      'AI + (regulat* | legislation | enforcement | "export controls" | procurement | antitrust | competition | safety | governance | standard*) + (adopt* | enact* | propos* | investigat* | ban* | requir* | rule | strategy) -guide',
+    sort: "relevance_score",
+    sector: "ai-policy",
+    fallbackEventType: null,
+    fallbackPolarity: "neutral/ambiguous",
+    aiRelated: true,
+  },
+  {
+    id: "ai-labour-economics",
+    name: "AI labour, automation, economics, and major capital",
+    search:
+      'AI + (((workforce | jobs | labour | labor | automation | productivity) + (replace* | layoff* | hiring | study | survey | union | agreement | strategy)) | ((investment | funding | valuation | capex | revenue | market) + (billion | trillion | major | record | forecast* | raises | invests))) -startup -seed -"Series A"',
+    sort: "relevance_score",
+    sector: "ai-policy",
+    fallbackEventType: null,
+    fallbackPolarity: "neutral/ambiguous",
+    aiRelated: true,
+  },
+  {
+    id: "ai-rights-creative",
+    name: "AI rights, creative industries, and material adoption",
+    search:
+      'AI + (music | film | television | games | publishing | artist* | author* | actor* | musician* | "creative industries") + (copyright | licensing | "training data" | royalty | compensation | provenance | eligibility | funding | investment | adopt* | deploy* | ban* | agreement | lawsuit | uses) -review -trailer',
+    sort: "relevance_score",
+    sector: "ai-policy",
+    fallbackEventType: null,
     fallbackPolarity: "neutral/ambiguous",
     aiRelated: true,
   },

@@ -5,14 +5,19 @@ import { theNewsApiAdapter } from "../src/data-sources/news/thenewsapi";
 import { sanitiseIngestionError } from "../src/services/ingestion/service-core";
 
 const INSPECTION_FAMILIES = [
-  "ai-music",
+  "ai-frontier-capabilities",
   "venue-closures",
   "positive-investment",
 ];
 
 function relevance(title: string, family: string): string {
   const text = title.toLowerCase();
-  if (family.startsWith("ai-") && /\b(ai|artificial intelligence)\b/.test(text))
+  if (
+    family.startsWith("ai-") &&
+    /\b(ai|artificial intelligence|frontier model|foundation model)\b/.test(
+      text,
+    )
+  )
     return "likely relevant";
   if (family === "venue-closures" && /\b(close|closure|shut)\b/.test(text))
     return "likely relevant";

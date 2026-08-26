@@ -89,7 +89,7 @@ describe("media classification", () => {
           "The chief executive predicts the market opportunity but reports no observed economic outcome.",
           {
             sourceType: "THENEWSAPI",
-            queryFamily: "ai-rights-policy",
+            queryFamily: "ai-labour-economics",
             feedSlug: null,
             sectorHint: "ai-policy",
           },
@@ -148,6 +148,29 @@ describe("media classification", () => {
       importance: 1,
     });
     expect(classified?.sectorSlug).not.toBe("film");
+  });
+
+  it("does not treat structural query-family membership as event evidence", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "Value Classes Still Need Compiler Sympathy",
+          "A programming-language discussion without a relevant news event.",
+          {
+            sourceType: "THENEWSAPI",
+            queryFamily: "ai-frontier-capabilities",
+            feedSlug: null,
+            sectorHint: "ai-policy",
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: null,
+      aiImpactType: null,
+      confidence: "low",
+      importance: 1,
+    });
   });
 
   it("does not mistake government administration for insolvency", () => {

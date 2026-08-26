@@ -13,7 +13,7 @@ const fixture = readFileSync(
   new URL("./__fixtures__/thenewsapi-response.json", import.meta.url),
   "utf8",
 );
-const family = getMediaQueryFamily("ai-music")!;
+const family = getMediaQueryFamily("ai-frontier-capabilities")!;
 
 describe("TheNewsAPI client", () => {
   it("formats UTC timestamps using the API date-time contract", () => {
@@ -28,7 +28,7 @@ describe("TheNewsAPI client", () => {
     expect(result.articles[0]).toMatchObject({
       externalId: "news-1",
       publisher: "Music Trade",
-      queryFamily: "ai-music",
+      queryFamily: "ai-frontier-capabilities",
       language: "en",
     });
     expect(result.articles[0].publishedAt.toISOString()).toBe(
@@ -50,7 +50,21 @@ describe("TheNewsAPI client", () => {
       "title,description,keywords",
     );
     expect(url.searchParams.get("limit")).toBe("3");
+    expect(url.searchParams.get("sort")).toBe("relevance_score");
     expect(url.toString()).not.toContain("%252B");
+  });
+
+  it("keeps chronological ranking for non-AI event families", () => {
+    const eventFamily = getMediaQueryFamily("venue-closures")!;
+    const url = buildTheNewsApiUrl({
+      baseUrl: "https://api.thenewsapi.com/v1",
+      apiToken: "secret-token",
+      family: eventFamily,
+      startDate: new Date("2026-08-12T00:00:00Z"),
+      endDate: new Date("2026-08-13T00:00:00Z"),
+    });
+
+    expect(url.searchParams.get("sort")).toBe("published_at");
   });
 
   it("returns a safe request URL without the API token", async () => {

@@ -227,6 +227,44 @@ describe("story synthesis evidence", () => {
     });
   });
 
+  it("exposes specialist viewpoint and translation provenance to synthesis", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "translated",
+          title: "AI policy analysis examines national standards",
+          description:
+            "The specialist analysis interprets national AI standards and their implications.",
+          sectorSlug: "ai-policy",
+          eventType: null,
+          aiImpactType: "POLICY_REGULATION",
+          importance: 4,
+          sourceEvidence: {
+            evidenceRole: "SPECIALIST_ANALYSIS",
+            sourcePerspective: "ANALYTICAL",
+            sourcePerspectives: ["ANALYTICAL", "TRANSLATION"],
+            jurisdiction: "CHINA",
+            sourceSpecialisms: ["CHINA_AI", "AI_GOVERNANCE"],
+            institution: "ChinAI",
+            translationStatus: "TRANSLATED_OR_SUMMARISED",
+            originalSourceUrl: "https://example.cn/original",
+          },
+        }),
+      ]),
+    );
+
+    expect(evidence.articles[0].sourceProvenance).toMatchObject({
+      evidenceRole: "SPECIALIST_ANALYSIS",
+      sourcePerspectives: ["ANALYTICAL", "TRANSLATION"],
+      translationStatus: "TRANSLATED_OR_SUMMARISED",
+      originalSourceUrl: "https://example.cn/original",
+    });
+    expect(evidence.articles[0].intelligenceAssessment).toMatchObject({
+      category: "AI_POLICY_REGULATION",
+      claimKind: "ATTRIBUTED_ANALYSIS",
+    });
+  });
+
   it("fails closed for empty or ineligible clusters", () => {
     const empty = { ...cluster(), articles: [] };
     expect(() => buildStorySynthesisEvidence(empty)).toThrow(
@@ -269,6 +307,9 @@ describe("story synthesis evidence", () => {
     );
     expect(request.instructions).toContain(
       "may be highly material before downstream employment or revenue effects are measured",
+    );
+    expect(request.instructions).toContain(
+      "ATTRIBUTED_ANALYSIS supports analysis, interpretation, forecast, or organizational position rather than a realized event",
     );
     expect(request).not.toHaveProperty("tools");
     expect(request.store).toBe(false);

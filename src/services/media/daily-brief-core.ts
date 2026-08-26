@@ -42,6 +42,10 @@ const MATERIAL_EVENTS = new Set<MediaEventType>([
   "ATTENDANCE_GROWTH",
   "REVENUE_GROWTH",
   "EXPANSION",
+  "EXECUTIVE_LEADERSHIP_CHANGE",
+  "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+  "COMPUTE_INFRASTRUCTURE_EXPANSION",
+  "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
   "AI_ADOPTION",
   "AI_LABOR_DISPLACEMENT",
   "AI_COPYRIGHT",
@@ -299,6 +303,14 @@ function whyItMatters(eventType: MediaEventType | null): string {
     case "ATTENDANCE_GROWTH":
     case "REVENUE_GROWTH":
       return "The reported increase is a positive demand or commercial signal, without establishing a broader trend alone.";
+    case "EXECUTIVE_LEADERSHIP_CHANGE":
+      return "A senior leadership change can alter strategy, execution capacity, or organizational continuity; the evidence does not by itself establish downstream effects.";
+    case "MAJOR_PRODUCT_CAPABILITY_RELEASE":
+      return "A material capability release can change adoption, competition, production workflows, or access to consequential AI systems.";
+    case "COMPUTE_INFRASTRUCTURE_EXPANSION":
+      return "Concrete compute or energy-capacity expansion can change the scale, cost, and geographic distribution of AI development and deployment.";
+    case "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE":
+      return "A rights, eligibility, accreditation, or disclosure-rule change can alter market access, creator treatment, or how AI outputs are identified.";
     case "AI_LABOR_DISPLACEMENT":
     case "AI_UNION_DISPUTE":
       return "This directly concerns how AI changes creative work, bargaining, or employment conditions.";
@@ -389,6 +401,22 @@ function hasBriefEventEvidence(cluster: MediaStoryCluster): boolean {
       );
     case "EXPANSION":
       return /\b(expand|expands|expanded|expansion|go(?:es)? wide|went wide|new locations?)\b/i.test(
+        text,
+      );
+    case "EXECUTIVE_LEADERSHIP_CHANGE":
+      return /\b(ceo|chief|executive|president|founder|head of)\b[^.]{0,100}\b(leaves?|left|departure|departs?|resigns?|steps? down|ousted|appointed|joins?)\b|\b(leaves?|left|departure|departs?|resigns?|steps? down|ousted|appointed)\b[^.]{0,100}\b(ceo|chief|executive|president|founder|head of)\b/i.test(
+        text,
+      );
+    case "MAJOR_PRODUCT_CAPABILITY_RELEASE":
+      return /\b(launch(?:es|ed)?|release[sd]?|deploys?|deployed|made available)\b[^.]{0,100}\b(model|system|capability|accelerator|gpu|chip)\b|\b(model|system|capability|accelerator|gpu|chip)\b[^.]{0,100}\b(launch(?:es|ed)?|release[sd]?|deploys?|deployed|available)\b/i.test(
+        text,
+      );
+    case "COMPUTE_INFRASTRUCTURE_EXPANSION":
+      return /\b(invest(?:s|ed|ing)|builds?|built|opens?|opened|expands?|expanded|adds?)\b[^.]{0,100}\b(data cent(?:er|re)|compute|gpu|accelerator|capacity|power|energy)\b|\b(data cent(?:er|re)|compute|gpu|accelerator|capacity|power|energy)\b[^.]{0,100}\b(builds?|built|opens?|opened|expands?|expanded|adds?)\b/i.test(
+        text,
+      );
+    case "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE":
+      return /\b(eligibility|eligible|ineligible|accreditation|chart rules?|content labels?|ai labels?|disclosure labels?|made with ai|digital replica|likeness rights?)\b/i.test(
         text,
       );
     case "AI_ADOPTION":

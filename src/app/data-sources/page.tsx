@@ -233,6 +233,13 @@ export default async function DataSourcesPage() {
                           {source.evidenceRole.replaceAll("_", " ")}
                         </Badge>
                       ) : null}
+                      {source.sourcePerspectives.length > 0 ? (
+                        <Badge>
+                          {source.sourcePerspectives
+                            .map((value) => value.replaceAll("_", " "))
+                            .join(" / ")}
+                        </Badge>
+                      ) : null}
                       {source.jurisdiction ? (
                         <Badge>{source.jurisdiction}</Badge>
                       ) : null}

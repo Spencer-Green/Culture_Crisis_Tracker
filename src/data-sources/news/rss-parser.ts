@@ -86,6 +86,31 @@ function safeLink(value: unknown): string | null {
   }
 }
 
+function originalSourceUrl(
+  item: Record<string, unknown>,
+  feed: RssFeedDefinition,
+): string | null {
+  if (!feed.translationStatus) return null;
+  const raw = text(
+    item.description ?? item.summary ?? item.content ?? item["content:encoded"],
+  );
+  if (!raw) return null;
+  const links = [...raw.matchAll(/href=["'](https:\/\/[^"']+)["']/gi)];
+  for (const match of links) {
+    try {
+      const url = new URL(match[1].replace(/&amp;/gi, "&"));
+      if (
+        url.hostname === feed.publisherDomain ||
+        url.hostname.endsWith(".substack.com") ||
+        url.hostname.endsWith(".substackcdn.com")
+      )
+        continue;
+      return url.toString();
+    } catch {}
+  }
+  return null;
+}
+
 function itemToArticle(
   item: Record<string, unknown>,
   feed: RssFeedDefinition,
@@ -98,6 +123,7 @@ function itemToArticle(
   );
   if (!title || !url || !publishedAt) return null;
   const guid = text(item.guid ?? item.id);
+  const translatedOriginalSourceUrl = originalSourceUrl(item, feed);
   return {
     sourceType: "RSS",
     externalId: guid,
@@ -122,9 +148,14 @@ function itemToArticle(
       sourceTier: feed.tier,
       evidenceRole: feed.evidenceRole,
       sourcePerspective: feed.sourcePerspective,
+      sourcePerspectives: [
+        ...(feed.sourcePerspectives ?? [feed.sourcePerspective]),
+      ],
       jurisdiction: feed.jurisdiction,
       sourceSpecialisms: [...feed.sourceSpecialisms],
       institution: feed.name,
+      translationStatus: feed.translationStatus ?? null,
+      originalSourceUrl: translatedOriginalSourceUrl,
     },
   };
 }
@@ -132,6 +163,7 @@ function itemToArticle(
 export function parseRssOrAtom(
   xml: string,
   feed: RssFeedDefinition,
+  options: { maxItems?: number } = {},
 ): ParsedFeed {
   let payload: unknown;
   try {
@@ -152,6 +184,7 @@ export function parseRssOrAtom(
         channel.item as
           Record<string, unknown> | Record<string, unknown>[] | undefined,
       )
+        .slice(0, options.maxItems)
         .map((item) => itemToArticle(item, feed, false))
         .filter((item): item is MediaSourceArticle => item !== null)
         .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()),
@@ -166,6 +199,7 @@ export function parseRssOrAtom(
         atom.entry as
           Record<string, unknown> | Record<string, unknown>[] | undefined,
       )
+        .slice(0, options.maxItems)
         .map((item) => itemToArticle(item, feed, true))
         .filter((item): item is MediaSourceArticle => item !== null)
         .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()),

@@ -318,6 +318,79 @@ export function buildScheduledSourceDefinitions(
             "Primary institutional evidence; scheduled separately from the three-hour media cycle.",
         }) satisfies ScheduledSourceDefinition,
     ),
+    ...[
+      {
+        sourceId: "tech-policy-press" as const,
+        cadenceMinutes: 12 * 60,
+        windowHours: 72,
+      },
+      {
+        sourceId: "lawfare-cybersecurity-tech" as const,
+        cadenceMinutes: 12 * 60,
+        windowHours: 168,
+      },
+      {
+        sourceId: "cset" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+      {
+        sourceId: "ai-now-institute" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+      {
+        sourceId: "kluwer-copyright-blog" as const,
+        cadenceMinutes: 12 * 60,
+        windowHours: 168,
+      },
+      {
+        sourceId: "normal-technology" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+      {
+        sourceId: "blood-in-the-machine" as const,
+        cadenceMinutes: 12 * 60,
+        windowHours: 168,
+      },
+      {
+        sourceId: "chinai" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+      {
+        sourceId: "authors-alliance" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+      {
+        sourceId: "creative-commons" as const,
+        cadenceMinutes: DAY_MINUTES,
+        windowHours: 168,
+      },
+    ].map(
+      ({ sourceId, cadenceMinutes, windowHours }) =>
+        ({
+          sourceId,
+          schedulingClass:
+            cadenceMinutes === DAY_MINUTES ? "DAILY" : "RELEASE_AWARE",
+          cadenceMinutes,
+          automatic: true,
+          networkKind: "networked",
+          publicationFrequency: "Irregular specialist analysis",
+          requestIntensity: "Minimal; one bounded RSS request",
+          routineScope: `Single specialist feed, trailing ${windowHours}-hour window; no pagination or full-text fetch`,
+          commands: () => [
+            command(sourceId, "scripts/ingest-media-rss.ts", [
+              `--hours=${windowHours}`,
+              `--source=${sourceId}`,
+            ]),
+          ],
+          notes:
+            "Specialist analysis scheduled separately from the three-hour journalism cycle.",
+        }) satisfies ScheduledSourceDefinition,
+    ),
     {
       sourceId: "us-box-office",
       schedulingClass: "DAILY",

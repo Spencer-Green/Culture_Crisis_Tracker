@@ -75,6 +75,42 @@ describe("scheduler source inventory", () => {
     expect(source("rss").commands(new Date())[0].args).toEqual(["--hours=24"]);
   });
 
+  it("schedules specialist feeds separately with their approved cadence", () => {
+    for (const sourceId of [
+      "tech-policy-press",
+      "lawfare-cybersecurity-tech",
+      "kluwer-copyright-blog",
+      "blood-in-the-machine",
+    ]) {
+      expect(source(sourceId)).toMatchObject({
+        schedulingClass: "RELEASE_AWARE",
+        cadenceMinutes: 720,
+      });
+    }
+    for (const sourceId of [
+      "cset",
+      "ai-now-institute",
+      "normal-technology",
+      "chinai",
+      "authors-alliance",
+      "creative-commons",
+    ]) {
+      expect(source(sourceId)).toMatchObject({
+        schedulingClass: "DAILY",
+        cadenceMinutes: 1_440,
+      });
+    }
+    expect(source("tech-policy-press").commands(new Date())[0].args).toEqual([
+      "--hours=72",
+      "--source=tech-policy-press",
+    ]);
+    expect(source("chinai").commands(new Date())[0].args).toEqual([
+      "--hours=168",
+      "--source=chinai",
+    ]);
+    expect(source("rss").commands(new Date())[0].args).toEqual(["--hours=24"]);
+  });
+
   it("marks GDELT blocked and ACPSA's provider note structural", () => {
     expect(source("gdelt")).toMatchObject({
       automatic: false,

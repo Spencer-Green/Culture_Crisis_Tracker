@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { assessAiIntelligence } from "@/data-sources/news/ai-intelligence";
 import { MEDIA_CORRECTABLE_SECTORS } from "@/services/media/media-feedback-types";
 import type { MediaSectorSlug } from "@/data-sources/news/media-types";
 import {
@@ -18,7 +19,7 @@ import {
   type OpenAITokenUsage,
 } from "@/lib/openai-usage";
 
-export const STORY_SYNTHESIS_EVIDENCE_VERSION = "story-synthesis-evidence-v2";
+export const STORY_SYNTHESIS_EVIDENCE_VERSION = "story-synthesis-evidence-v3";
 export const STORY_SYNTHESIS_MAX_EVIDENCE_CHARACTERS = 12_000;
 export const STORY_SYNTHESIS_MAX_ARTICLES = 6;
 
@@ -88,9 +89,12 @@ export type StorySynthesisEvidenceArticle = {
     sourceMatches: string[];
     evidenceRole: string | null;
     sourcePerspective: string | null;
+    sourcePerspectives: string[];
     jurisdiction: string | null;
     sourceSpecialisms: string[];
     institution: string | null;
+    translationStatus: string | null;
+    originalSourceUrl: string | null;
   };
   machineClassification: {
     sector: MediaSectorSlug;
@@ -99,6 +103,14 @@ export type StorySynthesisEvidenceArticle = {
     importance: number;
     confidence: string;
   };
+  intelligenceAssessment: {
+    category: string;
+    claimKind:
+      | "OBSERVED_ACTION"
+      | "PROPOSED_ACTION"
+      | "ATTRIBUTED_ANALYSIS"
+      | "GENERAL_MENTION";
+  } | null;
   effectiveClassification: {
     sector: MediaSectorSlug;
     eventType: string | null;
@@ -230,6 +242,12 @@ function evidenceArticle(
 ): StorySynthesisEvidenceArticle {
   const effective = getEffectiveMediaLabels(article);
   const feedback = article.classificationFeedback;
+  const intelligenceAssessment = assessAiIntelligence({
+    title: article.title,
+    description: article.description,
+    evidenceRole: article.sourceEvidence?.evidenceRole,
+    sourcePerspective: article.sourceEvidence?.sourcePerspective,
+  });
   return {
     articleId: article.id,
     publisher: truncateText(
@@ -270,9 +288,12 @@ function evidenceArticle(
       sourceMatches: article.sourceMatches.slice(0, 8),
       evidenceRole: article.sourceEvidence?.evidenceRole ?? null,
       sourcePerspective: article.sourceEvidence?.sourcePerspective ?? null,
+      sourcePerspectives: article.sourceEvidence?.sourcePerspectives ?? [],
       jurisdiction: article.sourceEvidence?.jurisdiction ?? null,
       sourceSpecialisms: article.sourceEvidence?.sourceSpecialisms ?? [],
       institution: article.sourceEvidence?.institution ?? null,
+      translationStatus: article.sourceEvidence?.translationStatus ?? null,
+      originalSourceUrl: article.sourceEvidence?.originalSourceUrl ?? null,
     },
     machineClassification: {
       sector: article.sectorSlug,
@@ -281,6 +302,12 @@ function evidenceArticle(
       importance: article.importance,
       confidence: article.confidence,
     },
+    intelligenceAssessment: intelligenceAssessment
+      ? {
+          category: intelligenceAssessment.category,
+          claimKind: intelligenceAssessment.claimKind,
+        }
+      : null,
     effectiveClassification: {
       sector: effective.sector,
       eventType: effective.eventType,
@@ -456,6 +483,7 @@ GROUNDING RULES:
 2. Never claim to have read a full article; only stored headlines and snippets are supplied.
 3. Never fabricate numbers, quotes, entities, causal relationships, or outcomes.
 4. Distinguish announced, proposed, planned, or reported events from completed events.
+4a. intelligenceAssessment.claimKind is deterministic query-time context: OBSERVED_ACTION supports a reported concrete action; PROPOSED_ACTION supports only a proposal or future plan; ATTRIBUTED_ANALYSIS supports analysis, interpretation, forecast, or organizational position rather than a realized event; GENERAL_MENTION does not establish a structural event. Preserve those boundaries and state uncertainty when the stored text is insufficient.
 5. Do not convert correlation into causation.
 6. Do not override the supplied effective classifications. The supplied numerical importance remains authoritative for production, but your evaluation-only materialityLevel must be an independent assessment and may disagree with it.
 7. Human-corrected labels marked in the packet are authoritative.

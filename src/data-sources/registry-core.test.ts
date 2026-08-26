@@ -43,10 +43,10 @@ describe("source registry", () => {
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(31);
+    expect(sources).toHaveLength(41);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(28);
+    ).toHaveLength(38);
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");
@@ -118,6 +118,15 @@ describe("source registry", () => {
       sourcePerspective: "OFFICIAL",
       jurisdiction: "US",
       sourceSpecialisms: ["AI_POLICY", "COPYRIGHT", "CREATOR_RIGHTS"],
+    });
+    expect(
+      sources.find((source) => source.slug === "normal-technology"),
+    ).toMatchObject({
+      configured: true,
+      evidenceRole: "SPECIALIST_ANALYSIS",
+      sourcePerspective: "ACADEMIC",
+      sourcePerspectives: ["ACADEMIC", "ANALYTICAL"],
+      jurisdiction: "US / GLOBAL",
     });
     expect(
       sources.find((source) => source.slug === "us-box-office"),

@@ -7,7 +7,7 @@ import { buildStorySynthesisRequest } from "@/services/media/story-synthesis-cor
 import { requestOpenAIStorySynthesis } from "@/services/media/story-synthesis";
 
 const request = buildStorySynthesisRequest({
-  evidenceVersion: "story-synthesis-evidence-v2",
+  evidenceVersion: "story-synthesis-evidence-v3",
   clusterId: "cluster",
   representativeArticleId: "article",
   representativeHeadline: "Headline",

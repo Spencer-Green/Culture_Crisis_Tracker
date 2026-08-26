@@ -104,6 +104,30 @@ describe("media classification", () => {
     });
   });
 
+  it("represents a material senior AI infrastructure departure as a leadership event", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "OpenAI loses a top data center exec as stream of high-profile departures continues",
+          "OpenAI said it recently reorganized its infrastructure organization after the executive's departure.",
+          {
+            sectorHint: "ai-policy",
+            sourceMetadata: {
+              evidenceRole: "JOURNALISTIC_REPORTING",
+              sourcePerspective: "JOURNALISTIC",
+            },
+          },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: "EXECUTIVE_LEADERSHIP_CHANGE",
+      aiImpactType: "AMBIGUOUS",
+      confidence: "high",
+      importance: 4,
+    });
+  });
+
   it("does not turn generic AI cybersecurity into Film from a query hint", () => {
     const classified = classifyMediaArticle(
       article(
@@ -199,7 +223,7 @@ describe("media classification", () => {
       ),
     ).toMatchObject({
       sectorSlug: "music",
-      eventType: "AI_POLICY_REGULATION",
+      eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
       aiImpactType: "POLICY_REGULATION",
       confidence: "high",
       importance: 5,

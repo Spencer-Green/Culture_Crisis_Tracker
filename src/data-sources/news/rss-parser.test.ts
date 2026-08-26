@@ -45,6 +45,12 @@ describe("RSS and Atom parsing", () => {
     expect(parsed.articles[1].externalId).toBeNull();
   });
 
+  it("bounds normalization before mapping a large historical feed", () => {
+    const parsed = parseRssOrAtom(rss, feed, { maxItems: 1 });
+    expect(parsed.articles).toHaveLength(1);
+    expect(parsed.articles[0].externalId).toBe("rss-1");
+  });
+
   it("parses Atom entries and alternate links", () => {
     const parsed = parseRssOrAtom(atom, { ...feed, sector: "gaming" });
     expect(parsed.format).toBe("Atom");
@@ -69,9 +75,39 @@ describe("RSS and Atom parsing", () => {
       sourceTier: "SPECIALIST",
       evidenceRole: "PRIMARY_DOCUMENT",
       sourcePerspective: "OFFICIAL",
+      sourcePerspectives: ["OFFICIAL"],
       jurisdiction: "GB",
       sourceSpecialisms: ["AI_POLICY", "COPYRIGHT"],
       institution: "Fixture",
+      translationStatus: null,
+      originalSourceUrl: null,
+    });
+  });
+
+  it("preserves specialist perspective and clean translation provenance", () => {
+    const parsed = parseRssOrAtom(
+      `<?xml version="1.0"?><rss version="2.0"><channel><title>ChinAI</title><item><title>AI governance translation</title><link>https://chinai.substack.com/p/example</link><guid>translation-1</guid><pubDate>Tue, 25 Aug 2026 12:00:00 GMT</pubDate><description><![CDATA[<p>Translated analysis of AI policy. <a href="https://example.cn/original">Original source</a></p>]]></description></item></channel></rss>`,
+      {
+        ...feed,
+        slug: "chinai",
+        name: "ChinAI",
+        sector: "ai-policy",
+        publisherDomain: "chinai.substack.com",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "ANALYTICAL",
+        sourcePerspectives: ["ANALYTICAL", "TRANSLATION"],
+        jurisdiction: "CHINA",
+        sourceSpecialisms: ["CHINA_AI", "AI_GOVERNANCE"],
+        schedulingGroup: "SPECIALIST",
+        translationStatus: "TRANSLATED_OR_SUMMARISED",
+      },
+    );
+
+    expect(parsed.articles[0].sourceMetadata).toMatchObject({
+      evidenceRole: "SPECIALIST_ANALYSIS",
+      sourcePerspectives: ["ANALYTICAL", "TRANSLATION"],
+      translationStatus: "TRANSLATED_OR_SUMMARISED",
+      originalSourceUrl: "https://example.cn/original",
     });
   });
 

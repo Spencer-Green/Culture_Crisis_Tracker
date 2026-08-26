@@ -1102,6 +1102,15 @@ labor implications, explicit scale terms, and cross-sector breadth; it is not an
 score. AI impact is tracked separately from general polarity so licensing, rights, labor,
 regulation, adoption, and creator-tool developments remain distinguishable.
 
+The reusable media event vocabulary also distinguishes senior leadership changes, major
+product/capability releases, concrete compute-infrastructure expansions, and rights or eligibility
+rule changes. These types describe supported actions rather than AI subject matter alone. Existing
+general types remain authoritative where they already fit: material AI financing is `INVESTMENT`,
+workforce replacement is `AI_LABOR_DISPLACEMENT`, and regulatory enforcement remains
+`AI_POLICY_REGULATION`. Routine personnel changes, minor features, generic partnerships, planned
+capacity discussions, forecasts, and commentary do not receive the new event types merely because
+they concern a prominent AI organization.
+
 ### TheNewsAPI
 
 The authenticated source uses only:
@@ -1192,8 +1201,7 @@ type rather than adding broad new categories.
 GOV.UK feed content is attributed to the named department or agency; reuse of Crown material must
 follow the Open Government Licence and its attribution requirements. All other official-source
 terms and attribution requirements continue to apply. Institutional claims remain distinct from
-independent journalistic evidence. Specialist-analysis feeds are intentionally deferred to the
-next source-expansion phase.
+independent journalistic evidence.
 
 Live validation on 26 August 2026 found that the supplied DG CONNECT Press Corner URL returned a
 general `Press releases - RSS` channel and item-level `POLICY_AREA` metadata, including items not
@@ -1201,6 +1209,55 @@ specific to DG CONNECT. The tracker preserves the requested endpoint provenance 
 DG CONNECT authorship from the query parameter: unrelated items remain low-importance,
 `industry-events` records with null event types. The endpoint's department filtering should be
 revalidated before treating this feed as complete DG CONNECT coverage.
+
+### Specialist AI, policy, labour, and copyright feeds
+
+Ten high-signal feeds extend the same `MediaArticle` layer with an explicit
+`SPECIALIST_ANALYSIS` evidence role:
+
+- Tech Policy Press — `https://www.techpolicy.press/rss/feed.xml`
+- Lawfare — Cybersecurity & Tech — `https://www.lawfaremedia.org/feeds/cybersecurity-tech`
+- CSET — `https://cset.georgetown.edu/feed/`
+- AI Now Institute — `https://ainowinstitute.org/feed/`
+- Kluwer Copyright Blog — `https://legalblogs.wolterskluwer.com/copyright-blog/rss.xml`
+- AI as Normal Technology — `https://www.normaltech.ai/feed`
+- Blood in the Machine — `https://www.bloodinthemachine.com/feed`
+- ChinAI — `https://chinai.substack.com/feed`
+- Authors Alliance — `https://www.authorsalliance.org/feed/`
+- Creative Commons — `https://creativecommons.org/feed/`
+
+Source metadata preserves the primary and additional perspectives (policy, legal, research,
+academic, analytical, advocacy, labour, journalism, licensing, or translation), jurisdiction, and
+specialisms. These labels describe evidentiary context, not ideology or truth. CSET remains
+source-level `SPECIALIST_ANALYSIS`: its feed does not reliably encode a robust item-level boundary
+between original research and commentary. ChinAI carries `TRANSLATED_OR_SUMMARISED` provenance;
+where its feed supplies a clean external source link that URL is retained, but the translation is
+not treated as direct ingestion of the original document.
+
+Every specialist run makes one feed request, follows no pagination or external links, fetches no
+full article text, rejects future-dated entries, strips HTML, and caps both age and item count.
+Tech Policy Press normalizes only the newest 100 feed entries, then caps persistence to 20 items
+and 72 hours because its feed is unusually large; the other specialist feeds are capped to 30
+items and seven days. Item text must independently match a
+bounded AI, policy, labour, copyright, compute, competition, or creator-rights relevance predicate:
+feed membership alone does not guarantee ingestion or Culture Intelligence eligibility.
+
+Tech Policy Press, Lawfare, Kluwer, and Blood in the Machine run every 12 hours. CSET, AI Now,
+Normal Technology, ChinAI, Authors Alliance, and Creative Commons run daily. They stay outside the
+three-hour journalism cycle and reuse the scheduler's locking, staggering, failure isolation, and
+freshness semantics.
+
+Specialist analysis may be structurally material while retaining `eventType = null`. Labour
+exposure or forecasts are not observed displacement; workplace adoption is not layoffs; legal
+analysis is not a ruling; proposals are not enacted regulation; and organizational advocacy
+establishes an attributed position rather than an objective outcome. First-class AI materiality
+can still recognize evidence-rich policy, labour, economics, compute, industrial-structure, or
+rights analysis without requiring a named cultural sector. Luna evidence packets receive the
+role, perspectives, jurisdiction, specialisms, institution, and translation provenance as trusted
+metadata; titles and snippets remain untrusted evidence.
+
+Feed content remains subject to each publisher's copyright and reuse terms. The tracker stores
+only supplied metadata and a short sanitized snippet, not full articles.
 
 `/media` is the Culture Intelligence view with 24H/3D/7D and sector/AI filters, high-signal views,
 and a chronological feed. Music, Film, Theatre, and Gaming pages show complementary Recent
@@ -1260,6 +1317,12 @@ AI category vocabulary is query-time application logic and does not add persiste
 existing event and AI-impact values remain the stored taxonomy. This domain/materiality/evidence
 separation is designed to admit a future Consumer/Credit intelligence domain without treating
 media signals as measured macroeconomic observations.
+
+AI assessment also derives a query-time claim kind: `OBSERVED_ACTION`, `PROPOSED_ACTION`,
+`ATTRIBUTED_ANALYSIS`, or `GENERAL_MENTION`. It is not persisted and does not replace the evidence
+role or human corrections. The Luna experiment receives this deterministic context so it can keep
+completed actions distinct from proposals, forecasts, interpretation, and organizational
+positions; production eligibility and ranking remain deterministic.
 
 All synthesis is deterministic and limited to stored headlines, snippets, classifications,
 feedback, publication metadata, and current structured metrics. Short “why it matters” text is a
@@ -1962,6 +2025,8 @@ serialized. All timestamps and cadence arithmetic use UTC.
 | UK IPO                    | Release-aware / 12h | One official Atom request, trailing 72 hours, maximum 50 accepted items                        |
 | UK CMA                    | Release-aware / 12h | One official Atom request, trailing 72 hours, maximum 50 accepted items                        |
 | EU DG CONNECT             | Release-aware / 12h | One official feed request, trailing 72 hours, maximum 50 accepted items                        |
+| Specialist feeds (12h)    | Release-aware / 12h | Tech Policy Press uses 72h/20-item bounds; Lawfare, Kluwer, and Blood in the Machine use 7d/30 |
+| Specialist feeds (daily)  | Daily / 24h         | CSET, AI Now, Normal Technology, ChinAI, Authors Alliance, and Creative Commons use 7d/30      |
 | US provisional box office | Daily / 24h         | Current calendar-year dataset rows only                                                        |
 | BFI                       | Daily / 24h         | Current-year weekly reports and published structural tables                                    |
 | Screen Australia          | Weekly / 7d         | One current public-widget HTML request; no archive, secondary request, or backfill             |

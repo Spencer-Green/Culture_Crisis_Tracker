@@ -221,4 +221,24 @@ describe("source seed metadata", () => {
       expect(operation.create.requiresAuthentication).toBe(false);
     }
   });
+
+  it("enables specialist feeds with exact public feed URLs", () => {
+    for (const slug of [
+      "tech-policy-press",
+      "lawfare-cybersecurity-tech",
+      "cset",
+      "ai-now-institute",
+      "kluwer-copyright-blog",
+      "normal-technology",
+      "blood-in-the-machine",
+      "chinai",
+      "authors-alliance",
+      "creative-commons",
+    ] as const) {
+      const definition = getSourceDefinition(slug);
+      const operation = buildSourceSeedOperation(definition, {});
+      expect(operation.create.enabled).toBe(true);
+      expect(operation.create.baseUrl).toBe(definition.sourceUrl);
+    }
+  });
 });

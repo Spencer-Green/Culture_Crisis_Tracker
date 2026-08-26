@@ -6,6 +6,7 @@ import type {
   ClassifiedMediaArticle,
   MediaSectorSlug,
 } from "@/data-sources/news/media-types";
+import { isSpecialistIntelligenceRelevant } from "@/data-sources/news/specialist-intelligence";
 import {
   bundleMediaArticles,
   type MediaIngestionStore,
@@ -34,6 +35,8 @@ export type RssIngestionResult = {
   feedsSucceeded: number;
   feedFailures: { slug: string; error: string }[];
   entriesRead: number;
+  entriesInsideWindow: number;
+  entriesBoundedOut: number;
   entriesAccepted: number;
   entriesSkipped: number;
   canonicalDuplicates: number;
@@ -93,6 +96,8 @@ export async function runRssIngestion(input: {
     },
   });
   let entriesRead = 0;
+  let entriesInsideWindow = 0;
+  let entriesBoundedOut = 0;
   try {
     await input.store.markSourceAttempted(source.id, startedAt);
     const raw = [];
@@ -104,14 +109,36 @@ export async function runRssIngestion(input: {
         const response = await fetcher(feed);
         succeeded += 1;
         entriesRead += response.articles.length;
+        const feedStartDate = new Date(
+          Math.max(
+            input.startDate.getTime(),
+            feed.maximumAgeHours
+              ? startedAt.getTime() - feed.maximumAgeHours * 60 * 60 * 1_000
+              : Number.NEGATIVE_INFINITY,
+          ),
+        );
+        const insideWindow = response.articles.filter(
+          (article) =>
+            article.publishedAt >= feedStartDate &&
+            article.publishedAt <= startedAt,
+        );
+        const maximumItems =
+          feed.maxItemsPerRun ??
+          (feed.schedulingGroup === "INSTITUTIONAL"
+            ? 50
+            : feed.schedulingGroup === "SPECIALIST"
+              ? 30
+              : 100);
+        entriesInsideWindow += insideWindow.length;
+        entriesBoundedOut += Math.max(0, insideWindow.length - maximumItems);
         raw.push(
-          ...response.articles
+          ...insideWindow
+            .slice(0, maximumItems)
             .filter(
               (article) =>
-                article.publishedAt >= input.startDate &&
-                article.publishedAt <= startedAt,
-            )
-            .slice(0, feed.schedulingGroup === "INSTITUTIONAL" ? 50 : 100),
+                feed.schedulingGroup !== "SPECIALIST" ||
+                isSpecialistIntelligenceRelevant(article),
+            ),
         );
       } catch {
         failures.push({
@@ -141,6 +168,8 @@ export async function runRssIngestion(input: {
       feedsSucceeded: succeeded,
       feedFailures: failures,
       entriesRead,
+      entriesInsideWindow,
+      entriesBoundedOut,
       entriesAccepted: classified.length,
       entriesSkipped: Math.max(0, entriesRead - classified.length),
       canonicalDuplicates: deduped.duplicateCount,

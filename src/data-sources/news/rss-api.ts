@@ -30,7 +30,9 @@ export async function fetchRssFeed(
     fetchImplementation: options.fetchImplementation,
   });
   return {
-    ...parseRssOrAtom(response.body, feed),
+    ...parseRssOrAtom(response.body, feed, {
+      maxItems: feed.maxItemsToParse,
+    }),
     latencyMs: response.latencyMs,
   };
 }

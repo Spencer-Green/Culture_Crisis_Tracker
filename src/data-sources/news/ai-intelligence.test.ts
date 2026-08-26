@@ -86,6 +86,132 @@ describe("first-class AI intelligence assessment", () => {
     });
   });
 
+  it("classifies a strategically significant senior departure without treating routine departures as structural", () => {
+    expect(
+      assess(
+        "OpenAI loses a top data center exec as stream of high-profile departures continues",
+        "OpenAI said it recently reorganized its infrastructure organization after the executive's departure.",
+      ),
+    ).toMatchObject({
+      category: "AI_INFRASTRUCTURE",
+      claimKind: "OBSERVED_ACTION",
+      eventType: "EXECUTIVE_LEADERSHIP_CHANGE",
+      aiImpactType: "AMBIGUOUS",
+      confidence: "high",
+      importance: 4,
+    });
+    expect(
+      assess(
+        "AI startup employee leaves the company",
+        "The routine staff departure does not involve a senior leadership role.",
+      )?.eventType,
+    ).not.toBe("EXECUTIVE_LEADERSHIP_CHANGE");
+    expect(
+      assess(
+        "Replit CEO joins the conference stage",
+        "The founder will appear for an interview about AI products.",
+      )?.eventType,
+    ).not.toBe("EXECUTIVE_LEADERSHIP_CHANGE");
+  });
+
+  it("distinguishes major capability releases from routine or future product updates", () => {
+    expect(
+      assess(
+        "Anthropic releases new multimodal reasoning model",
+        "The deployed system delivers major performance gains and a materially new capability.",
+      ),
+    ).toMatchObject({
+      category: "FRONTIER_MODEL_ADVANCEMENT",
+      claimKind: "OBSERVED_ACTION",
+      eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+      confidence: "high",
+      importance: 4,
+    });
+    expect(
+      assess(
+        "AI lab announces a planned next-generation model",
+        "The company will release the system next year.",
+      ),
+    ).toMatchObject({
+      claimKind: "PROPOSED_ACTION",
+      eventType: null,
+      confidence: "medium",
+    });
+    expect(
+      assess("AI assistant gets a minor beta feature update")?.eventType,
+    ).not.toBe("MAJOR_PRODUCT_CAPABILITY_RELEASE");
+  });
+
+  it("requires concrete action for compute infrastructure expansion", () => {
+    expect(
+      assess(
+        "Microsoft invests $10 billion in AI data centre capacity",
+        "The company expanded its compute campus and added training capacity.",
+      ),
+    ).toMatchObject({
+      category: "AI_INFRASTRUCTURE",
+      claimKind: "OBSERVED_ACTION",
+      eventType: "COMPUTE_INFRASTRUCTURE_EXPANSION",
+      confidence: "high",
+      importance: 4,
+    });
+    expect(
+      assess(
+        "Analysts forecast rising AI data center demand",
+        "The discussion estimates future compute requirements without reporting a build or investment.",
+      )?.eventType,
+    ).not.toBe("COMPUTE_INFRASTRUCTURE_EXPANSION");
+  });
+
+  it("separates enacted cultural eligibility rules from commentary proposing them", () => {
+    expect(
+      assess(
+        "ARIA sets AI eligibility rules for its charts",
+        "The chart authority bans wholly AI-generated songs and withdraws their accreditation.",
+      ),
+    ).toMatchObject({
+      claimKind: "OBSERVED_ACTION",
+      eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+      aiImpactType: "POLICY_REGULATION",
+      confidence: "high",
+      importance: 5,
+    });
+    expect(
+      assessAiIntelligence({
+        title: "Commentary: AI music should be excluded from charts",
+        description:
+          "The author argues that chart eligibility rules should change.",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "ANALYTICAL",
+      }),
+    ).toMatchObject({
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+    });
+  });
+
+  it("uses existing general event types where they already express the action", () => {
+    expect(
+      assess(
+        "Stability AI raises $76 million in fresh funding",
+        "The financing brings the company's fundraising total to $232 million.",
+      ),
+    ).toMatchObject({
+      category: "AI_CAPITAL_INVESTMENT",
+      eventType: "INVESTMENT",
+      importance: 3,
+    });
+    expect(
+      assess(
+        "FTC opens an AI enforcement action",
+        "The federal regulator initiated enforcement under national AI rules.",
+      ),
+    ).toMatchObject({
+      category: "AI_POLICY_REGULATION",
+      eventType: "AI_POLICY_REGULATION",
+    });
+  });
+
   it("keeps an authoritative economic forecast attributed rather than factualising it", () => {
     expect(
       assess(
@@ -132,6 +258,88 @@ describe("first-class AI intelligence assessment", () => {
       confidence: "high",
       claimKind: "ATTRIBUTED_ANALYSIS",
       eventType: null,
+    });
+  });
+
+  it("allows high-materiality specialist analysis to retain a null event", () => {
+    expect(
+      assessAiIntelligence({
+        title: "Study finds AI adoption across the national workforce",
+        description:
+          "The empirical research reports broad workplace adoption and productivity evidence.",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "ACADEMIC",
+      }),
+    ).toMatchObject({
+      category: "AI_ECONOMICS",
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+      confidence: "high",
+      importance: 4,
+    });
+  });
+
+  it("does not convert specialist legal analysis into a ruling", () => {
+    expect(
+      assessAiIntelligence({
+        title: "Why a court decision may reshape AI training and fair use",
+        description:
+          "Legal analysis examines the copyright implications for creators.",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "LEGAL",
+      }),
+    ).toMatchObject({
+      category: "AI_COPYRIGHT",
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+      aiImpactType: "RIGHTS_LICENSING",
+    });
+  });
+
+  it("treats specialist policy argument as material analysis rather than an enacted event", () => {
+    expect(
+      assessAiIntelligence({
+        title: "Colombia is preparing a poor copy of the EU's AI Act",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "POLICY",
+      }),
+    ).toMatchObject({
+      category: "AI_POLICY_REGULATION",
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+      importance: 3,
+      confidence: "medium",
+    });
+  });
+
+  it("does not treat effects on decision-making as workforce displacement", () => {
+    const result = assessAiIntelligence({
+      title: "How AI could hollow out military decision-making",
+      description:
+        "The analysis considers effects on human judgment and operational decisions.",
+      evidenceRole: "SPECIALIST_ANALYSIS",
+      sourcePerspective: "RESEARCH",
+    });
+    expect(result?.category).not.toBe("AI_LABOUR_DISPLACEMENT");
+    expect(result?.eventType).not.toBe("AI_LABOR_DISPLACEMENT");
+    expect(result).toMatchObject({
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+      importance: 2,
+    });
+  });
+
+  it("does not turn low-signal specialist commentary into an adoption event", () => {
+    expect(
+      assessAiIntelligence({
+        title: "Opinion: AI is changing everything",
+        evidenceRole: "SPECIALIST_ANALYSIS",
+        sourcePerspective: "ANALYTICAL",
+      }),
+    ).toMatchObject({
+      claimKind: "ATTRIBUTED_ANALYSIS",
+      eventType: null,
+      importance: 1,
     });
   });
 });

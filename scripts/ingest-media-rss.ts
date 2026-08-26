@@ -17,6 +17,8 @@ async function main() {
     `Feed failures: ${result.feedFailures.map((item) => item.slug).join(", ") || "none"}`,
   );
   console.log(`Entries read: ${result.entriesRead}`);
+  console.log(`Entries inside window: ${result.entriesInsideWindow}`);
+  console.log(`Entries bounded out: ${result.entriesBoundedOut}`);
   console.log(`Entries accepted: ${result.entriesAccepted}`);
   console.log(`Entries skipped: ${result.entriesSkipped}`);
   console.log(`Canonical duplicates: ${result.canonicalDuplicates}`);

@@ -10,9 +10,12 @@ import {
 export type MediaSourceEvidenceMetadata = {
   evidenceRole: MediaEvidenceRole;
   sourcePerspective: MediaSourcePerspective;
+  sourcePerspectives?: MediaSourcePerspective[];
   jurisdiction: string | null;
   sourceSpecialisms: MediaSourceSpecialism[];
   institution: string | null;
+  translationStatus?: "TRANSLATED_OR_SUMMARISED" | null;
+  originalSourceUrl?: string | null;
 };
 
 function allowed<T extends string>(
@@ -37,13 +40,27 @@ export function readMediaSourceEvidenceMetadata(
         allowed(item, MEDIA_SOURCE_SPECIALISMS),
       )
     : [];
+  const sourcePerspectives = Array.isArray(record.sourcePerspectives)
+    ? record.sourcePerspectives.filter((item): item is MediaSourcePerspective =>
+        allowed(item, MEDIA_SOURCE_PERSPECTIVES),
+      )
+    : [record.sourcePerspective];
   return {
     evidenceRole: record.evidenceRole,
     sourcePerspective: record.sourcePerspective,
+    sourcePerspectives,
     jurisdiction:
       typeof record.jurisdiction === "string" ? record.jurisdiction : null,
     sourceSpecialisms,
     institution:
       typeof record.institution === "string" ? record.institution : null,
+    translationStatus:
+      record.translationStatus === "TRANSLATED_OR_SUMMARISED"
+        ? record.translationStatus
+        : null,
+    originalSourceUrl:
+      typeof record.originalSourceUrl === "string"
+        ? record.originalSourceUrl
+        : null,
   };
 }

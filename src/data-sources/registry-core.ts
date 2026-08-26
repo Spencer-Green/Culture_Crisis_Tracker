@@ -19,6 +19,7 @@ export type SafeSourceMetadata = {
   sourceUrl: string | null;
   evidenceRole: string | null;
   sourcePerspective: string | null;
+  sourcePerspectives: readonly string[];
   jurisdiction: string | null;
   sourceSpecialisms: readonly string[];
 };
@@ -45,6 +46,9 @@ export function buildStaticSourceRegistry(
       sourceUrl: definition.sourceUrl ?? null,
       evidenceRole: definition.evidenceRole ?? null,
       sourcePerspective: definition.sourcePerspective ?? null,
+      sourcePerspectives:
+        definition.sourcePerspectives ??
+        (definition.sourcePerspective ? [definition.sourcePerspective] : []),
       jurisdiction: definition.jurisdiction ?? null,
       sourceSpecialisms: definition.sourceSpecialisms ?? [],
     };

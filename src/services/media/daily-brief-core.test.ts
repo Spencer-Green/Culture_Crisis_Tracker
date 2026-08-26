@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { MediaArticleView } from "@/services/media/media-service-core";
 import {
+  assignFullBriefSection,
   buildDailyCultureBriefCore,
+  buildFullBriefSections,
   buildMediaStoryClusters,
   deriveBriefMediaFreshness,
   isAiIntelligenceStory,
@@ -43,6 +45,26 @@ function article(
   };
 }
 
+function correctedEventFeedback(
+  eventType: NonNullable<
+    NonNullable<
+      MediaArticleView["classificationFeedback"]
+    >["correctedEventType"]
+  >,
+): NonNullable<MediaArticleView["classificationFeedback"]> {
+  return {
+    reviewState: "WRONG_CLASSIFICATION",
+    reasons: ["WRONG_EVENT_TYPE"],
+    correctedSector: null,
+    correctedEventType: eventType,
+    correctedAiTag: null,
+    correctedImportance: null,
+    approvedMachineClassification: null,
+    evaluationState: "WRONG_CLASSIFICATION",
+    reviewedAt: "2026-08-22T10:00:00.000Z",
+  };
+}
+
 describe("daily brief story clustering", () => {
   it("collapses syndicated duplicates and preserves provenance", () => {
     const clusters = buildMediaStoryClusters([
@@ -72,6 +94,26 @@ describe("daily brief story clustering", () => {
     ]);
   });
 
+  it("preserves direct fingerprint matches outside the semantic time window", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "older-direct",
+        title: "Music company announces workforce layoffs",
+        publishedAt: "2026-08-18T08:00:00.000Z",
+        storyFingerprint: "stable-direct-match",
+      }),
+      article({
+        id: "newer-direct",
+        title: "Updated report on music company layoffs",
+        publishedAt: "2026-08-22T08:00:00.000Z",
+        storyFingerprint: "stable-direct-match",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].articleIds).toEqual(["newer-direct", "older-direct"]);
+  });
+
   it("keeps separate same-company developments with different event types", () => {
     const clusters = buildMediaStoryClusters([
       article({
@@ -86,6 +128,239 @@ describe("daily brief story clustering", () => {
           "Netflix announces animation company acquisition after strategic review",
         sectorSlug: "film",
         eventType: "CONSOLIDATION_ACQUISITION",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("clusters the same chart rule reported with generic, specific, and corrected event labels", () => {
+    const corrected = article({
+      id: "aria-corrected",
+      title: "AI-generated songs banned from Australian charts",
+      description:
+        "The releases will no longer be eligible for the ARIA Charts under the updated accreditation rules.",
+      publisher: "NME Music",
+      countryCode: "AU",
+      sectorSlug: "ai-policy",
+      eventType: "AI_ADOPTION",
+      aiImpactType: "AMBIGUOUS",
+      importance: 2,
+      confidence: "low",
+      classificationFeedback: {
+        ...correctedEventFeedback("AI_POLICY_REGULATION"),
+        reasons: ["WRONG_EVENT_TYPE", "WRONG_AI_TAG", "WRONG_IMPORTANCE"],
+        correctedAiTag: "POLICY_REGULATION",
+        correctedImportance: 5,
+      },
+    });
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "aria-generic",
+        title: "AI-generated music banned from Australian charts",
+        description:
+          "AI-generated music will be excluded from Australia's official music charts.",
+        publisher: "TechCentral",
+        countryCode: "AU",
+        eventType: "AI_POLICY_REGULATION",
+        aiImpactType: "POLICY_REGULATION",
+        importance: 5,
+      }),
+      article({
+        id: "aria-specific",
+        title:
+          "Australia bans largely AI-generated songs from official music charts",
+        description:
+          "The chart eligibility change excludes largely AI-generated music.",
+        publisher: "LiveMint",
+        countryCode: "AU",
+        eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+        aiImpactType: "POLICY_REGULATION",
+        importance: 5,
+      }),
+      corrected,
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toMatchObject({
+      articleIds: ["aria-corrected", "aria-generic", "aria-specific"],
+      sourceCount: 3,
+      eventType: "AI_POLICY_REGULATION",
+      humanReviewState: "corrected",
+    });
+    expect(corrected).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: "AI_ADOPTION",
+      importance: 2,
+    });
+  });
+
+  it("unites earlier groups when a later report bridges compatible story labels", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "early-made",
+        title:
+          "Australia bans AI-made music from its charts unless humans created most of it",
+        description:
+          "The Australian Recording Industry Association updated its charts code to distinguish AI-generated and AI-assisted music.",
+        publishedAt: "2026-08-22T06:00:00.000Z",
+        countryCode: "AU",
+        eventType: "AI_ADOPTION",
+        confidence: "low",
+      }),
+      article({
+        id: "early-generated",
+        title:
+          "Keep It Real: AI-Generated Songs Banned from Australian Music Charts",
+        description:
+          "A new prohibition excludes AI-created songs from the official charts.",
+        publishedAt: "2026-08-22T07:00:00.000Z",
+        countryCode: "AU",
+        eventType: "AI_ADOPTION",
+        confidence: "low",
+      }),
+      article({
+        id: "later-policy",
+        title: "AI-generated music banned from Australian charts",
+        description:
+          "The Australian Recording Industry Association said AI-generated music will be excluded from Australia's music charts under its updated code.",
+        publishedAt: "2026-08-22T08:00:00.000Z",
+        countryCode: "AU",
+        eventType: "AI_POLICY_REGULATION",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].articleIds).toEqual([
+      "early-generated",
+      "early-made",
+      "later-policy",
+    ]);
+  });
+
+  it("keeps a chart eligibility rule separate from a licensing agreement", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "chart-rule",
+        title: "ARIA changes AI chart eligibility for music releases",
+        description:
+          "The association excluded fully AI-generated tracks from its charts.",
+        countryCode: "AU",
+        eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+        aiImpactType: "POLICY_REGULATION",
+      }),
+      article({
+        id: "licensing-deal",
+        title: "Record label signs AI music licensing agreement",
+        description:
+          "A separate label licensed recordings for a generative AI service.",
+        countryCode: "AU",
+        eventType: "AI_LICENSING",
+        aiImpactType: "RIGHTS_LICENSING",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("keeps separate policy actions by the same regulator", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "proposal",
+        title: "FTC proposes AI transparency rule for music platforms",
+        description:
+          "The regulator proposed disclosure requirements for AI systems.",
+        countryCode: "US",
+        sectorSlug: "ai-policy",
+        eventType: "AI_POLICY_REGULATION",
+      }),
+      article({
+        id: "enforcement",
+        title:
+          "FTC opens unrelated AI competition enforcement action against cloud provider",
+        description: "The regulator opened a separate antitrust investigation.",
+        countryCode: "US",
+        sectorSlug: "ai-policy",
+        eventType: "AI_POLICY_REGULATION",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("clusters corrected and machine-labelled duplicates without mutating either label", () => {
+    const machine = article({
+      id: "machine-policy",
+      title: "AI-generated music banned from Australian charts",
+      description:
+        "Australia's official music charts excluded AI-generated tracks.",
+      countryCode: "AU",
+      eventType: "AI_POLICY_REGULATION",
+    });
+    const corrected = article({
+      id: "corrected-rights",
+      title: "Australia bars AI-generated songs from official music charts",
+      description:
+        "The new chart rule makes fully generated releases ineligible.",
+      countryCode: "AU",
+      eventType: "AI_ADOPTION",
+      confidence: "low",
+      classificationFeedback: correctedEventFeedback(
+        "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+      ),
+    });
+
+    expect(buildMediaStoryClusters([machine, corrected])).toHaveLength(1);
+    expect(machine.eventType).toBe("AI_POLICY_REGULATION");
+    expect(corrected.eventType).toBe("AI_ADOPTION");
+    expect(corrected.classificationFeedback?.correctedEventType).toBe(
+      "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+    );
+  });
+
+  it("treats generic policy and a compatible specific subtype as one story", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "broad-policy",
+        title: "Australian music charts ban AI-generated tracks",
+        description:
+          "The policy excludes wholly generated music from official charts.",
+        countryCode: "AU",
+        eventType: "AI_POLICY_REGULATION",
+      }),
+      article({
+        id: "specific-policy",
+        title:
+          "Australia excludes AI-generated songs from official music charts",
+        description:
+          "The eligibility rule removes fully generated tracks from the charts.",
+        countryCode: "AU",
+        eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+      }),
+    ]);
+
+    expect(clusters).toHaveLength(1);
+  });
+
+  it("does not merge generic AI policy stories on jurisdiction and event family alone", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "procurement",
+        title: "Australia proposes AI safety code for government procurement",
+        description:
+          "The proposal would govern public-sector purchases of AI systems.",
+        countryCode: "AU",
+        sectorSlug: "ai-policy",
+        eventType: "AI_POLICY_REGULATION",
+      }),
+      article({
+        id: "copyright",
+        title: "Australia opens AI copyright consultation for publishers",
+        description:
+          "The consultation concerns training data and author compensation.",
+        countryCode: "AU",
+        sectorSlug: "ai-policy",
+        eventType: "AI_POLICY_REGULATION",
       }),
     ]);
 
@@ -185,6 +460,162 @@ describe("daily brief story clustering", () => {
       }),
     ]);
     expect(clusters).toEqual([]);
+  });
+});
+
+describe("full Daily Brief domain assignment", () => {
+  it("gives material AI precedence over music and film sectors", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "aria-rule",
+        title: "ARIA sets AI eligibility rules for its charts",
+        description:
+          "The chart authority bans wholly AI-generated songs and withdraws their accreditation.",
+        countryCode: "AU",
+        sectorSlug: "music",
+        eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+        aiImpactType: "POLICY_REGULATION",
+        importance: 5,
+      }),
+      article({
+        id: "film-ai",
+        title:
+          "Anthropic releases new multimodal reasoning model for film production",
+        description:
+          "The deployed system delivers major performance gains and a materially new capability for film production.",
+        sectorSlug: "film",
+        eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+        aiImpactType: "INDUSTRY_EFFICIENCY",
+        importance: 4,
+      }),
+    ]);
+    const sections = buildFullBriefSections(clusters);
+
+    expect(
+      sections["ai-intelligence"].map(
+        (cluster) => cluster.representativeArticleId,
+      ),
+    ).toEqual(["aria-rule", "film-ai"]);
+    expect(sections.music).toEqual([]);
+    expect(sections.film).toEqual([]);
+    expect(
+      Object.values(sections)
+        .flat()
+        .map((cluster) => cluster.clusterId),
+    ).toHaveLength(2);
+  });
+
+  it("assigns non-AI material stories to their effective sectors", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "music-acquisition",
+        title: "Major record label acquires independent music company",
+        sectorSlug: "music",
+        eventType: "CONSOLIDATION_ACQUISITION",
+        importance: 5,
+      }),
+      article({
+        id: "film-merger",
+        title: "Major film studios complete production merger",
+        sectorSlug: "film",
+        eventType: "CONSOLIDATION_ACQUISITION",
+        importance: 4,
+      }),
+      article({
+        id: "incidental-ai",
+        title: "Music label invests in expanded catalog operations",
+        description:
+          "The investment expands music operations; an internal pilot also mentions AI-assisted tagging.",
+        sectorSlug: "music",
+        eventType: "INVESTMENT",
+        aiImpactType: "AMBIGUOUS",
+        importance: 3,
+      }),
+    ]);
+    const sections = buildFullBriefSections(clusters);
+
+    expect(
+      sections.music.map((cluster) => cluster.representativeArticleId),
+    ).toEqual(["music-acquisition", "incidental-ai"]);
+    expect(
+      sections.film.map((cluster) => cluster.representativeArticleId),
+    ).toEqual(["film-merger"]);
+    expect(sections["ai-intelligence"]).toEqual([]);
+  });
+
+  it("uses a human-corrected sector without mutating the machine label", () => {
+    const machine = article({
+      id: "corrected-sector",
+      title: "Independent music label receives major investment",
+      sectorSlug: "film",
+      eventType: "INVESTMENT",
+      importance: 4,
+      classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_SECTOR"],
+        correctedSector: "music",
+        correctedEventType: null,
+        correctedAiTag: null,
+        correctedImportance: null,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
+        reviewedAt: "2026-08-22T10:00:00.000Z",
+      },
+    });
+    const [cluster] = buildMediaStoryClusters([machine]);
+
+    expect(assignFullBriefSection(cluster)).toBe("music");
+    expect(cluster.sector).toBe("music");
+    expect(machine.sectorSlug).toBe("film");
+  });
+
+  it("excludes manually not-relevant clusters from presentation assignment", () => {
+    const [cluster] = buildMediaStoryClusters([
+      article({
+        id: "later-rejected",
+        title: "Music company announces major investment",
+        eventType: "INVESTMENT",
+        importance: 4,
+      }),
+    ]);
+    cluster.articles[0].classificationFeedback = {
+      reviewState: "WRONG_CLASSIFICATION",
+      reasons: ["NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
+      correctedSector: null,
+      correctedEventType: null,
+      correctedAiTag: null,
+      correctedImportance: null,
+      approvedMachineClassification: null,
+      evaluationState: "WRONG_CLASSIFICATION",
+      reviewedAt: "2026-08-22T10:00:00.000Z",
+    };
+
+    expect(assignFullBriefSection(cluster)).toBeNull();
+    expect(buildFullBriefSections([cluster]).music).toEqual([]);
+  });
+
+  it("preserves deterministic ranking and per-section limits", () => {
+    const clusters = buildMediaStoryClusters([
+      article({
+        id: "lower",
+        title: "Regional music company announces investment",
+        eventType: "INVESTMENT",
+        importance: 3,
+      }),
+      article({
+        id: "higher",
+        title: "Major music company announces record investment",
+        eventType: "INVESTMENT",
+        importance: 5,
+      }),
+    ]);
+
+    expect(
+      buildFullBriefSections(clusters).music.map(
+        (cluster) => cluster.representativeArticleId,
+      ),
+    ).toEqual(["higher", "lower"]);
+    expect(buildFullBriefSections(clusters, 1).music).toHaveLength(1);
   });
 });
 

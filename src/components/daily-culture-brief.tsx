@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { DailyCultureBrief } from "@/services/media/daily-brief";
 import type {
   BriefSector,
+  FullBriefSectionId,
   MediaStoryCluster,
 } from "@/services/media/daily-brief-core";
 
@@ -171,6 +172,41 @@ const SECTOR_LABELS: Record<BriefSector, string> = {
   gaming: "Gaming",
 };
 
+const FULL_BRIEF_SECTIONS: readonly {
+  id: FullBriefSectionId;
+  title: string;
+  description?: string;
+  quietMessage: string;
+}[] = [
+  {
+    id: "ai-intelligence",
+    title: "AI Intelligence",
+    description:
+      "Material AI developments, including creative-work, policy, labour, infrastructure, and market-structure signals.",
+    quietMessage: "No qualifying material AI development was identified.",
+  },
+  {
+    id: "music",
+    title: "Music",
+    quietMessage: "No qualifying Music development was identified.",
+  },
+  {
+    id: "film",
+    title: "Film",
+    quietMessage: "No qualifying Film development was identified.",
+  },
+  {
+    id: "gaming",
+    title: "Gaming",
+    quietMessage: "No qualifying Gaming development was identified.",
+  },
+  {
+    id: "theatre",
+    title: "Theatre",
+    quietMessage: "No qualifying Theatre development was identified.",
+  },
+];
+
 export function DailyBriefOverview({ brief }: { brief: DailyCultureBrief }) {
   return (
     <section className="rounded-2xl border border-blue-900/50 bg-blue-950/15 p-5">
@@ -226,6 +262,12 @@ export function DailyBriefOverview({ brief }: { brief: DailyCultureBrief }) {
 }
 
 export function DailyBriefFull({ brief }: { brief: DailyCultureBrief }) {
+  const displayedStoryCount = FULL_BRIEF_SECTIONS.reduce(
+    (total, section) => total + brief.fullPageSections[section.id].length,
+    0,
+  );
+  const displayedAiStoryCount =
+    brief.fullPageSections["ai-intelligence"].length;
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-blue-900/50 bg-blue-950/15 p-6">
@@ -236,9 +278,16 @@ export function DailyBriefFull({ brief }: { brief: DailyCultureBrief }) {
           Last 24 hours in the cultural economy
         </h1>
         <div className="mt-3 max-w-3xl space-y-1 text-sm leading-6 text-zinc-300">
-          {brief.topLine.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+          <p>
+            {displayedStoryCount === 0
+              ? "No qualifying material development was identified in the current window."
+              : `${displayedStoryCount} ranked material ${displayedStoryCount === 1 ? "development is" : "developments are"} shown across AI Intelligence and cultural sectors.`}
+          </p>
+          <p>
+            {displayedAiStoryCount === 0
+              ? "No qualifying material AI development was identified."
+              : `${displayedAiStoryCount} material AI ${displayedAiStoryCount === 1 ? "development is" : "developments are"} assigned to AI Intelligence.`}
+          </p>
         </div>
         <dl className="mt-5 grid gap-3 text-xs text-zinc-500 sm:grid-cols-3">
           <div>
@@ -270,70 +319,47 @@ export function DailyBriefFull({ brief }: { brief: DailyCultureBrief }) {
         ) : null}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <StorySection
-          title="Top Developments"
-          description="Ranked by human-corrected importance where available, then confidence, independent source count, and recency."
-          stories={brief.topDevelopments}
-          generatedAt={brief.generatedAt}
-          quietMessage="No story met the materiality and confidence threshold in this window."
-        />
-        <StorySection
-          title="AI Intelligence"
-          description="Material AI developments, including creative-work, policy, labour, infrastructure, and market-structure signals."
-          stories={brief.aiAndCreativeWork}
-          generatedAt={brief.generatedAt}
-          quietMessage="No qualifying material AI development was identified."
-        />
-      </div>
-
       <section>
         <div className="mb-4">
-          <h2 className="text-sm font-semibold text-zinc-100">Sector Watch</h2>
+          <h2 className="text-sm font-semibold text-zinc-100">
+            Ranked Domains
+          </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Secondary sector developments are preferred when a story already
-            appears in Top Developments.
+            Each story cluster is assigned once: material AI takes precedence,
+            followed by its effective cultural sector.
           </p>
         </div>
         <div className="grid gap-6 xl:grid-cols-2">
-          {(Object.keys(SECTOR_LABELS) as BriefSector[]).map((sector) => (
+          {FULL_BRIEF_SECTIONS.map((section) => (
             <StorySection
-              key={sector}
-              title={SECTOR_LABELS[sector]}
-              stories={brief.sectors[sector]}
+              key={section.id}
+              title={section.title}
+              description={section.description}
+              stories={brief.fullPageSections[section.id]}
               generatedAt={brief.generatedAt}
-              quietMessage={`No qualifying ${SECTOR_LABELS[sector]} development was identified.`}
+              quietMessage={section.quietMessage}
             />
           ))}
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <StorySection
-          title="Positive Counter-Signals"
-          description="Openings, hiring, funding, investment, expansion, and reported demand or revenue growth."
-          stories={brief.positiveSignals}
-          generatedAt={brief.generatedAt}
-          quietMessage="No qualifying positive counter-signal was identified in this window."
-        />
-        <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-5">
-          <h2 className="text-sm font-semibold text-zinc-100">
-            What Changed Since Yesterday
-          </h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Current 24 hours compared with the preceding 24 hours; count
-            differences are not trends.
-          </p>
-          <ul className="mt-4 space-y-3 text-sm leading-6 text-zinc-400">
-            {brief.delta.bullets.map((bullet) => (
-              <li key={bullet} className="flex gap-3">
-                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-blue-500" />
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+      <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-5">
+        <h2 className="text-sm font-semibold text-zinc-100">
+          What Changed Since Yesterday
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Current 24 hours compared with the preceding 24 hours; count
+          differences are not trends.
+        </p>
+        <ul className="mt-4 space-y-3 text-sm leading-6 text-zinc-400">
+          {brief.delta.bullets.map((bullet) => (
+            <li key={bullet} className="flex gap-3">
+              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-blue-500" />
+              <span>{bullet}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-5">
         <h2 className="text-sm font-semibold text-zinc-100">Market Context</h2>

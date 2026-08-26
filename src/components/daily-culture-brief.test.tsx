@@ -8,7 +8,7 @@ import {
 import type { DailyCultureBrief } from "@/services/media/daily-brief";
 import type { MediaStoryCluster } from "@/services/media/daily-brief-core";
 
-function story(): MediaStoryCluster {
+function story(overrides: Partial<MediaStoryCluster> = {}): MediaStoryCluster {
   return {
     clusterId: "cluster-one",
     comparisonKey: "LAYOFFS:studio-layoffs",
@@ -52,6 +52,7 @@ function story(): MediaStoryCluster {
       },
     ],
     articles: [],
+    ...overrides,
   };
 }
 
@@ -69,6 +70,13 @@ function brief(withStory = true): DailyCultureBrief {
     topDevelopments: withStory ? [item] : [],
     aiAndCreativeWork: [],
     sectors: { music: [], film: [], theatre: [], gaming: [] },
+    fullPageSections: {
+      "ai-intelligence": [],
+      music: [],
+      film: withStory ? [item] : [],
+      gaming: [],
+      theatre: [],
+    },
     positiveSignals: [],
     delta: {
       newStoryCount: withStory ? 1 : 0,
@@ -130,14 +138,68 @@ describe("Daily Culture Brief UI", () => {
     const html = renderToStaticMarkup(<DailyBriefOverview brief={brief()} />);
     expect(html).toContain("Daily Culture Brief");
     expect(html).toContain('href="/brief"');
+    expect(html).toContain("Film studio announces production layoffs");
   });
 
-  it("renders quiet and empty-section states without fabricated stories", () => {
+  it("renders full-page domain sections without Top Developments", () => {
+    const html = renderToStaticMarkup(<DailyBriefFull brief={brief()} />);
+    expect(html).not.toContain("Top Developments");
+    for (const section of [
+      "AI Intelligence",
+      "Music",
+      "Film",
+      "Gaming",
+      "Theatre",
+    ]) {
+      expect(html).toContain(`>${section}</h2>`);
+    }
+  });
+
+  it("renders each full-page cluster once with underlying article counts intact", () => {
+    const item = story({
+      canonicalHeadline:
+        "ARIA excludes AI-generated songs from Australian charts",
+      sector: "music",
+      eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+      aiImpactType: "POLICY_REGULATION",
+    });
+    const value = brief();
+    value.topDevelopments = [item];
+    value.aiAndCreativeWork = [item];
+    value.sectors.music = [item];
+    value.fullPageSections = {
+      "ai-intelligence": [item],
+      music: [],
+      film: [],
+      gaming: [],
+      theatre: [],
+    };
+
+    const html = renderToStaticMarkup(<DailyBriefFull brief={value} />);
+    expect(
+      html.match(/ARIA excludes AI-generated songs from Australian charts/g),
+    ).toHaveLength(1);
+    expect(html).toContain("2 underlying articles");
+  });
+
+  it("renders quiet domain states without fabricated stories", () => {
     const html = renderToStaticMarkup(<DailyBriefFull brief={brief(false)} />);
-    expect(html).toContain("relatively quiet");
-    expect(html).toContain("No story met the materiality");
+    expect(html).toContain(
+      "No qualifying material development was identified in the current window",
+    );
     expect(html).toContain(
       "No qualifying material AI development was identified",
     );
+    expect(html).toContain("No qualifying Music development was identified");
+    expect(html).toContain("No qualifying Film development was identified");
+    expect(html).toContain("No qualifying Gaming development was identified");
+    expect(html).toContain("No qualifying Theatre development was identified");
+  });
+
+  it("keeps the Overview compact top-development empty state", () => {
+    const html = renderToStaticMarkup(
+      <DailyBriefOverview brief={brief(false)} />,
+    );
+    expect(html).toContain("top-development threshold");
   });
 });

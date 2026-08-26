@@ -11,7 +11,10 @@ import {
   type BriefSector,
 } from "@/services/media/daily-brief-core";
 import { getMediaArticlesPublishedBetween } from "@/services/media/media";
-import { getSchedulerFreshness } from "@/services/scheduler/freshness";
+import {
+  getCurrentSchedulerFreshness,
+  getSchedulerFreshness,
+} from "@/services/scheduler/freshness";
 import { getBroadwayMarketData } from "@/services/theatre/theatre";
 
 const HOUR_MS = 60 * 60 * 1_000;
@@ -189,26 +192,31 @@ export async function getDailyCultureBrief(input?: {
 }) {
   const now = input?.now ?? new Date();
   const start = new Date(now.getTime() - 72 * HOUR_MS);
-  const [articles, freshness] = await Promise.all([
+  const briefPromise = Promise.all([
     getMediaArticlesPublishedBetween({ start, end: now }),
-    getSchedulerFreshness(now),
-  ]);
-  const brief = buildDailyCultureBriefCore({ articles, now });
-  const mediaFreshness = deriveBriefMediaFreshness({
-    databaseAvailable: freshness.databaseStatus === "available",
-    sources: freshness.sources,
-  });
-  return {
-    ...brief,
-    ...mediaFreshness,
+    input?.now ? getSchedulerFreshness(now) : getCurrentSchedulerFreshness(),
+  ]).then(([articles, freshness]) => ({
+    ...buildDailyCultureBriefCore({ articles, now }),
+    ...deriveBriefMediaFreshness({
+      databaseAvailable: freshness.databaseStatus === "available",
+      sources: freshness.sources,
+    }),
     schedulerFreshness: {
       databaseStatus: freshness.databaseStatus,
       summary: freshness.summary,
     },
-    marketContext:
-      input?.includeMarketContext === false
-        ? []
-        : await buildMarketContext(now),
+  }));
+  const marketContextPromise =
+    input?.includeMarketContext === false
+      ? Promise.resolve([])
+      : buildMarketContext(now);
+  const [brief, marketContext] = await Promise.all([
+    briefPromise,
+    marketContextPromise,
+  ]);
+  return {
+    ...brief,
+    marketContext,
   };
 }
 

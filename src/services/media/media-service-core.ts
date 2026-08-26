@@ -162,13 +162,32 @@ function correctedClassificationValue<T>(
     : null;
 }
 
-export function isAiIntelligenceEligible(article: MediaArticleView): boolean {
+type AiIntelligenceAssessment = ReturnType<typeof assessAiIntelligence>;
+
+const AI_INTELLIGENCE_ASSESSMENT_CACHE = new WeakMap<
+  MediaArticleView,
+  AiIntelligenceAssessment
+>();
+
+export function getAiIntelligenceAssessment(
+  article: MediaArticleView,
+): AiIntelligenceAssessment {
+  if (AI_INTELLIGENCE_ASSESSMENT_CACHE.has(article))
+    return AI_INTELLIGENCE_ASSESSMENT_CACHE.get(article) ?? null;
   const assessment = assessAiIntelligence({
     title: article.title,
     description: article.description,
     evidenceRole: article.sourceEvidence?.evidenceRole,
     sourcePerspective: article.sourceEvidence?.sourcePerspective,
   });
+  AI_INTELLIGENCE_ASSESSMENT_CACHE.set(article, assessment);
+  return assessment;
+}
+
+export function isAiIntelligenceEligibleWithAssessment(
+  article: MediaArticleView,
+  assessment: AiIntelligenceAssessment,
+): boolean {
   if (!assessment) return false;
 
   const correctedEventType = correctedClassificationValue(
@@ -193,6 +212,13 @@ export function isAiIntelligenceEligible(article: MediaArticleView): boolean {
       (correctedAiTag ?? article.aiImpactType) !== null);
 
   return isMaterialAiAssessment(assessment) || humanMaterialCorrection;
+}
+
+export function isAiIntelligenceEligible(article: MediaArticleView): boolean {
+  return isAiIntelligenceEligibleWithAssessment(
+    article,
+    getAiIntelligenceAssessment(article),
+  );
 }
 
 function hasClassificationEventEvidence(article: MediaArticleView): boolean {

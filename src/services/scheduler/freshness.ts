@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { getRssFeed } from "@/data-sources/news/rss-registry";
 import { getPrisma } from "@/lib/prisma";
 import {
@@ -202,3 +204,7 @@ export async function getSchedulerFreshness(now = new Date()) {
     };
   }
 }
+
+export const getCurrentSchedulerFreshness = cache(() =>
+  getSchedulerFreshness(new Date()),
+);

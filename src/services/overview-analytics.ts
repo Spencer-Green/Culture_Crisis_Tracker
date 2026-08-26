@@ -18,7 +18,7 @@ import {
   type SectorViability,
   type ViabilityComponentInput,
 } from "@/services/overview-analytics-core";
-import { getSchedulerFreshness } from "@/services/scheduler/freshness";
+import { getCurrentSchedulerFreshness } from "@/services/scheduler/freshness";
 import {
   getBroadwayMarketData,
   getLPAPerformanceData,
@@ -69,6 +69,19 @@ export const getOverviewAnalytics = cache(async () => {
   const now = new Date();
   const currentStart = new Date(now.getTime() - 7 * DAY_MS);
   const previousStart = new Date(now.getTime() - 14 * DAY_MS);
+  const aiDisruptionPromise = Promise.all([
+    getMediaArticlesPublishedBetween({ start: currentStart, end: now }),
+    getMediaArticlesPublishedBetween({
+      start: previousStart,
+      end: currentStart,
+    }),
+  ]).then(([currentArticles, previousArticles]) =>
+    buildAiDisruptionIndicator({
+      now,
+      currentArticles,
+      previousArticles,
+    }),
+  );
   const [
     music,
     usBoxOffice,
@@ -78,8 +91,7 @@ export const getOverviewAnalytics = cache(async () => {
     gaming,
     ticketmaster,
     scheduler,
-    currentMedia,
-    previousMedia,
+    aiDisruption,
   ] = await Promise.all([
     getMusicSectorData(),
     getUSBoxOfficeData(),
@@ -88,12 +100,8 @@ export const getOverviewAnalytics = cache(async () => {
     getLPAPerformanceData(),
     getGamingData(),
     getTicketmasterCrossSectorTrends(),
-    getSchedulerFreshness(now),
-    getMediaArticlesPublishedBetween({ start: currentStart, end: now }),
-    getMediaArticlesPublishedBetween({
-      start: previousStart,
-      end: currentStart,
-    }),
+    getCurrentSchedulerFreshness(),
+    aiDisruptionPromise,
   ]);
   const statuses = new Map(
     scheduler.sources.map((source) => [source.sourceId, source.status]),
@@ -318,11 +326,7 @@ export const getOverviewAnalytics = cache(async () => {
   return {
     generatedAt: now.toISOString(),
     industryViability: buildIndustryViability(sectors),
-    aiDisruption: buildAiDisruptionIndicator({
-      now,
-      currentArticles: currentMedia,
-      previousArticles: previousMedia,
-    }),
+    aiDisruption,
     aiFreshness: mediaFreshness.every((value) => value === "current")
       ? ("current" as const)
       : ("degraded" as const),

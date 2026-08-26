@@ -5,14 +5,16 @@ import type {
   MediaPolarity,
   MediaSectorSlug,
 } from "@/data-sources/news/media-types";
+import { culturalSectorEvidence } from "@/data-sources/news/media-evidence";
 import { isInstitutionalRssSource } from "@/data-sources/news/rss-registry";
 import {
   likelyDuplicateStory,
   normaliseHeadline,
 } from "@/data-sources/news/media-dedup";
 import {
+  getAiIntelligenceAssessment,
   isAiCreativeWorkEligible,
-  isAiIntelligenceEligible,
+  isAiIntelligenceEligibleWithAssessment,
   isCuratedPresentationEligible,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
@@ -68,6 +70,25 @@ const POSITIVE_EVENTS = new Set<MediaEventType>([
 
 const SECTORS = ["music", "film", "theatre", "gaming"] as const;
 export type BriefSector = (typeof SECTORS)[number];
+
+export const FULL_BRIEF_SECTION_IDS = [
+  "ai-intelligence",
+  "music",
+  "film",
+  "gaming",
+  "theatre",
+] as const;
+
+export type FullBriefSectionId = (typeof FULL_BRIEF_SECTION_IDS)[number];
+
+export type FullBriefSections = Record<FullBriefSectionId, MediaStoryCluster[]>;
+
+export type MediaStoryClusteringDiagnostics = {
+  eligibleArticles: number;
+  candidateGroups: number;
+  pairComparisons: number;
+  expiredGroupsSkipped: number;
+};
 
 export type MediaStorySource = {
   articleId: string;
@@ -127,6 +148,7 @@ export type DailyCultureBriefCore = {
   topDevelopments: MediaStoryCluster[];
   aiAndCreativeWork: MediaStoryCluster[];
   sectors: Record<BriefSector, MediaStoryCluster[]>;
+  fullPageSections: FullBriefSections;
   positiveSignals: MediaStoryCluster[];
   delta: DailyBriefDelta;
   diagnostics: {
@@ -227,6 +249,210 @@ export function getEffectiveMediaLabels(
   };
 }
 
+const STORY_EVENT_COMPATIBILITY_FAMILIES = [
+  new Set<MediaEventType>([
+    "AI_POLICY_REGULATION",
+    "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+  ]),
+] as const;
+
+const LOW_SPECIFICITY_STORY_EVENTS = new Set<MediaEventType>(["AI_ADOPTION"]);
+
+const STORY_RESTRICTION_TOKENS = new Set([
+  "ban",
+  "bans",
+  "banned",
+  "bar",
+  "bars",
+  "barred",
+  "block",
+  "blocks",
+  "blocked",
+  "exclude",
+  "excludes",
+  "excluded",
+  "excluding",
+  "prohibit",
+  "prohibits",
+  "prohibited",
+]);
+
+const STORY_MUSIC_WORK_TOKENS = new Set([
+  "music",
+  "recording",
+  "recordings",
+  "song",
+  "songs",
+  "track",
+  "tracks",
+]);
+
+type StoryIdentitySimilarity = {
+  titleMatch: boolean;
+  contextualMatch: boolean;
+};
+
+type MediaStoryIdentity = {
+  article: MediaArticleView;
+  labels: EffectiveMediaLabels;
+  publishedAtMs: number;
+  normalisedTitle: string;
+  headlineTokens: Set<string>;
+  semanticTitleTokens: Set<string>;
+  semanticContextTokens: Set<string>;
+  sectors: Set<MediaSectorSlug>;
+};
+
+type MediaStoryIdentityGroup = {
+  members: MediaStoryIdentity[];
+  latestPublishedAtMs: number;
+};
+
+function canonicalStoryToken(token: string): string {
+  if (STORY_RESTRICTION_TOKENS.has(token)) return "restrict";
+  if (STORY_MUSIC_WORK_TOKENS.has(token)) return "music";
+  if (token.length > 5 && token.endsWith("ing")) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith("ed")) return token.slice(0, -2);
+  if (token.length > 4 && token.endsWith("s")) return token.slice(0, -1);
+  return token;
+}
+
+function storyIdentityTokens(value: string): Set<string> {
+  return new Set(
+    normaliseHeadline(value)
+      .split(" ")
+      .filter(Boolean)
+      .map(canonicalStoryToken),
+  );
+}
+
+function tokenOverlap(left: Set<string>, right: Set<string>) {
+  const intersection = [...left].filter((token) => right.has(token)).length;
+  const union = new Set([...left, ...right]).size;
+  return {
+    intersection,
+    jaccard: union === 0 ? 0 : intersection / union,
+    smallerCoverage:
+      Math.min(left.size, right.size) === 0
+        ? 0
+        : intersection / Math.min(left.size, right.size),
+  };
+}
+
+function storyIdentitySimilarity(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): StoryIdentitySimilarity {
+  const title = tokenOverlap(
+    left.semanticTitleTokens,
+    right.semanticTitleTokens,
+  );
+  const context = tokenOverlap(
+    left.semanticContextTokens,
+    right.semanticContextTokens,
+  );
+  return {
+    titleMatch:
+      title.intersection >= 5 &&
+      title.jaccard >= 0.45 &&
+      title.smallerCoverage >= 0.7,
+    contextualMatch:
+      title.intersection >= 4 &&
+      title.smallerCoverage >= 0.5 &&
+      context.intersection >= 8 &&
+      context.smallerCoverage >= 0.35,
+  };
+}
+
+function buildStoryIdentity(article: MediaArticleView): MediaStoryIdentity {
+  const labels = getEffectiveMediaLabels(article);
+  const normalisedTitle = normaliseHeadline(article.title);
+  return {
+    article,
+    labels,
+    publishedAtMs: new Date(article.publishedAt).getTime(),
+    normalisedTitle,
+    headlineTokens: new Set(normalisedTitle.split(" ").filter(Boolean)),
+    semanticTitleTokens: storyIdentityTokens(article.title),
+    semanticContextTokens: storyIdentityTokens(
+      `${article.title} ${article.description ?? ""}`,
+    ),
+    sectors: new Set([
+      labels.sector,
+      ...culturalSectorEvidence(
+        `${article.title}. ${article.description ?? ""}`,
+      ),
+    ]),
+  };
+}
+
+function storySectorsCompatible(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): boolean {
+  return [...left.sectors].some((sector) => right.sectors.has(sector));
+}
+
+function eventTypesShareStoryFamily(
+  left: MediaEventType,
+  right: MediaEventType,
+): boolean {
+  return STORY_EVENT_COMPATIBILITY_FAMILIES.some(
+    (family) => family.has(left) && family.has(right),
+  );
+}
+
+function eventTypeHasStoryFamily(eventType: MediaEventType): boolean {
+  return STORY_EVENT_COMPATIBILITY_FAMILIES.some((family) =>
+    family.has(eventType),
+  );
+}
+
+function storyEventCompatibility(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): "compatible" | "weak-fallback" | "incompatible" {
+  const leftEvent = left.labels.eventType;
+  const rightEvent = right.labels.eventType;
+  if (leftEvent === rightEvent) return "compatible";
+  if (
+    leftEvent !== null &&
+    rightEvent !== null &&
+    eventTypesShareStoryFamily(leftEvent, rightEvent)
+  )
+    return "compatible";
+  if (
+    (leftEvent !== null &&
+      LOW_SPECIFICITY_STORY_EVENTS.has(leftEvent) &&
+      left.article.confidence === "low" &&
+      rightEvent !== null &&
+      eventTypeHasStoryFamily(rightEvent)) ||
+    (rightEvent !== null &&
+      LOW_SPECIFICITY_STORY_EVENTS.has(rightEvent) &&
+      right.article.confidence === "low" &&
+      leftEvent !== null &&
+      eventTypeHasStoryFamily(leftEvent))
+  )
+    return "weak-fallback";
+  return "incompatible";
+}
+
+function likelyDuplicateIdentity(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): boolean {
+  if (Math.abs(left.publishedAtMs - right.publishedAtMs) > 48 * HOUR_MS)
+    return false;
+  if (left.headlineTokens.size < 4 || right.headlineTokens.size < 4)
+    return false;
+  if (left.normalisedTitle === right.normalisedTitle) return true;
+  const overlap = tokenOverlap(left.headlineTokens, right.headlineTokens);
+  return (
+    overlap.intersection >= 6 &&
+    (overlap.jaccard >= 0.82 || overlap.smallerCoverage >= 0.62)
+  );
+}
+
 function distinctCorrections<T>(values: readonly (T | null)[]): {
   value: T | null;
   conflict: boolean;
@@ -240,23 +466,56 @@ function distinctCorrections<T>(values: readonly (T | null)[]): {
   };
 }
 
-function sameStory(left: MediaArticleView, right: MediaArticleView): boolean {
-  if (left.canonicalUrl === right.canonicalUrl) return true;
+function compatibleStoryIdentity(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): boolean {
+  if (Math.abs(left.publishedAtMs - right.publishedAtMs) > 48 * HOUR_MS)
+    return false;
   if (
-    left.storyFingerprint !== null &&
-    left.storyFingerprint === right.storyFingerprint
+    left.article.countryCode !== null &&
+    right.article.countryCode !== null &&
+    left.article.countryCode !== right.article.countryCode
   )
-    return true;
-  const leftLabels = getEffectiveMediaLabels(left);
-  const rightLabels = getEffectiveMediaLabels(right);
-  return (
-    leftLabels.sector === rightLabels.sector &&
-    leftLabels.eventType === rightLabels.eventType &&
-    likelyDuplicateStory(
-      { title: left.title, publishedAt: new Date(left.publishedAt) },
-      { title: right.title, publishedAt: new Date(right.publishedAt) },
-    )
-  );
+    return false;
+  if (!storySectorsCompatible(left, right)) return false;
+  const similarity = storyIdentitySimilarity(left, right);
+  const semanticallyEquivalent =
+    similarity.titleMatch || similarity.contextualMatch;
+  const eventCompatibility = storyEventCompatibility(left, right);
+  if (
+    eventCompatibility === "compatible" &&
+    left.labels.eventType === right.labels.eventType
+  )
+    return (
+      semanticallyEquivalent &&
+      ((left.labels.eventType !== null &&
+        eventTypeHasStoryFamily(left.labels.eventType)) ||
+        left.labels.correctedEventType !== null ||
+        right.labels.correctedEventType !== null)
+    );
+  if (eventCompatibility === "compatible") return semanticallyEquivalent;
+  if (eventCompatibility === "weak-fallback") return semanticallyEquivalent;
+  return false;
+}
+
+function storyMatch(
+  left: MediaStoryIdentity,
+  right: MediaStoryIdentity,
+): { matches: boolean; compatibleIdentity: boolean } {
+  const directMatch =
+    left.article.canonicalUrl === right.article.canonicalUrl ||
+    (left.article.storyFingerprint !== null &&
+      left.article.storyFingerprint === right.article.storyFingerprint);
+  const legacyMatch =
+    left.labels.sector === right.labels.sector &&
+    left.labels.eventType === right.labels.eventType &&
+    likelyDuplicateIdentity(left, right);
+  const compatibleIdentity = compatibleStoryIdentity(left, right);
+  return {
+    matches: directMatch || legacyMatch || compatibleIdentity,
+    compatibleIdentity,
+  };
 }
 
 function rankArticles(left: MediaArticleView, right: MediaArticleView): number {
@@ -558,8 +817,9 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
 
 export function buildMediaStoryClusters(
   input: readonly MediaArticleView[],
+  diagnostics?: MediaStoryClusteringDiagnostics,
 ): MediaStoryCluster[] {
-  const articles = input
+  const identities = input
     .filter(isCuratedPresentationEligible)
     .slice()
     .sort(
@@ -567,16 +827,100 @@ export function buildMediaStoryClusters(
         new Date(left.publishedAt).getTime() -
           new Date(right.publishedAt).getTime() ||
         left.id.localeCompare(right.id),
-    );
-  const groups: MediaArticleView[][] = [];
-  for (const article of articles) {
-    const group = groups.find((candidate) =>
-      candidate.some((member) => sameStory(member, article)),
-    );
-    if (group) group.push(article);
-    else groups.push([article]);
+    )
+    .map(buildStoryIdentity);
+  if (diagnostics) {
+    diagnostics.eligibleArticles = identities.length;
+    diagnostics.candidateGroups = 0;
+    diagnostics.pairComparisons = 0;
+    diagnostics.expiredGroupsSkipped = 0;
   }
-  return groups.map(buildCluster).sort(rankClusters);
+  const groups: MediaStoryIdentityGroup[] = [];
+  const canonicalGroups = new Map<string, MediaStoryIdentityGroup>();
+  const fingerprintGroups = new Map<string, MediaStoryIdentityGroup>();
+  const registerIdentity = (
+    identity: MediaStoryIdentity,
+    group: MediaStoryIdentityGroup,
+  ) => {
+    canonicalGroups.set(identity.article.canonicalUrl, group);
+    if (identity.article.storyFingerprint !== null)
+      fingerprintGroups.set(identity.article.storyFingerprint, group);
+  };
+  for (const identity of identities) {
+    const directGroups = new Set<MediaStoryIdentityGroup>();
+    const canonicalGroup = canonicalGroups.get(identity.article.canonicalUrl);
+    if (canonicalGroup) directGroups.add(canonicalGroup);
+    if (identity.article.storyFingerprint !== null) {
+      const fingerprintGroup = fingerprintGroups.get(
+        identity.article.storyFingerprint,
+      );
+      if (fingerprintGroup) directGroups.add(fingerprintGroup);
+    }
+    const matchingGroups = groups
+      .map((candidate, index) => {
+        if (
+          identity.publishedAtMs - candidate.latestPublishedAtMs >
+            48 * HOUR_MS &&
+          !directGroups.has(candidate)
+        ) {
+          if (diagnostics) diagnostics.expiredGroupsSkipped += 1;
+          return { index, matches: false, compatibleIdentity: false };
+        }
+        if (diagnostics) diagnostics.candidateGroups += 1;
+        let matches = false;
+        let compatibleIdentity = false;
+        for (const member of candidate.members) {
+          if (diagnostics) diagnostics.pairComparisons += 1;
+          const result = storyMatch(member, identity);
+          matches ||= result.matches;
+          compatibleIdentity ||= result.compatibleIdentity;
+          if (matches && compatibleIdentity) break;
+        }
+        return { index, matches, compatibleIdentity };
+      })
+      .filter((candidate) => candidate.matches)
+      .sort(
+        (left, right) =>
+          Number(right.compatibleIdentity) - Number(left.compatibleIdentity) ||
+          left.index - right.index,
+      );
+    if (matchingGroups.length === 0) {
+      const group = {
+        members: [identity],
+        latestPublishedAtMs: identity.publishedAtMs,
+      };
+      groups.push(group);
+      registerIdentity(identity, group);
+      continue;
+    }
+    const target = groups[matchingGroups[0].index];
+    target.members.push(identity);
+    target.latestPublishedAtMs = Math.max(
+      target.latestPublishedAtMs,
+      identity.publishedAtMs,
+    );
+    registerIdentity(identity, target);
+    const compatibleGroupIndexes = matchingGroups
+      .slice(1)
+      .filter((candidate) => candidate.compatibleIdentity)
+      .map((candidate) => candidate.index)
+      .sort((left, right) => right - left);
+    for (const index of compatibleGroupIndexes) {
+      const source = groups[index];
+      target.members.push(...source.members);
+      target.latestPublishedAtMs = Math.max(
+        target.latestPublishedAtMs,
+        source.latestPublishedAtMs,
+      );
+      for (const member of source.members) registerIdentity(member, target);
+      groups.splice(index, 1);
+    }
+  }
+  return groups
+    .map((group) =>
+      buildCluster(group.members.map((identity) => identity.article)),
+    )
+    .sort(rankClusters);
 }
 
 export function rankClusters(
@@ -623,15 +967,19 @@ export function isCreativeAiStory(cluster: MediaStoryCluster): boolean {
 
 export function isAiIntelligenceStory(cluster: MediaStoryCluster): boolean {
   if (cluster.ambiguousHumanCorrections) return false;
-  return cluster.articles.some((article) =>
-    isAiIntelligenceEligible({
-      ...article,
-      sectorSlug: cluster.sector ?? article.sectorSlug,
-      eventType: cluster.eventType,
-      aiImpactType: cluster.aiImpactType,
-      importance: cluster.importance,
-    }),
-  );
+  return cluster.articles.some((article) => {
+    const assessment = getAiIntelligenceAssessment(article);
+    return isAiIntelligenceEligibleWithAssessment(
+      {
+        ...article,
+        sectorSlug: cluster.sector ?? article.sectorSlug,
+        eventType: cluster.eventType,
+        aiImpactType: cluster.aiImpactType,
+        importance: cluster.importance,
+      },
+      assessment,
+    );
+  });
 }
 
 export function isPositiveCounterSignal(cluster: MediaStoryCluster): boolean {
@@ -642,6 +990,42 @@ export function isPositiveCounterSignal(cluster: MediaStoryCluster): boolean {
     cluster.polarity === "positive" &&
     cluster.confidence !== "low"
   );
+}
+
+export function assignFullBriefSection(
+  cluster: MediaStoryCluster,
+): FullBriefSectionId | null {
+  if (!cluster.articles.some(isCuratedPresentationEligible)) return null;
+  if (!isMaterialStorySignal(cluster)) return null;
+  if (isAiIntelligenceStory(cluster)) return "ai-intelligence";
+  return SECTORS.includes(cluster.sector as BriefSector)
+    ? (cluster.sector as BriefSector)
+    : null;
+}
+
+export function buildFullBriefSections(
+  clusters: readonly MediaStoryCluster[],
+  limit = 4,
+): FullBriefSections {
+  const sections: FullBriefSections = {
+    "ai-intelligence": [],
+    music: [],
+    film: [],
+    gaming: [],
+    theatre: [],
+  };
+  const assigned = new Set<string>();
+  for (const cluster of clusters) {
+    if (assigned.has(cluster.clusterId)) continue;
+    const section = assignFullBriefSection(cluster);
+    if (section === null) continue;
+    sections[section].push(cluster);
+    assigned.add(cluster.clusterId);
+  }
+  for (const section of FULL_BRIEF_SECTION_IDS) {
+    sections[section] = sections[section].sort(rankClusters).slice(0, limit);
+  }
+  return sections;
 }
 
 function clustersMatch(
@@ -826,6 +1210,7 @@ export function buildDailyCultureBriefCore(input: {
     .filter(isPositiveCounterSignal)
     .sort(rankClusters)
     .slice(0, 4);
+  const fullPageSections = buildFullBriefSections(currentClusters);
   return {
     generatedAt: input.now.toISOString(),
     windowStart: windowStart.toISOString(),
@@ -836,6 +1221,7 @@ export function buildDailyCultureBriefCore(input: {
     topDevelopments,
     aiAndCreativeWork,
     sectors,
+    fullPageSections,
     positiveSignals,
     delta: buildDelta(currentClusters, previousClusters),
     diagnostics: {

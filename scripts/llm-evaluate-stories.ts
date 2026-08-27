@@ -86,7 +86,7 @@ function printReviewAudit(
     `articles: ${audit.reviewedArticles}/${audit.totalArticles} reviewed · ${audit.correctArticles} CORRECT · ${audit.wrongArticles} WRONG`,
   );
   console.log(
-    `corrections: sector ${audit.correctionCoverage.sector} · event ${audit.correctionCoverage.eventType} · AI ${audit.correctionCoverage.aiTag} · importance ${audit.correctionCoverage.importance}`,
+    `corrections: sector ${audit.correctionCoverage.sector} · event ${audit.correctionCoverage.eventType} · signal ${audit.correctionCoverage.signalDirection} · legacy AI ${audit.correctionCoverage.aiTag} · importance ${audit.correctionCoverage.importance}`,
   );
   console.log(
     `eligible clusters: ${audit.eligibleClusters} · reviewed ${audit.reviewedEligibleClusters} · confirmed ${audit.confirmedEligibleClusters} · corrected ${audit.correctedEligibleClusters} · ambiguous ${audit.ambiguousEligibleClusters}`,
@@ -107,13 +107,19 @@ function printSample(
         : null,
       cluster.humanReviewState === "corrected" ? "CORRECTED" : null,
       cluster.sourceCount > 1 ? "MULTI_SOURCE" : "SINGLE_SOURCE",
-      cluster.aiImpactType !== null ? "AI" : null,
+      cluster.articles.some(
+        (article) =>
+          article.sectorSlug === "ai-policy" ||
+          article.eventType?.startsWith("AI_") === true,
+      )
+        ? "AI"
+        : null,
     ].filter(Boolean);
     console.log("");
     console.log(`${index + 1}. ${cluster.canonicalHeadline}`);
     console.log(`   cluster: ${cluster.clusterId}`);
     console.log(
-      `   labels: ${cluster.sector ?? "ambiguous"} · ${cluster.eventType ?? "unclassified"} · importance ${cluster.importance} · ${cluster.confidence}`,
+      `   labels: ${cluster.sector ?? "ambiguous"} · ${cluster.eventType ?? "unclassified"} · ${cluster.signalDirection} · importance ${cluster.importance} · ${cluster.confidence}`,
     );
     console.log(
       `   evidence: ${cluster.articleIds.length} article(s) · ${cluster.sourceCount} publisher(s) · ${reviewFlags.join(", ")}`,

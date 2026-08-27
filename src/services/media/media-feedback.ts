@@ -6,7 +6,10 @@ import type {
   MediaConfidence,
   MediaEventType,
   MediaSectorSlug,
+  SignalDirection,
 } from "@/data-sources/news/media-types";
+import { assessAiIntelligence } from "@/data-sources/news/ai-intelligence";
+import { deriveSignalDirection } from "@/data-sources/news/signal-direction";
 import { getPrisma } from "@/lib/prisma";
 import {
   mediaClassificationEvaluationState,
@@ -32,16 +35,20 @@ type FlatPersistedFeedback = {
   correctedSector: string | null;
   correctedEventType: string | null;
   correctedAiTag: string | null;
+  correctedSignalDirection: string | null;
   correctedImportance: number | null;
   approvedSector: string | null;
   approvedEventType: string | null;
   approvedAiTag: string | null;
+  approvedSignalDirection: string | null;
   approvedImportance: number | null;
   approvedConfidence: string | null;
   reviewedAt: Date;
 };
 
 function machineClassification(input: {
+  title: string;
+  description: string | null;
   sectorSlug: string | null;
   eventType: string | null;
   aiImpactType: string | null;
@@ -49,10 +56,20 @@ function machineClassification(input: {
   confidence: string;
 }): MediaMachineClassificationSnapshot | null {
   if (!input.sectorSlug) return null;
+  const aiAssessment = assessAiIntelligence({
+    title: input.title,
+    description: input.description,
+  });
   return {
     sector: input.sectorSlug as MediaSectorSlug,
     eventType: input.eventType as MediaEventType | null,
     aiTag: input.aiImpactType as AiImpactType | null,
+    signalDirection: deriveSignalDirection({
+      title: input.title,
+      description: input.description,
+      eventType: input.eventType as MediaEventType | null,
+      claimKind: aiAssessment?.claimKind ?? null,
+    }),
     importance: input.importance as MediaImportance,
     confidence: input.confidence as MediaConfidence,
   };
@@ -72,6 +89,7 @@ function approvedMachineClassification(
     sector: value.approvedSector as MediaSectorSlug,
     eventType: value.approvedEventType as MediaEventType | null,
     aiTag: value.approvedAiTag as AiImpactType | null,
+    signalDirection: value.approvedSignalDirection as SignalDirection | null,
     importance: value.approvedImportance as MediaImportance,
     confidence: value.approvedConfidence as MediaConfidence,
   };
@@ -90,6 +108,8 @@ function toPersistedFeedback(
       value.correctedEventType as MediaClassificationCorrections["correctedEventType"],
     correctedAiTag:
       value.correctedAiTag as MediaClassificationCorrections["correctedAiTag"],
+    correctedSignalDirection:
+      value.correctedSignalDirection as MediaClassificationCorrections["correctedSignalDirection"],
     correctedImportance:
       value.correctedImportance as MediaClassificationCorrections["correctedImportance"],
     approvedMachineClassification: approvedMachineClassification(value),
@@ -107,6 +127,7 @@ export function toMediaClassificationFeedbackState(
     correctedSector: feedback.correctedSector,
     correctedEventType: feedback.correctedEventType,
     correctedAiTag: feedback.correctedAiTag,
+    correctedSignalDirection: feedback.correctedSignalDirection,
     correctedImportance: feedback.correctedImportance,
     approvedMachineClassification: feedback.approvedMachineClassification,
     evaluationState: mediaClassificationEvaluationState(
@@ -124,10 +145,12 @@ const feedbackSelect = {
   correctedSector: true,
   correctedEventType: true,
   correctedAiTag: true,
+  correctedSignalDirection: true,
   correctedImportance: true,
   approvedSector: true,
   approvedEventType: true,
   approvedAiTag: true,
+  approvedSignalDirection: true,
   approvedImportance: true,
   approvedConfidence: true,
   reviewedAt: true,
@@ -141,6 +164,8 @@ export class PrismaMediaClassificationFeedbackStore implements MediaClassificati
       where: { id: articleId },
       select: {
         id: true,
+        title: true,
+        description: true,
         sectorSlug: true,
         eventType: true,
         aiImpactType: true,
@@ -175,6 +200,7 @@ export class PrismaMediaClassificationFeedbackStore implements MediaClassificati
       approvedSector: approved?.sector ?? null,
       approvedEventType: approved?.eventType ?? null,
       approvedAiTag: approved?.aiTag ?? null,
+      approvedSignalDirection: approved?.signalDirection ?? null,
       approvedImportance: approved?.importance ?? null,
       approvedConfidence: approved?.confidence ?? null,
       reviewedAt: input.reviewedAt,
@@ -230,6 +256,8 @@ export async function getMediaClassificationFeedbackEvaluationRows(): Promise<
     orderBy: { publishedAt: "desc" },
     select: {
       id: true,
+      title: true,
+      description: true,
       sectorSlug: true,
       eventType: true,
       aiImpactType: true,

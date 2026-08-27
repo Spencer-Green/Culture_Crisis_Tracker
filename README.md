@@ -1075,7 +1075,7 @@ Important limitations:
 `MediaArticle` is a raw article/story candidate, not a validated real-world event. It remains
 separate from GDELT's candidate-event records and Ticketmaster's structured events. The record
 stores a headline, API/feed snippet, publisher, safe canonical URL, publication/retrieval dates,
-tracker-derived sector/theme/polarity/confidence/importance/AI-impact tags, review state, and
+tracker-derived domain/event/signal-direction/confidence/importance labels, review state, and
 compact provenance. `MediaArticleSourceMatch` preserves every NewsAPI query-family or RSS-feed
 match without duplicating the article. Full article bodies are neither fetched nor stored.
 
@@ -1099,8 +1099,27 @@ Classification is deterministic and uses only title, supplied description/snippe
 metadata, and a query/feed sector hint. Confidence is `LOW`, `MEDIUM`, or `HIGH`. Importance is a
 transparent tracker-derived 1–5 heuristic based on concrete named developments, rights/policy or
 labor implications, explicit scale terms, and cross-sector breadth; it is not an objective impact
-score. AI impact is tracked separately from general polarity so licensing, rights, labor,
-regulation, adoption, and creator-tool developments remain distinguishable.
+score. The public classification hierarchy is `domain/sector → event type → signal direction →
+importance → confidence`. Signal direction is exactly `POSITIVE`, `NEGATIVE`, or `AMBIGUOUS` and
+describes the supported direction of the tracked development, not article tone, ideological
+approval, evidence strength, or materiality. A confidently observed rule change can therefore be
+high-importance and `AMBIGUOUS`, while an evidenced closure is normally `NEGATIVE` and attendance
+growth is normally `POSITIVE`.
+
+Event types provide conservative priors rather than fixed sentiment mappings. Forecasts,
+proposals, legal interpretation, leadership changes, policy or eligibility rules, and materially
+mixed cross-sector effects default to `AMBIGUOUS` unless supplied evidence supports a clearer
+direction. Investment and AI adoption are not automatically positive; observed capacity,
+participation, rights, demand, or efficiency improvement is required, while demonstrated labour or
+revenue harm can support `NEGATIVE`. Conflicting positive and negative effects collapse to
+`AMBIGUOUS` rather than selecting a preferred stakeholder. Importance, confidence, AI Intelligence
+eligibility, and ranking remain direction-neutral.
+
+The older persisted AI-impact field remains an internal compatibility input for existing AI
+routing and Overview analytics while the richer query-time AI category and claim-kind architecture
+supersedes it. It is no longer the user-facing third classification dimension. Historical AI-tag
+corrections and positive-review snapshots are retained under their original semantics and are not
+reinterpreted as signal-direction judgments.
 
 The reusable media event vocabulary also distinguishes senior leadership changes, major
 product/capability releases, concrete compute-infrastructure expansions, and rights or eligibility
@@ -1271,12 +1290,16 @@ Developments without replacing structured analytics.
 
 Media classification review has three explicit states: no feedback row means `UNREVIEWED`, while
 stored feedback is either `CORRECT` or `WRONG_CLASSIFICATION`. A correct review snapshots the
-machine sector, event type, AI-impact tag, importance, and confidence exactly as they existed at
-review time. If those current machine fields later differ, evaluation reads expose
+machine sector, event type, signal direction, importance, confidence, and legacy AI-impact
+compatibility value exactly as they existed at review time. If those current machine fields later
+differ, evaluation reads expose
 `REVIEW_OUTDATED` while preserving the historical approval.
 
 Wrong-classification reasons and optional correction values remain separate from immutable machine
-fields. Switching a wrong review to correct clears all reasons, corrections, and any
+fields. Reviewers can flag and optionally correct signal direction as Positive, Negative, or
+Ambiguous. The former AI-tag correction remains readable for historical evaluation but is no longer
+offered as the current UI action. Switching a wrong review to correct clears all reasons,
+corrections, and any
 `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` exclusion; switching to wrong clears the positive snapshot.
 Clearing either state deletes the feedback row and returns the article to unreviewed. Positive
 validation is evaluation data only: it does not affect ranking, routing, eligibility, clustering,
@@ -1292,7 +1315,7 @@ This keeps it aligned with the latest feedback and freshness state, avoids stori
 content, and leaves a versioned archive as a later product decision.
 
 Story interpretation uses human correction fields only in the brief layer. An explicit corrected
-sector, event type, AI tag, or importance takes precedence over the corresponding machine label
+sector, event type, signal direction, legacy AI tag, or importance takes precedence over the corresponding machine label
 without modifying `MediaArticle`. Conflicting corrections inside one cluster are marked ambiguous
 and routed conservatively. `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` excludes an article; a cluster
 with no remaining eligible articles disappears from the brief. Human corrections still do not
@@ -1318,7 +1341,7 @@ frontier capability, or material compute/capital changes can reach importance 4.
 separate: one explicit credible source can strongly support the narrow claim that an action was
 taken or a statement was made, while uncertainty about consequences remains visible. The derived
 AI category vocabulary is query-time application logic and does not add persisted Prisma enums;
-existing event and AI-impact values remain the stored taxonomy. This domain/materiality/evidence
+existing event and legacy AI-impact values remain stored compatibility taxonomy. This domain/materiality/evidence
 separation is designed to admit a future Consumer/Credit intelligence domain without treating
 media signals as measured macroeconomic observations.
 
@@ -1341,9 +1364,15 @@ Phase 1 includes a manual, ephemeral GPT-5.6 Luna story-synthesis experiment wit
 Daily Brief or any production page. It accepts one currently eligible deterministic story cluster,
 removes `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` evidence, applies the existing human-correction
 precedence, and sends at most six stored headline/snippet records in a 12,000-character evidence
-packet. Trusted grounding instructions are separated from the untrusted article metadata, tools
-and web search are disabled, SDK retries are disabled, strict structured output is validated, and
-no result is written to Prisma or OpenAI storage. List candidates or synthesize one explicitly:
+packet. Evidence v5 exposes deterministic signal direction, AI category, and claim kind; distinguishes hard label
+corrections from the softer importance judgment, reports publisher diversity without treating it
+as independent confirmation, and identifies primary, journalistic, specialist, and mediated
+evidence separately. Signal direction is explicitly non-sentiment and independent of claim kind,
+confidence, causality, materiality, and ranking. Legacy AI-impact values appear only in a named
+compatibility block when present. Trusted grounding instructions are separated from the untrusted article
+metadata, tools and web search are disabled, SDK retries are disabled, strict structured output is
+validated, and no result is written to Prisma or OpenAI storage. List candidates or synthesize one
+explicitly:
 
 ```bash
 npm run llm:synthesize-story -- --list
@@ -1356,6 +1385,28 @@ Usage reporting separates uncached input, cached input, and output tokens. Estim
 current documented GPT-5.6 Luna standard rates of USD $0.20, $0.02, and $1.20 per million tokens,
 respectively; it is an estimate rather than an organization billing query. The model output cannot
 change classifications, eligibility, materiality, ranking, clustering, or presentation.
+
+The refined single-story output preserves a query-time synthesis claim kind
+(`OBSERVED_ACTION_OR_EVENT`, `PROPOSAL_OR_PLAN`, `ATTRIBUTED_FORECAST_OR_ANALYSIS`,
+`EMPIRICAL_FINDING`, `INTERPRETATION`, or `GENERIC_MENTION`), distinguishes incident, signal, and
+structural-development significance, types only material uncertainties, and may identify concrete
+observable `whatToWatch` indicators. Validation rejects claim-kind changes, proposal-to-enactment,
+unsupported causal assertions, investment-to-displacement drift, benchmark-to-deployment drift,
+unsupported temporal-inflection language, invented numbers, and cross-story connections in a
+single-story packet. Material analysis may retain `eventType = null`.
+
+An additional manual-only bounded intelligence experiment can synthesize up to six deterministic
+clusters and two stored evidence rows per cluster, capped at 30,000 serialized characters. A
+deterministic shortlist and relationship hints are built before the one Luna call; only hinted
+cluster relationships may appear in output, causality remains `NOT_ESTABLISHED`, contradictions
+require a deterministic conflict candidate, and trend/inflection language requires a supplied
+historical span. This command is not called by `/`, `/brief`, or any production request path:
+
+```bash
+npm run llm:synthesize-intelligence -- --dry-run
+npm run llm:synthesize-intelligence
+npm run llm:synthesize-intelligence -- --yes --limit=6 --hours=336
+```
 
 Phase 1B adds a manual evaluation harness without changing that authority. Luna now returns an
 independent qualitative materiality level (`VERY_LOW`, `LOW`, `MODERATE`, `HIGH`, or `VERY_HIGH`)
@@ -1710,8 +1761,9 @@ by 5% per day within the seven-day window, bounded at 0.7. Internal thresholds a
 window is increasing/easing; smaller movement is stable. These thresholds organize evidence and
 are not a scientifically calibrated economic score.
 
-Human sector, event, AI-impact, and importance corrections take precedence for this analytical
-routing only. Machine classifications remain unchanged. Articles marked
+Human sector, event, legacy AI-impact, and importance corrections take precedence for this
+existing AI analytical routing only. Signal direction is separate presentation and synthesis
+context and does not determine AI eligibility or disruption weight. Machine classifications remain unchanged. Articles marked
 `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` are excluded before clustering. Conflicting corrections are
 handled conservatively by the existing story-cluster layer. Media freshness is shown separately,
 and a thin preceding-window AI corpus is labelled as a limited baseline.
@@ -1960,10 +2012,11 @@ observations, not the Steam market as a whole.
 Sector media uses two deterministic presentation tiers without deleting or
 reclassifying articles. `Industry Signals` contains articles with importance of
 at least 2, medium/high confidence, a meaningful event/theme classification, or
-an AI-impact classification, ordered by importance, confidence, and recency.
+an AI Intelligence classification, ordered by importance, confidence, and recency.
 The remaining low-signal coverage appears in a denser `More from …` sector feed
 ordered by publication time. Positive counter-signals remain eligible and no
-sentiment or sector-health score is produced.
+sentiment or sector-health score is produced. Media and brief cards display the
+general signal direction for every domain in place of the former AI-impact badge.
 
 ## Scheduler and freshness operations
 

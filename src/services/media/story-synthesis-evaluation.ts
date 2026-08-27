@@ -25,6 +25,7 @@ function clusterHasCorrection(
       feedback?.correctedSector != null ||
       feedback?.correctedEventType != null ||
       feedback?.correctedAiTag != null ||
+      feedback?.correctedSignalDirection != null ||
       feedback?.correctedImportance != null
     );
   });
@@ -58,6 +59,9 @@ export async function loadStorySynthesisEvaluationContext(input?: {
       ).length,
       aiTag: wrongRows.filter((row) => row.feedback?.correctedAiTag != null)
         .length,
+      signalDirection: wrongRows.filter(
+        (row) => row.feedback?.correctedSignalDirection != null,
+      ).length,
       importance: wrongRows.filter(
         (row) => row.feedback?.correctedImportance != null,
       ).length,

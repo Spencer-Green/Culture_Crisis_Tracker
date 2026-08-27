@@ -9,6 +9,7 @@ import { updateMediaClassificationFeedback } from "@/services/media/media-feedba
 import {
   MEDIA_CORRECTABLE_AI_TAGS,
   MEDIA_CORRECTABLE_EVENT_TYPES,
+  MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS,
   MEDIA_CORRECTABLE_SECTORS,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
   MEDIA_CLASSIFICATION_REVIEW_STATES,
@@ -26,6 +27,10 @@ const feedbackRequestSchema = z
       .nullable()
       .optional(),
     correctedAiTag: z.enum(MEDIA_CORRECTABLE_AI_TAGS).nullable().optional(),
+    correctedSignalDirection: z
+      .enum(MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS)
+      .nullable()
+      .optional(),
     correctedImportance: z.number().int().min(1).max(5).nullable().optional(),
   })
   .strict();
@@ -53,6 +58,7 @@ export async function PATCH(
         correctedSector: parsed.data.correctedSector,
         correctedEventType: parsed.data.correctedEventType,
         correctedAiTag: parsed.data.correctedAiTag,
+        correctedSignalDirection: parsed.data.correctedSignalDirection,
         correctedImportance: parsed.data.correctedImportance,
       },
     });
@@ -65,6 +71,7 @@ export async function PATCH(
             correctedSector: feedback.correctedSector,
             correctedEventType: feedback.correctedEventType,
             correctedAiTag: feedback.correctedAiTag,
+            correctedSignalDirection: feedback.correctedSignalDirection,
             correctedImportance: feedback.correctedImportance,
             approvedMachineClassification:
               feedback.approvedMachineClassification,

@@ -7,20 +7,20 @@ import { buildStorySynthesisRequest } from "@/services/media/story-synthesis-cor
 import { requestOpenAIStorySynthesis } from "@/services/media/story-synthesis";
 
 const request = buildStorySynthesisRequest({
-  evidenceVersion: "story-synthesis-evidence-v3",
+  evidenceVersion: "story-synthesis-evidence-v5",
   clusterId: "cluster",
   representativeArticleId: "article",
   representativeHeadline: "Headline",
   effectiveClassification: {
     sector: "film",
     eventType: "LAYOFFS",
-    aiImpactType: null,
+    signalDirection: "NEGATIVE",
     importance: 4,
     confidence: "high",
     labelSources: {
       sector: "MACHINE",
       eventType: "MACHINE",
-      aiImpactType: "MACHINE",
+      signalDirection: "MACHINE",
       importance: "MACHINE",
       confidence: "MACHINE",
     },
@@ -31,8 +31,25 @@ const request = buildStorySynthesisRequest({
     earliestPublishedAt: "2026-08-24T08:00:00.000Z",
     latestPublishedAt: "2026-08-24T08:00:00.000Z",
   },
-  independentPublisherCount: 1,
+  publisherCount: 1,
   publishers: ["Publisher"],
+  evidenceComposition: {
+    primaryDocuments: 0,
+    journalism: 1,
+    specialistAnalysis: 0,
+    translatedOrSummarised: 0,
+    sourceIndependence: "NOT_ESTABLISHED",
+  },
+  claimDiscipline: {
+    dominantClaimKind: "OBSERVED_ACTION_OR_EVENT",
+    suppliedClaimKinds: ["OBSERVED_ACTION_OR_EVENT"],
+    attributionRequired: false,
+    proposalStatusMustBePreserved: false,
+    observedDisplacementSupported: true,
+    deploymentSupported: false,
+    directCausalitySupported: false,
+    historicalTrendSupported: false,
+  },
   articles: [],
   bounds: {
     maximumCharacters: 12_000,

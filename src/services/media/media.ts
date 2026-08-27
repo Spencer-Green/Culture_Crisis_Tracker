@@ -13,6 +13,8 @@ import {
   type MediaFilters,
 } from "@/services/media/media-service-core";
 import type { MediaSectorSlug } from "@/data-sources/news/media-types";
+import { assessAiIntelligence } from "@/data-sources/news/ai-intelligence";
+import { deriveSignalDirection } from "@/data-sources/news/signal-direction";
 import { mediaClassificationEvaluationState } from "@/services/media/media-feedback-core";
 import { readMediaSourceEvidenceMetadata } from "@/data-sources/news/media-source-metadata";
 import type {
@@ -75,10 +77,12 @@ function toView(article: {
     correctedSector: string | null;
     correctedEventType: string | null;
     correctedAiTag: string | null;
+    correctedSignalDirection: string | null;
     correctedImportance: number | null;
     approvedSector: string | null;
     approvedEventType: string | null;
     approvedAiTag: string | null;
+    approvedSignalDirection: string | null;
     approvedImportance: number | null;
     approvedConfidence: string | null;
     reviewedAt: Date;
@@ -93,10 +97,21 @@ function toView(article: {
   )
     return null;
   const rawFeedback = article.classificationFeedback;
+  const aiAssessment = assessAiIntelligence({
+    title: article.title,
+    description: article.description,
+  });
+  const signalDirection = deriveSignalDirection({
+    title: article.title,
+    description: article.description,
+    eventType: article.eventType as MediaArticleView["eventType"],
+    claimKind: aiAssessment?.claimKind ?? null,
+  });
   const currentMachineClassification = {
     sector: article.sectorSlug,
     eventType: article.eventType,
     aiTag: article.aiImpactType,
+    signalDirection,
     importance: article.importance,
     confidence: article.confidence,
   } as MediaMachineClassificationSnapshot;
@@ -109,6 +124,7 @@ function toView(article: {
           sector: rawFeedback.approvedSector,
           eventType: rawFeedback.approvedEventType,
           aiTag: rawFeedback.approvedAiTag,
+          signalDirection: rawFeedback.approvedSignalDirection,
           importance: rawFeedback.approvedImportance,
           confidence: rawFeedback.approvedConfidence,
         } as MediaMachineClassificationSnapshot)
@@ -125,6 +141,8 @@ function toView(article: {
           rawFeedback.correctedEventType as MediaClassificationCorrections["correctedEventType"],
         correctedAiTag:
           rawFeedback.correctedAiTag as MediaClassificationCorrections["correctedAiTag"],
+        correctedSignalDirection:
+          rawFeedback.correctedSignalDirection as MediaClassificationCorrections["correctedSignalDirection"],
         correctedImportance:
           rawFeedback.correctedImportance as MediaImportance | null,
         approvedMachineClassification,
@@ -140,6 +158,7 @@ function toView(article: {
     polarity: article.polarity as MediaArticleView["polarity"],
     confidence: article.confidence as MediaArticleView["confidence"],
     aiImpactType: article.aiImpactType as MediaArticleView["aiImpactType"],
+    signalDirection,
     reviewState: article.reviewState as MediaArticleView["reviewState"],
     classificationFeedback: rawFeedback
       ? {
@@ -157,6 +176,10 @@ function toView(article: {
           correctedAiTag: rawFeedback.correctedAiTag as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedAiTag"],
+          correctedSignalDirection:
+            rawFeedback.correctedSignalDirection as NonNullable<
+              MediaArticleView["classificationFeedback"]
+            >["correctedSignalDirection"],
           correctedImportance: rawFeedback.correctedImportance as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedImportance"],
@@ -212,10 +235,12 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
           correctedSector: true,
           correctedEventType: true,
           correctedAiTag: true,
+          correctedSignalDirection: true,
           correctedImportance: true,
           approvedSector: true,
           approvedEventType: true,
           approvedAiTag: true,
+          approvedSignalDirection: true,
           approvedImportance: true,
           approvedConfidence: true,
           reviewedAt: true,
@@ -270,10 +295,12 @@ export async function getMediaArticlesPublishedBetween(input: {
             correctedSector: true,
             correctedEventType: true,
             correctedAiTag: true,
+            correctedSignalDirection: true,
             correctedImportance: true,
             approvedSector: true,
             approvedEventType: true,
             approvedAiTag: true,
+            approvedSignalDirection: true,
             approvedImportance: true,
             approvedConfidence: true,
             reviewedAt: true,

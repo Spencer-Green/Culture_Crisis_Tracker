@@ -4,7 +4,9 @@ import type {
   MediaEventType,
   MediaPolarity,
   MediaSectorSlug,
+  SignalDirection,
 } from "@/data-sources/news/media-types";
+import { combineSignalDirections } from "@/data-sources/news/signal-direction";
 import { culturalSectorEvidence } from "@/data-sources/news/media-evidence";
 import { isInstitutionalRssSource } from "@/data-sources/news/rss-registry";
 import {
@@ -58,16 +60,6 @@ const MATERIAL_EVENTS = new Set<MediaEventType>([
   "AI_UNION_DISPUTE",
 ]);
 
-const POSITIVE_EVENTS = new Set<MediaEventType>([
-  "OPENING",
-  "INVESTMENT",
-  "HIRING",
-  "FUNDING_INCREASE",
-  "ATTENDANCE_GROWTH",
-  "REVENUE_GROWTH",
-  "EXPANSION",
-]);
-
 const SECTORS = ["music", "film", "theatre", "gaming"] as const;
 export type BriefSector = (typeof SECTORS)[number];
 
@@ -113,6 +105,7 @@ export type MediaStoryCluster = {
   eventType: MediaEventType | null;
   aiImpactType: AiImpactType | null;
   polarity: MediaPolarity;
+  signalDirection: SignalDirection;
   importance: number;
   machineImportance: number;
   confidence: MediaConfidence;
@@ -120,6 +113,7 @@ export type MediaStoryCluster = {
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
   correctedAiTag: AiImpactType | null;
+  correctedSignalDirection: SignalDirection | null;
   correctedImportance: number | null;
   ambiguousHumanCorrections: boolean;
   whyItMatters: string;
@@ -208,10 +202,12 @@ export type EffectiveMediaLabels = {
   sector: MediaSectorSlug;
   eventType: MediaEventType | null;
   aiImpactType: AiImpactType | null;
+  signalDirection: SignalDirection;
   importance: number;
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
   correctedAiTag: AiImpactType | null;
+  correctedSignalDirection: SignalDirection | null;
   correctedImportance: number | null;
   corrected: boolean;
 };
@@ -229,6 +225,11 @@ export function getEffectiveMediaLabels(
   const correctedAiTag = feedback?.reasons.includes("WRONG_AI_TAG")
     ? feedback.correctedAiTag
     : null;
+  const correctedSignalDirection = feedback?.reasons.includes(
+    "WRONG_SIGNAL_DIRECTION",
+  )
+    ? feedback.correctedSignalDirection
+    : null;
   const correctedImportance = feedback?.reasons.includes("WRONG_IMPORTANCE")
     ? feedback.correctedImportance
     : null;
@@ -236,15 +237,18 @@ export function getEffectiveMediaLabels(
     sector: correctedSector ?? article.sectorSlug,
     eventType: correctedEventType ?? article.eventType,
     aiImpactType: correctedAiTag ?? article.aiImpactType,
+    signalDirection: correctedSignalDirection ?? article.signalDirection,
     importance: correctedImportance ?? article.importance,
     correctedSector,
     correctedEventType,
     correctedAiTag,
+    correctedSignalDirection,
     correctedImportance,
     corrected:
       correctedSector !== null ||
       correctedEventType !== null ||
       correctedAiTag !== null ||
+      correctedSignalDirection !== null ||
       correctedImportance !== null,
   };
 }
@@ -716,6 +720,9 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
   const aiCorrection = distinctCorrections(
     labels.map((label) => label.correctedAiTag),
   );
+  const signalCorrection = distinctCorrections(
+    labels.map((label) => label.correctedSignalDirection),
+  );
   const importanceCorrection = distinctCorrections(
     labels.map((label) => label.correctedImportance),
   );
@@ -723,6 +730,7 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
     sectorCorrection.conflict ||
     eventCorrection.conflict ||
     aiCorrection.conflict ||
+    signalCorrection.conflict ||
     importanceCorrection.conflict;
   const representativeLabels = getEffectiveMediaLabels(representative);
   const sector = sectorCorrection.conflict
@@ -734,6 +742,10 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
   const aiImpactType = aiCorrection.conflict
     ? null
     : (aiCorrection.value ?? representativeLabels.aiImpactType);
+  const signalDirection = signalCorrection.conflict
+    ? "AMBIGUOUS"
+    : (signalCorrection.value ??
+      combineSignalDirections(labels.map((label) => label.signalDirection)));
   const correctedImportanceValues = labels
     .map((label) => label.correctedImportance)
     .filter((value): value is number => value !== null);
@@ -794,6 +806,7 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
     eventType,
     aiImpactType,
     polarity: representative.polarity,
+    signalDirection,
     importance,
     machineImportance: representative.importance,
     confidence: representative.confidence,
@@ -807,6 +820,7 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
     correctedSector: sectorCorrection.value,
     correctedEventType: eventCorrection.value,
     correctedAiTag: aiCorrection.value,
+    correctedSignalDirection: signalCorrection.value,
     correctedImportance: importanceCorrection.value,
     ambiguousHumanCorrections,
     whyItMatters: whyItMatters(eventType),
@@ -985,9 +999,8 @@ export function isAiIntelligenceStory(cluster: MediaStoryCluster): boolean {
 export function isPositiveCounterSignal(cluster: MediaStoryCluster): boolean {
   return (
     cluster.eventType !== null &&
-    POSITIVE_EVENTS.has(cluster.eventType) &&
     hasBriefEventEvidence(cluster) &&
-    cluster.polarity === "positive" &&
+    cluster.signalDirection === "POSITIVE" &&
     cluster.confidence !== "low"
   );
 }

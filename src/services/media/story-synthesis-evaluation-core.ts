@@ -1,4 +1,7 @@
-import type { MediaStoryCluster } from "@/services/media/daily-brief-core";
+import {
+  isAiIntelligenceStory,
+  type MediaStoryCluster,
+} from "@/services/media/daily-brief-core";
 import { likelyDuplicateStory } from "@/data-sources/news/media-dedup";
 import {
   buildStorySynthesisEvidence,
@@ -63,7 +66,8 @@ export type StoryEvaluationClusterSummary = {
   headline: string;
   sector: string | null;
   eventType: string | null;
-  aiImpactType: string | null;
+  signalDirection: string;
+  legacyAiImpactType: string | null;
   machineImportance: number;
   effectiveImportance: number;
   confidence: string;
@@ -124,6 +128,7 @@ export type StoryReviewAudit = {
     sector: number;
     eventType: number;
     aiTag: number;
+    signalDirection: number;
     importance: number;
   };
   eligibleClusters: number;
@@ -190,16 +195,14 @@ function hasHumanCorrection(cluster: MediaStoryCluster): boolean {
       feedback?.correctedSector != null ||
       feedback?.correctedEventType != null ||
       feedback?.correctedAiTag != null ||
+      feedback?.correctedSignalDirection != null ||
       feedback?.correctedImportance != null
     );
   });
 }
 
 function isAiRelated(cluster: MediaStoryCluster): boolean {
-  return (
-    cluster.aiImpactType !== null ||
-    cluster.eventType?.startsWith("AI_") === true
-  );
+  return isAiIntelligenceStory(cluster);
 }
 
 export function storyEvaluationFlags(
@@ -237,7 +240,8 @@ export function storyEvaluationClusterSummary(
     headline: cluster.canonicalHeadline,
     sector: cluster.sector,
     eventType: cluster.eventType,
-    aiImpactType: cluster.aiImpactType,
+    signalDirection: cluster.signalDirection,
+    legacyAiImpactType: cluster.aiImpactType,
     machineImportance: cluster.machineImportance,
     effectiveImportance: cluster.importance,
     confidence: cluster.confidence,
@@ -299,7 +303,7 @@ function samplingFeatures(cluster: MediaStoryCluster): Map<string, number> {
         : "importance:moderate",
     4,
   );
-  if (cluster.polarity === "positive") features.set("positive", 5);
+  if (cluster.signalDirection === "POSITIVE") features.set("positive", 5);
   if (isAiRelated(cluster)) features.set("ai-related", 7);
   if (hasCorrectReview(cluster)) features.set("human-confirmed", 14);
   if (hasHumanCorrection(cluster)) features.set("human-corrected", 18);

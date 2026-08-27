@@ -49,8 +49,8 @@ export default async function MediaPage({
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
           Daily developments across the cultural economy. Headlines, short
-          source-supplied snippets, and tracker-derived tags—not validated
-          real-world events or a sentiment score.
+          source-supplied snippets, and tracker-derived classifications. Signal
+          direction describes supported change, not article sentiment.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">

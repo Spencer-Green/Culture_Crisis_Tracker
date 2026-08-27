@@ -1,7 +1,11 @@
 import Link from "next/link";
 
 import { MediaClassificationFeedback } from "@/components/media-classification-feedback";
-import type { MediaArticleView } from "@/services/media/media-service-core";
+import {
+  getEffectiveSignalDirection,
+  type MediaArticleView,
+} from "@/services/media/media-service-core";
+import type { SignalDirection } from "@/data-sources/news/media-types";
 
 function age(value: string): string {
   const hours = Math.max(
@@ -20,6 +24,16 @@ function label(value: string): string {
     .replaceAll("_", " ")
     .replaceAll("industry-events", "cross-sector")
     .toLowerCase();
+}
+
+function signalLabel(value: SignalDirection): string {
+  return value === "AMBIGUOUS" ? "ambiguous" : `${value.toLowerCase()} signal`;
+}
+
+function signalClass(value: SignalDirection): string {
+  if (value === "POSITIVE") return "text-emerald-400";
+  if (value === "NEGATIVE") return "text-rose-400";
+  return "text-amber-400";
 }
 
 export function MediaArticleList({
@@ -59,11 +73,9 @@ export function MediaArticleList({
             {article.eventType ? (
               <span className="text-blue-400">{label(article.eventType)}</span>
             ) : null}
-            {article.aiImpactType ? (
-              <span className="text-violet-400">
-                {label(article.aiImpactType)}
-              </span>
-            ) : null}
+            <span className={signalClass(getEffectiveSignalDirection(article))}>
+              {signalLabel(getEffectiveSignalDirection(article))}
+            </span>
             {!dense ? <span>importance {article.importance}/5</span> : null}
             {!dense ? <span>{article.confidence} confidence</span> : null}
           </div>

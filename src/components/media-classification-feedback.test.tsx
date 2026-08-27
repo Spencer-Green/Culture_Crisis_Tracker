@@ -2,7 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { MediaClassificationFeedback } from "@/components/media-classification-feedback";
-import type { MediaClassificationFeedbackState } from "@/services/media/media-feedback-types";
+import {
+  MEDIA_CLASSIFICATION_FEEDBACK_LABELS,
+  MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS,
+  type MediaClassificationFeedbackState,
+} from "@/services/media/media-feedback-types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -12,6 +16,7 @@ const SNAPSHOT = {
   sector: "music" as const,
   eventType: "INVESTMENT" as const,
   aiTag: null,
+  signalDirection: "POSITIVE" as const,
   importance: 4 as const,
   confidence: "high" as const,
 };
@@ -25,6 +30,7 @@ function correctFeedback(
     correctedSector: null,
     correctedEventType: null,
     correctedAiTag: null,
+    correctedSignalDirection: null,
     correctedImportance: null,
     approvedMachineClassification: SNAPSHOT,
     evaluationState,
@@ -33,6 +39,18 @@ function correctFeedback(
 }
 
 describe("MediaClassificationFeedback", () => {
+  it("replaces the visible legacy AI-tag correction with signal direction", () => {
+    expect(MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS).toContain(
+      "WRONG_SIGNAL_DIRECTION",
+    );
+    expect(MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS).not.toContain(
+      "WRONG_AI_TAG",
+    );
+    expect(MEDIA_CLASSIFICATION_FEEDBACK_LABELS.WRONG_SIGNAL_DIRECTION).toBe(
+      "Wrong signal direction",
+    );
+  });
+
   it("offers explicit correct and wrong actions for unreviewed articles", () => {
     const html = renderToStaticMarkup(
       <MediaClassificationFeedback
@@ -74,6 +92,7 @@ describe("MediaClassificationFeedback", () => {
       correctedSector: null,
       correctedEventType: "EXPANSION",
       correctedAiTag: null,
+      correctedSignalDirection: null,
       correctedImportance: null,
       approvedMachineClassification: null,
       evaluationState: "WRONG_CLASSIFICATION",

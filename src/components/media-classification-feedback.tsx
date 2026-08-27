@@ -4,13 +4,14 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
-  MEDIA_CORRECTABLE_AI_TAGS,
   MEDIA_CORRECTABLE_EVENT_TYPES,
   MEDIA_CORRECTABLE_IMPORTANCE_VALUES,
+  MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS,
   MEDIA_CORRECTABLE_SECTORS,
   MEDIA_CORRECTABLE_SECTOR_LABELS,
   MEDIA_CLASSIFICATION_FEEDBACK_LABELS,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
+  MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS,
   type MediaClassificationCorrections,
   type MediaClassificationFeedbackReason,
   type MediaClassificationFeedbackState,
@@ -29,6 +30,7 @@ const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
   correctedAiTag: null,
+  correctedSignalDirection: null,
   correctedImportance: null,
 };
 
@@ -41,6 +43,7 @@ const CORRECTION_KEY_BY_REASON: Partial<
   WRONG_SECTOR: "correctedSector",
   WRONG_EVENT_TYPE: "correctedEventType",
   WRONG_AI_TAG: "correctedAiTag",
+  WRONG_SIGNAL_DIRECTION: "correctedSignalDirection",
   WRONG_IMPORTANCE: "correctedImportance",
 };
 
@@ -52,6 +55,7 @@ function feedbackCorrections(
     correctedSector: feedback.correctedSector,
     correctedEventType: feedback.correctedEventType,
     correctedAiTag: feedback.correctedAiTag,
+    correctedSignalDirection: feedback.correctedSignalDirection,
     correctedImportance: feedback.correctedImportance,
   };
 }
@@ -145,6 +149,7 @@ export function MediaClassificationFeedback({
             correctedSector: payload.data.correctedSector,
             correctedEventType: payload.data.correctedEventType,
             correctedAiTag: payload.data.correctedAiTag,
+            correctedSignalDirection: payload.data.correctedSignalDirection,
             correctedImportance: payload.data.correctedImportance,
             approvedMachineClassification:
               payload.data.approvedMachineClassification,
@@ -283,7 +288,7 @@ export function MediaClassificationFeedback({
         Wrong classification
       </p>
       <div className="mt-2 space-y-1.5">
-        {MEDIA_CLASSIFICATION_FEEDBACK_REASONS.map((reason) => {
+        {MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS.map((reason) => {
           const isSelected = selected.includes(reason);
           return (
             <div key={reason}>
@@ -333,20 +338,20 @@ export function MediaClassificationFeedback({
                   }
                 />
               ) : null}
-              {isSelected && reason === "WRONG_AI_TAG" ? (
+              {isSelected && reason === "WRONG_SIGNAL_DIRECTION" ? (
                 <CorrectionSelect
-                  label="Correct AI tag (optional)"
-                  value={corrections.correctedAiTag}
+                  label="Correct signal direction (optional)"
+                  value={corrections.correctedSignalDirection}
                   disabled={busy}
-                  options={MEDIA_CORRECTABLE_AI_TAGS.map((value) => ({
+                  options={MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS.map((value) => ({
                     value,
                     label: taxonomyLabel(value),
                   }))}
                   onChange={(value) =>
                     setCorrections((current) => ({
                       ...current,
-                      correctedAiTag:
-                        value as MediaClassificationCorrections["correctedAiTag"],
+                      correctedSignalDirection:
+                        value as MediaClassificationCorrections["correctedSignalDirection"],
                     }))
                   }
                 />

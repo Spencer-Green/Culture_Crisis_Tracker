@@ -7,6 +7,27 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MediaClassificationFeedbackReason {
+  WRONG_SECTOR
+  WRONG_EVENT_TYPE
+  WRONG_AI_TAG
+  WRONG_SIGNAL_DIRECTION
+  WRONG_IMPORTANCE
+  NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE
+}
+
+enum MediaClassificationReviewState {
+  CORRECT
+  WRONG_CLASSIFICATION
+}
+
+enum ScreenAustraliaBoxOfficePeriodType {
+  WEEKLY_TOP_5
+  AUSTRALIAN_YTD
+  MONTHLY_TOP_20
+  OVERALL_YTD_TOP_50
+}
+
 model Country {
   id                 String              @id @default(uuid()) @db.Uuid
   code               String              @unique @db.VarChar(3)
@@ -64,6 +85,7 @@ model DataSource {
   lpaPerformanceYears    LPAPerformanceMarketYear[]
   bfiWeekendBoxOffice    BFIWeekendBoxOffice[]
   bfiFilmMarketYears     BFIFilmMarketYear[]
+  screenAustraliaBoxOfficeObservations ScreenAustraliaBoxOfficeObservation[]
   mvtGrassrootsYears     MVTGrassrootsMusicYear[]
   censusRecordYears      CensusRecordIndustryYear[]
   beaAcpsaSoundYears     BEAACPSASoundRecordingYear[]
@@ -438,6 +460,7 @@ model MediaArticle {
   country                 Country?                  @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
   sector                  Sector?                   @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
   sourceMatches           MediaArticleSourceMatch[]
+  classificationFeedback  MediaClassificationFeedback?
 
   @@index([publishedAt])
   @@index([sectorSlug, publishedAt])
@@ -447,6 +470,57 @@ model MediaArticle {
   @@index([countryCode, publishedAt])
   @@index([storyFingerprint, publishedAt])
   @@index([sourceId])
+}
+
+model MediaClassificationFeedback {
+  id                       String                              @id @default(uuid()) @db.Uuid
+  mediaArticleId           String                              @unique @db.Uuid
+  reviewState              MediaClassificationReviewState
+  reasons                  MediaClassificationFeedbackReason[]
+  correctedSector          String?
+  correctedEventType       String?
+  correctedAiTag           String?
+  correctedSignalDirection String?
+  correctedImportance      Int?
+  approvedSector           String?
+  approvedEventType        String?
+  approvedAiTag            String?
+  approvedSignalDirection  String?
+  approvedImportance       Int?
+  approvedConfidence       String?
+  reviewedAt               DateTime                            @db.Timestamptz(3)
+  createdAt                DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                            @updatedAt @db.Timestamptz(3)
+  mediaArticle             MediaArticle                        @relation(fields: [mediaArticleId], references: [id], onDelete: Cascade)
+
+  @@index([reviewedAt])
+  @@index([reviewState, reviewedAt])
+}
+
+model ScreenAustraliaBoxOfficeObservation {
+  id                 String                             @id @default(uuid()) @db.Uuid
+  sourceId           String                             @db.Uuid
+  reportDate         DateTime                           @db.Date
+  periodType         ScreenAustraliaBoxOfficePeriodType
+  rank               Int
+  title              String
+  normalizedTitle    String
+  periodGrossAud     Decimal?                           @db.Decimal(18, 0)
+  cumulativeGrossAud Decimal?                           @db.Decimal(18, 0)
+  releaseWeeks       String?
+  sourceUrl          String
+  retrievedAt        DateTime                           @db.Timestamptz(3)
+  firstSeenAt        DateTime                           @db.Timestamptz(3)
+  lastSeenAt         DateTime                           @db.Timestamptz(3)
+  metadata           Json                               @default("{}")
+  createdAt          DateTime                           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                           @updatedAt @db.Timestamptz(3)
+  source             DataSource                         @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, reportDate, periodType, rank, normalizedTitle])
+  @@index([reportDate])
+  @@index([sourceId, reportDate])
+  @@index([periodType, reportDate])
 }
 
 model MediaArticleSourceMatch {

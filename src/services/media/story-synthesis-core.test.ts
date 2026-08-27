@@ -33,6 +33,7 @@ function article(
     sectorSlug: "film",
     eventType: "LAYOFFS",
     polarity: "negative",
+    signalDirection: "NEGATIVE",
     confidence: "high",
     importance: 4,
     aiImpactType: null,
@@ -67,7 +68,16 @@ function validSynthesis(
     affectedSectors: ["film"],
     mechanisms: ["EMPLOYMENT_LABOUR", "PRODUCTION_CAPACITY"],
     evidenceStrength: "MEDIUM",
-    uncertainties: ["The number of affected roles is not supplied."],
+    claimKind: "OBSERVED_ACTION_OR_EVENT",
+    structuralSignificance: "STRUCTURAL_DEVELOPMENT",
+    connections: [],
+    uncertainties: [
+      {
+        type: "MAGNITUDE",
+        statement: "The number of affected roles is not supplied.",
+      },
+    ],
+    whatToWatch: ["Whether the company quantifies affected roles."],
     materialityLevel: "HIGH",
     materialityRationale:
       "A direct creative-workforce reduction can affect employment and production capacity at a major organization.",
@@ -92,7 +102,7 @@ describe("story synthesis evidence", () => {
     expect(first).toEqual(second);
     expect(first).toMatchObject({
       clusterId: value.clusterId,
-      independentPublisherCount: 2,
+      publisherCount: 2,
       effectiveClassification: {
         sector: "film",
         eventType: "LAYOFFS",
@@ -105,6 +115,9 @@ describe("story synthesis evidence", () => {
       },
       bounds: { includedArticles: 2, omittedArticles: 0 },
     });
+    expect(first.evidenceComposition.sourceIndependence).toBe(
+      "NOT_ESTABLISHED",
+    );
   });
 
   it("caps article count, field sizes, and serialized evidence size", () => {
@@ -140,6 +153,7 @@ describe("story synthesis evidence", () => {
           correctedSector: null,
           correctedEventType: null,
           correctedAiTag: null,
+          correctedSignalDirection: null,
           correctedImportance: null,
           approvedMachineClassification: null,
           evaluationState: "WRONG_CLASSIFICATION",
@@ -161,10 +175,16 @@ describe("story synthesis evidence", () => {
           title: "Music label announces investment in production capacity",
           classificationFeedback: {
             reviewState: "WRONG_CLASSIFICATION",
-            reasons: ["WRONG_SECTOR", "WRONG_EVENT_TYPE", "WRONG_IMPORTANCE"],
+            reasons: [
+              "WRONG_SECTOR",
+              "WRONG_EVENT_TYPE",
+              "WRONG_SIGNAL_DIRECTION",
+              "WRONG_IMPORTANCE",
+            ],
             correctedSector: "music",
             correctedEventType: "INVESTMENT",
             correctedAiTag: null,
+            correctedSignalDirection: "POSITIVE",
             correctedImportance: 5,
             approvedMachineClassification: null,
             evaluationState: "WRONG_CLASSIFICATION",
@@ -177,17 +197,54 @@ describe("story synthesis evidence", () => {
     expect(evidence.effectiveClassification).toMatchObject({
       sector: "music",
       eventType: "INVESTMENT",
+      signalDirection: "POSITIVE",
       importance: 5,
       labelSources: {
         sector: "HUMAN_CORRECTED",
         eventType: "HUMAN_CORRECTED",
+        signalDirection: "HUMAN_CORRECTED",
         importance: "HUMAN_CORRECTED",
       },
     });
     expect(evidence.articles[0].machineClassification).toMatchObject({
       sector: "film",
       eventType: "LAYOFFS",
+      signalDirection: "NEGATIVE",
       importance: 4,
+    });
+  });
+
+  it("retains historical AI-tag corrections as deprecated compatibility data", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "legacy-ai-correction",
+          title: "AI creator tool rolls out to film production teams",
+          description: "The tool was made available to production teams.",
+          eventType: "AI_CREATOR_TOOL",
+          aiImpactType: "AMBIGUOUS",
+          signalDirection: "POSITIVE",
+          classificationFeedback: {
+            reviewState: "WRONG_CLASSIFICATION",
+            reasons: ["WRONG_AI_TAG"],
+            correctedSector: null,
+            correctedEventType: null,
+            correctedAiTag: "TOOL_ADOPTION",
+            correctedSignalDirection: null,
+            correctedImportance: null,
+            approvedMachineClassification: null,
+            evaluationState: "WRONG_CLASSIFICATION",
+            reviewedAt: "2026-08-24T10:00:00.000Z",
+          },
+        }),
+      ]),
+    );
+
+    expect(evidence.effectiveClassification.signalDirection).toBe("POSITIVE");
+    expect(evidence.articles[0].legacyAiImpactCompatibility).toEqual({
+      machineAiImpactType: "AMBIGUOUS",
+      effectiveAiImpactType: "TOOL_ADOPTION",
+      humanCorrectedAiTag: "TOOL_ADOPTION",
     });
   });
 
@@ -262,6 +319,7 @@ describe("story synthesis evidence", () => {
     expect(evidence.articles[0].intelligenceAssessment).toMatchObject({
       category: "AI_POLICY_REGULATION",
       claimKind: "ATTRIBUTED_ANALYSIS",
+      synthesisClaimKind: "INTERPRETATION",
     });
   });
 
@@ -309,7 +367,7 @@ describe("story synthesis evidence", () => {
       "may be highly material before downstream employment or revenue effects are measured",
     );
     expect(request.instructions).toContain(
-      "ATTRIBUTED_ANALYSIS supports analysis, interpretation, forecast, or organizational position rather than a realized event",
+      "publisherCount is not independent confirmation",
     );
     expect(request).not.toHaveProperty("tools");
     expect(request.store).toBe(false);
@@ -348,6 +406,155 @@ describe("story synthesis validation and execution", () => {
         evidence,
       ),
     ).toMatchObject({ evidenceStrength: "LOW", materialityLevel: "HIGH" });
+  });
+
+  it("preserves proposal status and rejects enacted drift", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "proposal",
+          title: "Film authority proposes AI eligibility rules",
+          description:
+            "The authority opened a consultation and plans to introduce eligibility rules.",
+          sectorSlug: "ai-policy",
+          eventType: "AI_POLICY_REGULATION",
+          aiImpactType: "POLICY_REGULATION",
+          importance: 4,
+        }),
+      ]),
+    );
+    expect(evidence.claimDiscipline.dominantClaimKind).toBe("PROPOSAL_OR_PLAN");
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({
+            eventSummary: "The authority enacted AI eligibility rules.",
+            affectedSectors: ["ai-policy"],
+            claimKind: "PROPOSAL_OR_PLAN",
+          }),
+        ),
+        evidence,
+      ),
+    ).toThrow("proposal or plan status");
+  });
+
+  it("preserves attributed forecasts rather than converting them to facts", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "forecast",
+          title: "AI chief estimates a $30 trillion addressable market",
+          description:
+            "The chief executive said AI could address a $30 trillion market.",
+          sectorSlug: "ai-policy",
+          eventType: null,
+          aiImpactType: "AMBIGUOUS",
+          importance: 4,
+          sourceEvidence: {
+            evidenceRole: "SPECIALIST_ANALYSIS",
+            sourcePerspective: "ANALYTICAL",
+            jurisdiction: "GLOBAL",
+            sourceSpecialisms: ["PRODUCTIVITY"],
+            institution: "Example Analysis",
+          },
+        }),
+      ]),
+    );
+    expect(evidence.claimDiscipline.dominantClaimKind).toBe(
+      "ATTRIBUTED_FORECAST_OR_ANALYSIS",
+    );
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({
+            eventSummary: "AI has created a $30 trillion market.",
+            affectedSectors: ["ai-policy"],
+            claimKind: "ATTRIBUTED_FORECAST_OR_ANALYSIS",
+          }),
+        ),
+        evidence,
+      ),
+    ).toThrow("required attribution");
+  });
+
+  it("rejects investment-to-displacement and benchmark-to-deployment drift", () => {
+    const investmentEvidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "investment",
+          title: "AI company raises $76 million for music tools",
+          description:
+            "The company announced a $76 million investment involving music rights holders.",
+          sectorSlug: "music",
+          eventType: "INVESTMENT",
+          aiImpactType: "TOOL_ADOPTION",
+          importance: 4,
+        }),
+      ]),
+    );
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({
+            eventSummary:
+              "The $76 million investment eliminated jobs across music production.",
+            affectedSectors: ["music"],
+            mechanisms: ["FINANCING_INVESTMENT", "AI_DISPLACEMENT"],
+          }),
+        ),
+        investmentEvidence,
+      ),
+    ).toThrow("observed displacement");
+
+    const benchmarkEvidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "benchmark",
+          title: "AI company releases inference chip benchmark results",
+          description:
+            "The company reported benchmark performance for its inference chip.",
+          sectorSlug: "ai-policy",
+          eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+          aiImpactType: "INDUSTRY_EFFICIENCY",
+          importance: 4,
+        }),
+      ]),
+    );
+    benchmarkEvidence.claimDiscipline.deploymentSupported = false;
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({
+            eventSummary: "The inference chip is deployed in production.",
+            affectedSectors: ["ai-policy"],
+            claimKind: benchmarkEvidence.claimDiscipline.dominantClaimKind,
+          }),
+        ),
+        benchmarkEvidence,
+      ),
+    ).toThrow("benchmark claim into deployment");
+  });
+
+  it("rejects unsupported causality and temporal inflection language", () => {
+    const evidence = buildStorySynthesisEvidence(cluster());
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({
+            whyItMatters: "The investment caused the layoffs.",
+          }),
+        ),
+        evidence,
+      ),
+    ).toThrow("unsupported causality");
+    expect(() =>
+      parseStorySynthesisOutput(
+        JSON.stringify(
+          validSynthesis({ structuralSignificance: "POSSIBLE_INFLECTION" }),
+        ),
+        evidence,
+      ),
+    ).toThrow("cannot establish a possible inflection");
   });
 
   it.each([

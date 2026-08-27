@@ -20,6 +20,7 @@ const MACHINE: MediaMachineClassificationSnapshot = {
   sector: "music",
   eventType: "BANKRUPTCY_INSOLVENCY",
   aiTag: null,
+  signalDirection: "NEGATIVE",
   importance: 3,
   confidence: "high",
 };
@@ -28,6 +29,7 @@ const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
   correctedAiTag: null,
+  correctedSignalDirection: null,
   correctedImportance: null,
 };
 
@@ -165,6 +167,7 @@ describe("media classification review states", () => {
         correctedSector: "gaming",
         correctedEventType: "LAYOFFS",
         correctedAiTag: "LABOR_DISPLACEMENT",
+        correctedSignalDirection: null,
         correctedImportance: 5,
       },
       secondReview,
@@ -173,6 +176,7 @@ describe("media classification review states", () => {
       correctedSector: "gaming",
       correctedEventType: "LAYOFFS",
       correctedAiTag: "LABOR_DISPLACEMENT",
+      correctedSignalDirection: null,
       correctedImportance: 5,
     });
   });
@@ -277,6 +281,57 @@ describe("media classification review states", () => {
       correctedSector: null,
       correctedEventType: "CLOSURE",
     });
+  });
+
+  it("persists and clears a human signal-direction correction", async () => {
+    const store = new InMemoryFeedbackStore();
+    const corrected = await saveWrong(store, ["WRONG_SIGNAL_DIRECTION"], {
+      correctedSignalDirection: "AMBIGUOUS",
+    });
+    expect(corrected?.correctedSignalDirection).toBe("AMBIGUOUS");
+
+    const retainedFlag = await saveWrong(
+      store,
+      ["WRONG_SIGNAL_DIRECTION"],
+      { correctedSignalDirection: null },
+      secondReview,
+    );
+    expect(retainedFlag).toMatchObject({
+      reasons: ["WRONG_SIGNAL_DIRECTION"],
+      correctedSignalDirection: null,
+    });
+
+    const removed = await saveWrong(
+      store,
+      ["WRONG_EVENT_TYPE"],
+      { correctedSignalDirection: "POSITIVE" },
+      new Date("2026-08-17T10:00:00Z"),
+    );
+    expect(removed?.correctedSignalDirection).toBeNull();
+  });
+
+  it("detects signal drift while preserving legacy positive snapshots", () => {
+    const current = { ...MACHINE, signalDirection: "POSITIVE" as const };
+    const changed = { ...MACHINE, signalDirection: "AMBIGUOUS" as const };
+    const currentApproval: PersistedMediaClassificationFeedback = {
+      mediaArticleId: "article-1",
+      reviewState: "CORRECT",
+      reasons: [],
+      ...EMPTY_CORRECTIONS,
+      approvedMachineClassification: current,
+      reviewedAt: firstReview,
+    };
+    expect(mediaClassificationEvaluationState(changed, currentApproval)).toBe(
+      "REVIEW_OUTDATED",
+    );
+
+    const legacyApproval = {
+      ...currentApproval,
+      approvedMachineClassification: { ...MACHINE, signalDirection: null },
+    };
+    expect(mediaClassificationEvaluationState(current, legacyApproval)).toBe(
+      "CORRECT",
+    );
   });
 
   it("rejects invalid transitions, values, and missing articles", async () => {

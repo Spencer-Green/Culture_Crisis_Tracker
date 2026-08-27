@@ -32,6 +32,7 @@ function article(
     sectorSlug: "music",
     eventType: "LAYOFFS",
     polarity: "negative",
+    signalDirection: "NEGATIVE",
     confidence: "high",
     importance: 3,
     aiImpactType: null,
@@ -58,6 +59,7 @@ function correctedEventFeedback(
     correctedSector: null,
     correctedEventType: eventType,
     correctedAiTag: null,
+    correctedSignalDirection: null,
     correctedImportance: null,
     approvedMachineClassification: null,
     evaluationState: "WRONG_CLASSIFICATION",
@@ -151,6 +153,7 @@ describe("daily brief story clustering", () => {
         ...correctedEventFeedback("AI_POLICY_REGULATION"),
         reasons: ["WRONG_EVENT_TYPE", "WRONG_AI_TAG", "WRONG_IMPORTANCE"],
         correctedAiTag: "POLICY_REGULATION",
+        correctedSignalDirection: null,
         correctedImportance: 5,
       },
     });
@@ -380,6 +383,7 @@ describe("daily brief story clustering", () => {
         correctedSector: "music",
         correctedEventType: "INVESTMENT",
         correctedAiTag: null,
+        correctedSignalDirection: null,
         correctedImportance: 5,
         approvedMachineClassification: null,
         evaluationState: "WRONG_CLASSIFICATION",
@@ -408,6 +412,7 @@ describe("daily brief story clustering", () => {
       reasons: ["WRONG_SECTOR"] as const,
       correctedEventType: null,
       correctedAiTag: null,
+      correctedSignalDirection: null,
       correctedImportance: null,
       approvedMachineClassification: null,
       evaluationState: "WRONG_CLASSIFICATION" as const,
@@ -452,6 +457,7 @@ describe("daily brief story clustering", () => {
           correctedSector: null,
           correctedEventType: null,
           correctedAiTag: null,
+          correctedSignalDirection: null,
           correctedImportance: null,
           approvedMachineClassification: null,
           evaluationState: "WRONG_CLASSIFICATION",
@@ -556,6 +562,7 @@ describe("full Daily Brief domain assignment", () => {
         correctedSector: "music",
         correctedEventType: null,
         correctedAiTag: null,
+        correctedSignalDirection: null,
         correctedImportance: null,
         approvedMachineClassification: null,
         evaluationState: "WRONG_CLASSIFICATION",
@@ -584,6 +591,7 @@ describe("full Daily Brief domain assignment", () => {
       correctedSector: null,
       correctedEventType: null,
       correctedAiTag: null,
+      correctedSignalDirection: null,
       correctedImportance: null,
       approvedMachineClassification: null,
       evaluationState: "WRONG_CLASSIFICATION",
@@ -695,6 +703,7 @@ describe("daily brief eligibility and ranking", () => {
         correctedSector: null,
         correctedEventType: "AI_POLICY_REGULATION",
         correctedAiTag: "POLICY_REGULATION",
+        correctedSignalDirection: null,
         correctedImportance: 5,
         approvedMachineClassification: null,
         evaluationState: "WRONG_CLASSIFICATION",
@@ -724,6 +733,7 @@ describe("daily brief eligibility and ranking", () => {
         title: "New independent music venue opens in regional city",
         eventType: "OPENING",
         polarity: "positive",
+        signalDirection: "POSITIVE",
       }),
     ]);
     expect(isPositiveCounterSignal(cluster)).toBe(true);
@@ -774,6 +784,7 @@ describe("daily brief eligibility and ranking", () => {
           correctedSector: null,
           correctedEventType: null,
           correctedAiTag: null,
+          correctedSignalDirection: null,
           correctedImportance: 5,
           approvedMachineClassification: null,
           evaluationState: "WRONG_CLASSIFICATION",
@@ -895,6 +906,57 @@ describe("daily brief windows and deltas", () => {
     });
     expect(brief.topDevelopments[0].representativeArticleId).toBe("top");
     expect(brief.sectors.music[0].representativeArticleId).toBe("secondary");
+  });
+
+  it("uses human-corrected signal direction without changing importance", () => {
+    const [cluster] = buildMediaStoryClusters([
+      article({
+        id: "corrected-direction",
+        title: "Music investment has mixed structural effects",
+        eventType: "INVESTMENT",
+        signalDirection: "AMBIGUOUS",
+        importance: 5,
+        classificationFeedback: {
+          reviewState: "WRONG_CLASSIFICATION",
+          reasons: ["WRONG_SIGNAL_DIRECTION"],
+          correctedSector: null,
+          correctedEventType: null,
+          correctedAiTag: null,
+          correctedSignalDirection: "POSITIVE",
+          correctedImportance: null,
+          approvedMachineClassification: null,
+          evaluationState: "WRONG_CLASSIFICATION",
+          reviewedAt: "2026-08-22T10:00:00.000Z",
+        },
+      }),
+    ]);
+
+    expect(cluster.signalDirection).toBe("POSITIVE");
+    expect(cluster.importance).toBe(5);
+  });
+
+  it("keeps ranking independent of signal direction", () => {
+    const [left, right] = buildMediaStoryClusters([
+      article({ id: "a", title: "Music company announces layoffs" }),
+      article({
+        id: "b",
+        title: "Film company announces layoffs",
+        sectorSlug: "film",
+      }),
+    ]);
+    const baseline = rankClusters(left, right);
+    expect(
+      rankClusters(
+        { ...left, signalDirection: "POSITIVE" },
+        { ...right, signalDirection: "NEGATIVE" },
+      ),
+    ).toBe(baseline);
+    expect(
+      rankClusters(
+        { ...left, signalDirection: "NEGATIVE" },
+        { ...right, signalDirection: "AMBIGUOUS" },
+      ),
+    ).toBe(baseline);
   });
 });
 

@@ -99,6 +99,7 @@ describe("media classification", () => {
       sectorSlug: "ai-policy",
       eventType: null,
       aiImpactType: "AMBIGUOUS",
+      signalDirection: "AMBIGUOUS",
       confidence: "high",
       importance: 4,
     });
@@ -248,6 +249,7 @@ describe("media classification", () => {
       sectorSlug: "music",
       eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
       aiImpactType: "POLICY_REGULATION",
+      signalDirection: "AMBIGUOUS",
       confidence: "high",
       importance: 5,
     });

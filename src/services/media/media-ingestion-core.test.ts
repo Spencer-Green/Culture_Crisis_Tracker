@@ -30,6 +30,7 @@ function article(
     sectorSlug: "music",
     eventType: "INVESTMENT",
     polarity: "positive",
+    signalDirection: "POSITIVE",
     confidence: "high",
     importance,
     aiImpactType: null,

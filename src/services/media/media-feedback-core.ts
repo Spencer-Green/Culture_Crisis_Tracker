@@ -2,6 +2,7 @@ import {
   MEDIA_CORRECTABLE_AI_TAGS,
   MEDIA_CORRECTABLE_EVENT_TYPES,
   MEDIA_CORRECTABLE_IMPORTANCE_VALUES,
+  MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS,
   MEDIA_CORRECTABLE_SECTORS,
   MEDIA_CLASSIFICATION_FEEDBACK_REASONS,
   MEDIA_CLASSIFICATION_REVIEW_STATES,
@@ -68,6 +69,7 @@ export type MediaClassificationCorrectionInput = {
   correctedSector?: unknown;
   correctedEventType?: unknown;
   correctedAiTag?: unknown;
+  correctedSignalDirection?: unknown;
   correctedImportance?: unknown;
 };
 
@@ -86,6 +88,10 @@ export function normaliseMediaClassificationCorrections(
   const correctedAiTag = optionalTaxonomyValue(
     input.correctedAiTag,
     MEDIA_CORRECTABLE_AI_TAGS,
+  );
+  const correctedSignalDirection = optionalTaxonomyValue(
+    input.correctedSignalDirection,
+    MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS,
   );
   const importance = input.correctedImportance;
   if (
@@ -108,6 +114,9 @@ export function normaliseMediaClassificationCorrections(
       ? correctedEventType
       : null,
     correctedAiTag: reasons.includes("WRONG_AI_TAG") ? correctedAiTag : null,
+    correctedSignalDirection: reasons.includes("WRONG_SIGNAL_DIRECTION")
+      ? correctedSignalDirection
+      : null,
     correctedImportance: reasons.includes("WRONG_IMPORTANCE")
       ? correctedImportance
       : null,
@@ -118,6 +127,7 @@ const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
   correctedAiTag: null,
+  correctedSignalDirection: null,
   correctedImportance: null,
 };
 
@@ -129,6 +139,7 @@ function correctionsEqual(
     left.correctedSector === right.correctedSector &&
     left.correctedEventType === right.correctedEventType &&
     left.correctedAiTag === right.correctedAiTag &&
+    left.correctedSignalDirection === right.correctedSignalDirection &&
     left.correctedImportance === right.correctedImportance
   );
 }
@@ -142,6 +153,9 @@ export function machineClassificationsEqual(
     left.sector === right.sector &&
     left.eventType === right.eventType &&
     left.aiTag === right.aiTag &&
+    (left.signalDirection === null ||
+      right.signalDirection === null ||
+      left.signalDirection === right.signalDirection) &&
     left.importance === right.importance &&
     left.confidence === right.confidence
   );

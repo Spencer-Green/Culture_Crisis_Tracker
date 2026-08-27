@@ -7,6 +7,7 @@ import {
   canonicaliseMediaUrl,
   storyFingerprint,
 } from "@/data-sources/news/media-dedup";
+import { deriveSignalDirection } from "@/data-sources/news/signal-direction";
 import {
   CULTURAL_MEDIA_SECTORS,
   culturalSectorEvidence,
@@ -356,13 +357,20 @@ export function classifyMediaArticle(
       }
     : null;
   const match = direct ?? (aiAssessment ? null : fallback);
+  const eventType = match?.eventType ?? null;
   return {
     ...article,
     canonicalUrl,
     countryCode: inferMediaCountry(`${text} ${article.sourceCountry ?? ""}`),
     sectorSlug,
-    eventType: match?.eventType ?? null,
+    eventType,
     polarity: match?.polarity ?? "neutral/ambiguous",
+    signalDirection: deriveSignalDirection({
+      title: article.title,
+      description: article.description,
+      eventType,
+      claimKind: aiAssessment?.claimKind ?? null,
+    }),
     confidence: match?.confidence ?? aiAssessment?.confidence ?? "low",
     importance: importanceFor(
       match,

@@ -24,6 +24,7 @@ function story(overrides: Partial<MediaStoryCluster> = {}): MediaStoryCluster {
     eventType: "LAYOFFS",
     aiImpactType: null,
     polarity: "negative",
+    signalDirection: "NEGATIVE",
     importance: 4,
     machineImportance: 3,
     confidence: "high",
@@ -31,6 +32,7 @@ function story(overrides: Partial<MediaStoryCluster> = {}): MediaStoryCluster {
     correctedSector: null,
     correctedEventType: null,
     correctedAiTag: null,
+    correctedSignalDirection: null,
     correctedImportance: 4,
     ambiguousHumanCorrections: false,
     whyItMatters:
@@ -131,6 +133,7 @@ describe("Daily Culture Brief UI", () => {
     expect(html).toContain("Film Trade");
     expect(html).toContain("General News");
     expect(html).toContain("Reviewed");
+    expect(html).toContain("negative signal");
     expect(html).toContain("https://example.com/film-trade");
   });
 
@@ -162,6 +165,7 @@ describe("Daily Culture Brief UI", () => {
       sector: "music",
       eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
       aiImpactType: "POLICY_REGULATION",
+      signalDirection: "AMBIGUOUS",
     });
     const value = brief();
     value.topDevelopments = [item];
@@ -180,6 +184,7 @@ describe("Daily Culture Brief UI", () => {
       html.match(/ARIA excludes AI-generated songs from Australian charts/g),
     ).toHaveLength(1);
     expect(html).toContain("2 underlying articles");
+    expect(html).toContain("ambiguous");
   });
 
   it("renders quiet domain states without fabricated stories", () => {

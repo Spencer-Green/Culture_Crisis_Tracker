@@ -6,6 +6,7 @@ import type {
   MediaReviewState,
   MediaSectorSlug,
   MediaSourceType,
+  SignalDirection,
 } from "@/data-sources/news/media-types";
 import {
   assessAiIntelligence,
@@ -35,6 +36,7 @@ export type MediaArticleView = {
   sectorSlug: MediaSectorSlug;
   eventType: MediaEventType | null;
   polarity: MediaPolarity;
+  signalDirection: SignalDirection;
   confidence: MediaConfidence;
   importance: number;
   aiImpactType: AiImpactType | null;
@@ -154,12 +156,28 @@ export function isAiCreativeWorkEligible(article: MediaArticleView): boolean {
 
 function correctedClassificationValue<T>(
   article: MediaArticleView,
-  reason: "WRONG_EVENT_TYPE" | "WRONG_AI_TAG" | "WRONG_IMPORTANCE",
+  reason:
+    | "WRONG_EVENT_TYPE"
+    | "WRONG_AI_TAG"
+    | "WRONG_SIGNAL_DIRECTION"
+    | "WRONG_IMPORTANCE",
   value: T | null | undefined,
 ): T | null {
   return article.classificationFeedback?.reasons.includes(reason) === true
     ? (value ?? null)
     : null;
+}
+
+export function getEffectiveSignalDirection(
+  article: MediaArticleView,
+): SignalDirection {
+  return (
+    correctedClassificationValue(
+      article,
+      "WRONG_SIGNAL_DIRECTION",
+      article.classificationFeedback?.correctedSignalDirection,
+    ) ?? article.signalDirection
+  );
 }
 
 type AiIntelligenceAssessment = ReturnType<typeof assessAiIntelligence>;
@@ -359,14 +377,14 @@ export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
   );
   const healthCandidates = curatedArticles.filter(
     (article) =>
-      article.polarity === "negative" &&
+      getEffectiveSignalDirection(article) === "NEGATIVE" &&
       article.eventType !== null &&
       article.confidence !== "low" &&
       hasCredibleCulturalRelevance(article),
   );
   const positiveCandidates = curatedArticles.filter(
     (article) =>
-      article.polarity === "positive" &&
+      getEffectiveSignalDirection(article) === "POSITIVE" &&
       article.eventType !== null &&
       article.confidence !== "low" &&
       hasCredibleCulturalRelevance(article),
@@ -452,6 +470,9 @@ export function buildMediaCounts(articles: readonly MediaArticleView[]) {
     bySector: countBy(articles.map((article) => article.sectorSlug)),
     byEventType: countBy(articles.map((article) => article.eventType)),
     byPolarity: countBy(articles.map((article) => article.polarity)),
+    bySignalDirection: countBy(
+      articles.map((article) => getEffectiveSignalDirection(article)),
+    ),
     byImportance: countBy(
       articles.map((article) => String(article.importance)),
     ),

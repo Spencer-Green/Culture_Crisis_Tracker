@@ -10,6 +10,7 @@ import {
 import {
   buildStorySynthesisEvidence,
   StorySynthesisEvidenceError,
+  StorySynthesisResponseValidationError,
   StorySynthesisValidationError,
   synthesizeMediaStoryCluster,
 } from "@/services/media/story-synthesis-core";
@@ -65,7 +66,7 @@ function printCandidates(
     console.log(`cluster: ${cluster.clusterId}`);
     console.log(`article: ${cluster.representativeArticleId}`);
     console.log(
-      `labels: ${cluster.sector ?? "ambiguous"} · ${cluster.eventType ?? "unclassified"} · importance ${cluster.importance} · ${cluster.confidence}`,
+      `labels: ${cluster.sector ?? "ambiguous"} · ${cluster.eventType ?? "unclassified"} · ${cluster.signalDirection} · importance ${cluster.importance} · ${cluster.confidence}`,
     );
     console.log(`sources: ${cluster.sourceCount}`);
     console.log(`headline: ${cluster.canonicalHeadline}`);
@@ -121,7 +122,7 @@ async function main() {
   console.log(`cluster: ${evidence.clusterId}`);
   console.log(`headline: ${evidence.representativeHeadline}`);
   console.log(
-    `labels: ${evidence.effectiveClassification.sector ?? "ambiguous"} · ${evidence.effectiveClassification.eventType ?? "unclassified"} · importance ${evidence.effectiveClassification.importance} · ${evidence.effectiveClassification.confidence}`,
+    `labels: ${evidence.effectiveClassification.sector ?? "ambiguous"} · ${evidence.effectiveClassification.eventType ?? "unclassified"} · ${evidence.effectiveClassification.signalDirection} · importance ${evidence.effectiveClassification.importance} · ${evidence.effectiveClassification.confidence}`,
   );
   console.log(
     `articles: ${evidence.bounds.includedArticles}/${cluster.articles.length} eligible evidence rows`,
@@ -168,6 +169,21 @@ async function main() {
 main()
   .catch((error) => {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (error instanceof StorySynthesisResponseValidationError) {
+      console.error("STORY SYNTHESIS: FAIL");
+      console.error(sanitizeLlmDiagnosticMessage(error.message, apiKey));
+      console.error(`model: ${error.model}`);
+      console.error(`latency: ${error.latencyMs} ms`);
+      console.error(`input tokens: ${error.usage.inputTokens}`);
+      console.error(`cached input tokens: ${error.usage.cachedInputTokens}`);
+      console.error(`output tokens: ${error.usage.outputTokens}`);
+      console.error(`total tokens: ${error.usage.totalTokens}`);
+      console.error(
+        `ESTIMATED COST: $${error.estimatedCost.totalUsd.toFixed(6)} ${error.estimatedCost.currency}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
     if (
       error instanceof StorySynthesisEvidenceError ||
       error instanceof StorySynthesisValidationError

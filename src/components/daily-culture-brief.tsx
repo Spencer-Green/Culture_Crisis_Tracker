@@ -6,6 +6,7 @@ import type {
   FullBriefSectionId,
   MediaStoryCluster,
 } from "@/services/media/daily-brief-core";
+import type { SignalDirection } from "@/data-sources/news/media-types";
 
 function formatTimestamp(value: string): string {
   return new Intl.DateTimeFormat("en-AU", {
@@ -36,6 +37,16 @@ function label(value: string): string {
     .toLowerCase();
 }
 
+function signalLabel(value: SignalDirection): string {
+  return value === "AMBIGUOUS" ? "ambiguous" : `${value.toLowerCase()} signal`;
+}
+
+function signalClass(value: SignalDirection): string {
+  if (value === "POSITIVE") return "text-emerald-400";
+  if (value === "NEGATIVE") return "text-rose-400";
+  return "text-amber-400";
+}
+
 function StoryCard({
   story,
   generatedAt,
@@ -56,9 +67,9 @@ function StoryCard({
         {story.eventType ? (
           <span className="text-blue-400">{label(story.eventType)}</span>
         ) : null}
-        {story.aiImpactType ? (
-          <span className="text-violet-400">{label(story.aiImpactType)}</span>
-        ) : null}
+        <span className={signalClass(story.signalDirection)}>
+          {signalLabel(story.signalDirection)}
+        </span>
         <span className="text-zinc-600">importance {story.importance}/5</span>
         <span className="text-zinc-600">{story.confidence} confidence</span>
         {story.humanReviewState === "corrected" ||

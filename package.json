@@ -63,6 +63,7 @@
     "scheduler:inspect": "node --conditions=react-server --import tsx scripts/scheduler-inspect.ts",
     "llm:smoke": "node --import tsx scripts/llm-smoke.ts",
     "llm:synthesize-story": "node --conditions=react-server --import tsx scripts/llm-synthesize-story.ts",
+    "llm:synthesize-intelligence": "node --conditions=react-server --import tsx scripts/llm-synthesize-intelligence.ts",
     "llm:evaluate-stories": "node --conditions=react-server --import tsx scripts/llm-evaluate-stories.ts"
   },
   "dependencies": {

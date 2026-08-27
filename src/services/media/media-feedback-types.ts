@@ -6,18 +6,29 @@ import {
   type MediaConfidence,
   type MediaEventType,
   type MediaSectorSlug,
+  SIGNAL_DIRECTIONS,
+  type SignalDirection,
 } from "@/data-sources/news/media-types";
 
 export const MEDIA_CLASSIFICATION_FEEDBACK_REASONS = [
   "WRONG_SECTOR",
   "WRONG_EVENT_TYPE",
   "WRONG_AI_TAG",
+  "WRONG_SIGNAL_DIRECTION",
   "WRONG_IMPORTANCE",
   "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
 ] as const;
 
 export type MediaClassificationFeedbackReason =
   (typeof MEDIA_CLASSIFICATION_FEEDBACK_REASONS)[number];
+
+export const MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS = [
+  "WRONG_SECTOR",
+  "WRONG_EVENT_TYPE",
+  "WRONG_SIGNAL_DIRECTION",
+  "WRONG_IMPORTANCE",
+  "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
+] as const satisfies readonly MediaClassificationFeedbackReason[];
 
 export const MEDIA_CLASSIFICATION_REVIEW_STATES = [
   "UNREVIEWED",
@@ -47,6 +58,7 @@ export const MEDIA_CORRECTABLE_SECTORS = [
 
 export const MEDIA_CORRECTABLE_EVENT_TYPES = MEDIA_EVENT_TYPES;
 export const MEDIA_CORRECTABLE_AI_TAGS = AI_IMPACT_TYPES;
+export const MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS = SIGNAL_DIRECTIONS;
 export const MEDIA_CORRECTABLE_IMPORTANCE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export type MediaImportance = ClassifiedMediaArticle["importance"];
@@ -55,6 +67,7 @@ export type MediaMachineClassificationSnapshot = {
   sector: MediaSectorSlug;
   eventType: MediaEventType | null;
   aiTag: AiImpactType | null;
+  signalDirection: SignalDirection | null;
   importance: MediaImportance;
   confidence: MediaConfidence;
 };
@@ -63,6 +76,7 @@ export type MediaClassificationCorrections = {
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
   correctedAiTag: AiImpactType | null;
+  correctedSignalDirection: SignalDirection | null;
   correctedImportance: MediaImportance | null;
 };
 
@@ -91,7 +105,8 @@ export const MEDIA_CLASSIFICATION_FEEDBACK_LABELS: Record<
 > = {
   WRONG_SECTOR: "Wrong sector",
   WRONG_EVENT_TYPE: "Wrong event type",
-  WRONG_AI_TAG: "Wrong AI tag",
+  WRONG_AI_TAG: "Wrong legacy AI tag",
+  WRONG_SIGNAL_DIRECTION: "Wrong signal direction",
   WRONG_IMPORTANCE: "Wrong importance",
   NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE:
     "Not relevant to cultural intelligence",

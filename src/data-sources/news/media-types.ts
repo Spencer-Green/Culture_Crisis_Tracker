@@ -36,6 +36,8 @@ export const MEDIA_EVENT_TYPES = [
 
 export type MediaEventType = (typeof MEDIA_EVENT_TYPES)[number];
 export type MediaPolarity = "negative" | "positive" | "neutral/ambiguous";
+export const SIGNAL_DIRECTIONS = ["POSITIVE", "NEGATIVE", "AMBIGUOUS"] as const;
+export type SignalDirection = (typeof SIGNAL_DIRECTIONS)[number];
 export type MediaConfidence = "low" | "medium" | "high";
 export type MediaReviewState = "unreviewed" | "accepted" | "rejected";
 export type MediaSectorSlug = Extract<
@@ -79,6 +81,7 @@ export type ClassifiedMediaArticle = MediaSourceArticle & {
   sectorSlug: MediaSectorSlug;
   eventType: MediaEventType | null;
   polarity: MediaPolarity;
+  signalDirection: SignalDirection;
   confidence: MediaConfidence;
   importance: 1 | 2 | 3 | 4 | 5;
   aiImpactType: AiImpactType | null;

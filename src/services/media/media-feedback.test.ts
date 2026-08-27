@@ -10,6 +10,7 @@ const CURRENT: MediaMachineClassificationSnapshot = {
   sector: "film",
   eventType: "AI_LICENSING",
   aiTag: "RIGHTS_LICENSING",
+  signalDirection: "AMBIGUOUS",
   importance: 4,
   confidence: "high",
 };
@@ -21,6 +22,7 @@ const CORRECT: PersistedMediaClassificationFeedback = {
   correctedSector: null,
   correctedEventType: null,
   correctedAiTag: null,
+  correctedSignalDirection: null,
   correctedImportance: null,
   approvedMachineClassification: CURRENT,
   reviewedAt: new Date("2026-08-23T01:00:00.000Z"),
@@ -34,6 +36,7 @@ describe("evaluation-ready media feedback state", () => {
       correctedSector: null,
       correctedEventType: null,
       correctedAiTag: null,
+      correctedSignalDirection: null,
       correctedImportance: null,
       approvedMachineClassification: CURRENT,
       evaluationState: "CORRECT",

@@ -258,6 +258,29 @@ describe("story synthesis evidence", () => {
     expect(evidence.articles[0].humanFeedback).toBeNull();
   });
 
+  it("serializes a refined positive machine direction in evidence v5", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "capability-gain",
+          title: "Anthropic releases new multimodal reasoning model",
+          description:
+            "Independent benchmark testing demonstrated materially stronger coding performance.",
+          sectorSlug: "ai-policy",
+          eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+          signalDirection: "POSITIVE",
+          aiImpactType: "INDUSTRY_EFFICIENCY",
+        }),
+      ]),
+    );
+
+    expect(evidence.evidenceVersion).toBe("story-synthesis-evidence-v5");
+    expect(evidence.effectiveClassification.signalDirection).toBe("POSITIVE");
+    expect(evidence.articles[0].machineClassification.signalDirection).toBe(
+      "POSITIVE",
+    );
+  });
+
   it("exposes institutional evidence metadata to synthesis", () => {
     const evidence = buildStorySynthesisEvidence(
       cluster([

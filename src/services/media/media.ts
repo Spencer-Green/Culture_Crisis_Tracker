@@ -97,15 +97,19 @@ function toView(article: {
   )
     return null;
   const rawFeedback = article.classificationFeedback;
+  const sourceEvidence = readMediaSourceEvidenceMetadata(article.metadata);
   const aiAssessment = assessAiIntelligence({
     title: article.title,
     description: article.description,
+    evidenceRole: sourceEvidence?.evidenceRole,
+    sourcePerspective: sourceEvidence?.sourcePerspective,
   });
   const signalDirection = deriveSignalDirection({
     title: article.title,
     description: article.description,
     eventType: article.eventType as MediaArticleView["eventType"],
     claimKind: aiAssessment?.claimKind ?? null,
+    aiCategory: aiAssessment?.category ?? null,
   });
   const currentMachineClassification = {
     sector: article.sectorSlug,
@@ -198,7 +202,7 @@ function toView(article: {
     sourceMatches: [
       ...new Set(article.sourceMatches.map((match) => match.sourceType)),
     ],
-    sourceEvidence: readMediaSourceEvidenceMetadata(article.metadata),
+    sourceEvidence,
   };
 }
 

@@ -33,6 +33,21 @@ type RuleMatch = {
   rationale: string;
 };
 
+const CLOSURE_ACTION_PATTERN =
+  /\b(to close(?: permanently)?|closing down|closing permanently|closed permanently|shut(?:s|ting)? down|cease[sd]? trading|closure)\b/i;
+const CLOSURE_PROXIMITY_ACTION_PATTERN =
+  /\b(to close|clos(?:es|ed|ing)|shut(?:s|ting)? down|cease[sd]? trading|closure)\b/i;
+const CULTURAL_OPERATION_PATTERN =
+  /\b(venue|cinema|theatre|theater|studio|company|business|operator|festival|museum|gallery|club|platform|publisher|record label|operation|site)\b/i;
+const CULTURAL_OPERATION_CLOSURE_PATTERN = new RegExp(
+  `${CULTURAL_OPERATION_PATTERN.source}[^.]{0,70}${CLOSURE_PROXIMITY_ACTION_PATTERN.source}|${CLOSURE_PROXIMITY_ACTION_PATTERN.source}[^.]{0,70}${CULTURAL_OPERATION_PATTERN.source}`,
+  "i",
+);
+const EVIDENCE_REQUIRED_FALLBACK_EVENTS = new Set<MediaEventType>([
+  "CLOSURE",
+  "BANKRUPTCY_INSOLVENCY",
+]);
+
 const COUNTRY_PATTERNS: readonly [CountryCode, RegExp][] = [
   [
     "AU",
@@ -83,7 +98,13 @@ export function classifyMediaSector(
   return "industry-events";
 }
 
+function hasClosureEventEvidence(title: string, text: string): boolean {
+  if (CLOSURE_ACTION_PATTERN.test(title)) return true;
+  return CULTURAL_OPERATION_CLOSURE_PATTERN.test(text);
+}
+
 function matchEvent(
+  title: string,
   text: string,
   aiAssessment: AiIntelligenceAssessment | null,
 ): RuleMatch | null {
@@ -110,11 +131,7 @@ function matchEvent(
       rationale:
         "The article describes a cultural organisation as threatened rather than confirmed closed.",
     };
-  if (
-    /\b(to close|closing permanently|closed permanently|shut(?:ting)? down|cease trading|studio closure|venue closure)\b/i.test(
-      text,
-    )
-  )
+  if (hasClosureEventEvidence(title, text))
     return {
       eventType: "CLOSURE",
       polarity: "negative",
@@ -345,17 +362,19 @@ export function classifyMediaArticle(
   });
   const direct = guardPrimaryDocumentEvent(
     article,
-    matchEvent(text, aiAssessment),
+    matchEvent(article.title, text, aiAssessment),
   );
-  const fallback: RuleMatch | null = family?.fallbackEventType
-    ? {
-        eventType: family.fallbackEventType,
-        polarity: family.fallbackPolarity,
-        confidence: "low",
-        aiImpactType: family.aiRelated ? "AMBIGUOUS" : null,
-        rationale: `The article matched the ${family.name.toLowerCase()} query, but its supplied title and snippet do not confirm the event.`,
-      }
-    : null;
+  const fallback: RuleMatch | null =
+    family?.fallbackEventType &&
+    !EVIDENCE_REQUIRED_FALLBACK_EVENTS.has(family.fallbackEventType)
+      ? {
+          eventType: family.fallbackEventType,
+          polarity: family.fallbackPolarity,
+          confidence: "low",
+          aiImpactType: family.aiRelated ? "AMBIGUOUS" : null,
+          rationale: `The article matched the ${family.name.toLowerCase()} query, but its supplied title and snippet do not confirm the event.`,
+        }
+      : null;
   const match = direct ?? (aiAssessment ? null : fallback);
   const eventType = match?.eventType ?? null;
   return {
@@ -370,6 +389,7 @@ export function classifyMediaArticle(
       description: article.description,
       eventType,
       claimKind: aiAssessment?.claimKind ?? null,
+      aiCategory: aiAssessment?.category ?? null,
     }),
     confidence: match?.confidence ?? aiAssessment?.confidence ?? "low",
     importance: importanceFor(

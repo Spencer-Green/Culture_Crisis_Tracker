@@ -61,6 +61,145 @@ describe("signal direction", () => {
     ).toBe("NEGATIVE");
   });
 
+  it("requires a demonstrated material capability delta", () => {
+    expect(
+      deriveSignalDirection({
+        title: "OpenAI releases a new reasoning model",
+        description:
+          "Independent benchmark testing demonstrated materially stronger coding and inference performance.",
+        eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "FRONTIER_MODEL_ADVANCEMENT",
+      }),
+    ).toBe("POSITIVE");
+    expect(
+      deriveSignalDirection({
+        title: "OpenAI launches a new model",
+        description: "The company made the model available to users.",
+        eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "FRONTIER_MODEL_ADVANCEMENT",
+      }),
+    ).toBe("AMBIGUOUS");
+    expect(
+      deriveSignalDirection({
+        title: "Rumored model may lead benchmark rankings",
+        eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+        claimKind: "PROPOSED_ACTION",
+        aiCategory: "FRONTIER_MODEL_ADVANCEMENT",
+      }),
+    ).toBe("AMBIGUOUS");
+  });
+
+  it("recognizes measured inference efficiency without treating availability as improvement", () => {
+    expect(
+      deriveSignalDirection({
+        title: "OpenAI inference chip benchmarks show higher throughput",
+        description:
+          "Testing registered more tokens per user and more throughput per kilowatt than the currently available state of the art.",
+        eventType: "AI_ADOPTION",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_SEMICONDUCTORS",
+      }),
+    ).toBe("POSITIVE");
+    expect(
+      deriveSignalDirection({
+        title: "AI accelerator is now available",
+        description: "The vendor claims benchmark-leading performance.",
+        eventType: "MAJOR_PRODUCT_CAPABILITY_RELEASE",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_SEMICONDUCTORS",
+      }),
+    ).toBe("AMBIGUOUS");
+  });
+
+  it("separates completed compute capacity from future infrastructure plans", () => {
+    expect(
+      deriveSignalDirection({
+        title: "New AI data centre commissioned",
+        description:
+          "The operational facility brought 500MW of additional compute capacity online.",
+        eventType: "COMPUTE_INFRASTRUCTURE_EXPANSION",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_INFRASTRUCTURE",
+      }),
+    ).toBe("POSITIVE");
+    expect(
+      deriveSignalDirection({
+        title: "Company announces roadmap for 500MW AI data centre",
+        description: "The planned facility is expected to open in 2030.",
+        eventType: "COMPUTE_INFRASTRUCTURE_EXPANSION",
+        claimKind: "PROPOSED_ACTION",
+        aiCategory: "AI_INFRASTRUCTURE",
+      }),
+    ).toBe("AMBIGUOUS");
+    expect(
+      deriveSignalDirection({
+        title: "Operator shuts down AI data centre",
+        description:
+          "The shutdown reduced available compute capacity after a major supply disruption.",
+        eventType: "COMPUTE_INFRASTRUCTURE_EXPANSION",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_INFRASTRUCTURE",
+      }),
+    ).toBe("NEGATIVE");
+  });
+
+  it("requires measured benefits for positive AI adoption", () => {
+    expect(
+      deriveSignalDirection({
+        title: "Bank deploys AI document workflow",
+        description:
+          "The deployed system produced a measured reduction in processing time and increased throughput.",
+        eventType: "AI_ADOPTION",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_LABOUR_ADOPTION",
+      }),
+    ).toBe("POSITIVE");
+    expect(
+      deriveSignalDirection({
+        title: "Bank announces AI workflow integration",
+        description: "The company says the tool could improve productivity.",
+        eventType: "AI_ADOPTION",
+        claimKind: "PROPOSED_ACTION",
+        aiCategory: "AI_LABOUR_ADOPTION",
+      }),
+    ).toBe("AMBIGUOUS");
+  });
+
+  it("keeps licensing mixed unless completed compensation or harm is explicit", () => {
+    expect(
+      deriveSignalDirection({
+        title: "Music service signs AI licensing agreement",
+        description:
+          "The completed deal pays royalties and expands authorized access to participating artists' recordings.",
+        eventType: "AI_LICENSING",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_LICENSING",
+      }),
+    ).toBe("POSITIVE");
+    expect(
+      deriveSignalDirection({
+        title: "AI licensing dispute remains before the court",
+        description:
+          "The unresolved case could change compensation arrangements.",
+        eventType: "AI_LICENSING",
+        claimKind: "ATTRIBUTED_ANALYSIS",
+        aiCategory: "AI_LICENSING",
+      }),
+    ).toBe("AMBIGUOUS");
+    expect(
+      deriveSignalDirection({
+        title: "AI company uses recordings without payment",
+        description:
+          "The documented uncompensated use caused creator revenue loss.",
+        eventType: "AI_LICENSING",
+        claimKind: "OBSERVED_ACTION",
+        aiCategory: "AI_LICENSING",
+      }),
+    ).toBe("NEGATIVE");
+  });
+
   it("treats mixed cross-sector effects conservatively", () => {
     expect(
       deriveSignalDirection({
@@ -121,4 +260,23 @@ describe("signal direction", () => {
       }),
     ).toBe("POSITIVE");
   });
+
+  it.each([
+    ["Venue closes permanently", "CLOSURE"],
+    ["Company enters insolvency", "BANKRUPTCY_INSOLVENCY"],
+    ["Studio announces observed layoffs", "LAYOFFS"],
+    ["Tour cancellation confirmed", "CANCELLATION"],
+    ["Revenue declined in the measured period", "REVENUE_DECLINE"],
+  ] as const)(
+    "keeps observed adverse events negative: %s",
+    (title, eventType) => {
+      expect(
+        deriveSignalDirection({
+          title,
+          eventType,
+          claimKind: "OBSERVED_ACTION",
+        }),
+      ).toBe("NEGATIVE");
+    },
+  );
 });

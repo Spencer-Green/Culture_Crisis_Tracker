@@ -69,7 +69,7 @@ const MAJOR_POLICY_SCOPE_PATTERN =
 const COPYRIGHT_PATTERN =
   /\b(copyright\w*|training data|fair use|infringement|authors? rights?|creator rights?|digital replicas?|likeness rights?)\b/i;
 const LICENSING_PATTERN =
-  /\b(licens\w*|royalt\w*|rights deal|consent|compensation|collective licens\w*)\b/i;
+  /\b(licens(?:ing|ed|es)|licen[cs]e (?:agreement|deal|framework|rights|catalog|content|data|model|recordings?|works?)|royalt\w*|rights deal|collective licens\w*)\b|\b(consent|compensation)\b[^.]{0,50}\b(agreement|deal|framework|rights|training data|creators?|artists?|authors?)\b|\b(agreement|deal|framework|rights)\b[^.]{0,50}\b(consent|compensation)\b/i;
 const OBSERVED_LABOUR_PATTERN =
   /\b(replaces?|replaced|cuts? (?:jobs|roles|staff)|job cuts?|layoffs?|laid off|redundan\w*|eliminates? roles?|workforce reduction|automates? (?:jobs|roles|tasks))\b/i;
 const LABOUR_FORECAST_PATTERN =

@@ -189,6 +189,82 @@ describe("media classification", () => {
     });
   });
 
+  it("does not treat film sales or plot-level shutdown language as a closure", () => {
+    const classified = classifyMediaArticle(
+      article(
+        "Iranian Drama 'A Bit of Light' Sells Wide Ahead of Venice Premiere",
+        "The film follows a doctor whose medical practice was shut down after an arrest.",
+        { sectorHint: "film" },
+      ),
+    );
+
+    expect(classified).toMatchObject({
+      sectorSlug: "film",
+      eventType: null,
+    });
+    expect(
+      classifyMediaArticle(
+        article("A Close Look at International Film Sales", null, {
+          sectorHint: "film",
+        }),
+      )?.eventType,
+    ).toBeNull();
+  });
+
+  it("still recognizes an actual cultural operation shutting down", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "Local production update",
+          "The independent film studio shut down operations permanently.",
+          { sectorHint: "film" },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "film",
+      eventType: "CLOSURE",
+      signalDirection: "NEGATIVE",
+    });
+  });
+
+  it("does not use an insolvency query match as financial-distress evidence", () => {
+    const classified = classifyMediaArticle(
+      article(
+        "Pune cops firm on no-loud-music stand during festival",
+        "Police will enforce noise rules and seize speakers exceeding sound limits.",
+        {
+          sourceType: "THENEWSAPI",
+          queryFamily: "insolvency",
+          feedSlug: null,
+          sectorHint: "music",
+        },
+      ),
+    );
+
+    expect(classified).toMatchObject({
+      sectorSlug: "music",
+      eventType: null,
+      signalDirection: "AMBIGUOUS",
+    });
+  });
+
+  it("does not confuse AI-powered license plates with AI licensing", () => {
+    const classified = classifyMediaArticle(
+      article(
+        "Cities cut AI-powered license plate cameras over privacy fears",
+        "Officials are investigating a surveillance network and vehicle data practices.",
+        { sectorHint: "ai-policy" },
+      ),
+    );
+
+    expect(classified?.eventType).not.toBe("AI_LICENSING");
+    expect(classified).toMatchObject({
+      sectorSlug: "ai-policy",
+      eventType: "AI_ADOPTION",
+      signalDirection: "AMBIGUOUS",
+    });
+  });
+
   it("recognises explicit Film consolidation as material sector news", () => {
     expect(
       classifyMediaArticle(

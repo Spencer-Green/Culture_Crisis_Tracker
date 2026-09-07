@@ -1,0 +1,127 @@
+import type { ResearchTaskV1 } from "@/services/research/research-types";
+
+export const RESEARCH_SCHEDULER_SOURCE_ID = "research-agent";
+export const RESEARCH_SCHEDULER_INSPECTION_CADENCE_MINUTES = 12 * 60;
+export const RESEARCH_SCHEDULER_MAX_TASKS_PER_CYCLE = 1;
+export const RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT = 2;
+export const RESEARCH_SCHEDULER_ROLLING_WINDOW_MS = 24 * 60 * 60 * 1_000;
+
+export type ScheduledResearchTask = {
+  task: ResearchTaskV1;
+  enabled: boolean;
+  cadenceMinutes: number;
+  priority: number;
+};
+
+export type ResearchTaskRunHistory = {
+  researchTaskId: string;
+  researchTaskVersion: string;
+  status: "SUCCEEDED" | "FAILED";
+  startedAt: Date;
+  completedAt: Date;
+};
+
+export type ResearchSchedulerSkipReason =
+  | "DISABLED"
+  | "MISSING_API_KEY"
+  | "ROLLING_EXECUTION_LIMIT"
+  | "NO_TASK_DUE";
+
+export type ResearchTaskDueState = {
+  task: ScheduledResearchTask;
+  lastRun: ResearchTaskRunHistory | null;
+  nextDueAt: Date;
+  due: boolean;
+};
+
+export type ResearchSchedulerDecision = {
+  enabled: boolean;
+  taskCount: number;
+  rollingRunCount: number;
+  rollingRunLimit: number;
+  tasks: ResearchTaskDueState[];
+  selectedTask: ScheduledResearchTask | null;
+  skipReason: ResearchSchedulerSkipReason | null;
+  lastRun: ResearchTaskRunHistory | null;
+  nextDueAt: Date | null;
+};
+
+function latestRunForTask(
+  task: ScheduledResearchTask,
+  history: readonly ResearchTaskRunHistory[],
+): ResearchTaskRunHistory | null {
+  return (
+    history
+      .filter(
+        (run) =>
+          run.researchTaskId === task.task.id &&
+          run.researchTaskVersion === task.task.version,
+      )
+      .sort(
+        (left, right) => right.completedAt.getTime() - left.completedAt.getTime(),
+      )[0] ?? null
+  );
+}
+
+export function evaluateResearchScheduler(input: {
+  enabled: boolean;
+  apiKeyConfigured: boolean;
+  now: Date;
+  tasks: readonly ScheduledResearchTask[];
+  history: readonly ResearchTaskRunHistory[];
+  rollingRunCount: number;
+  rollingRunLimit?: number;
+}): ResearchSchedulerDecision {
+  const rollingRunLimit =
+    input.rollingRunLimit ?? RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT;
+  const tasks = input.tasks
+    .filter((task) => task.enabled)
+    .map((task) => {
+      const lastRun = latestRunForTask(task, input.history);
+      const nextDueAt = lastRun
+        ? new Date(
+            lastRun.completedAt.getTime() + task.cadenceMinutes * 60_000,
+          )
+        : input.now;
+      return {
+        task,
+        lastRun,
+        nextDueAt,
+        due: nextDueAt.getTime() <= input.now.getTime(),
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.task.priority - left.task.priority ||
+        left.nextDueAt.getTime() - right.nextDueAt.getTime() ||
+        left.task.task.id.localeCompare(right.task.task.id),
+    );
+  const lastRun =
+    [...input.history].sort(
+      (left, right) => right.completedAt.getTime() - left.completedAt.getTime(),
+    )[0] ?? null;
+  const nextDueAt =
+    [...tasks].sort(
+      (left, right) => left.nextDueAt.getTime() - right.nextDueAt.getTime(),
+    )[0]?.nextDueAt ?? null;
+  let skipReason: ResearchSchedulerSkipReason | null = null;
+  if (!input.enabled) skipReason = "DISABLED";
+  else if (!input.apiKeyConfigured) skipReason = "MISSING_API_KEY";
+  else if (input.rollingRunCount >= rollingRunLimit) {
+    skipReason = "ROLLING_EXECUTION_LIMIT";
+  } else if (!tasks.some((task) => task.due)) skipReason = "NO_TASK_DUE";
+  const selectedTask = skipReason
+    ? null
+    : (tasks.find((task) => task.due)?.task ?? null);
+  return {
+    enabled: input.enabled,
+    taskCount: tasks.length,
+    rollingRunCount: input.rollingRunCount,
+    rollingRunLimit,
+    tasks,
+    selectedTask,
+    skipReason,
+    lastRun,
+    nextDueAt,
+  };
+}

@@ -19,6 +19,15 @@ const RESEARCH_TASKS = new Map<string, ResearchTaskV1>([
   [AU_LIVE_MUSIC_VENUE_VIABILITY_TASK.id, AU_LIVE_MUSIC_VENUE_VIABILITY_TASK],
 ]);
 
+export const SCHEDULED_RESEARCH_TASKS = [
+  {
+    task: AU_LIVE_MUSIC_VENUE_VIABILITY_TASK,
+    enabled: true,
+    cadenceMinutes: 24 * 60,
+    priority: 100,
+  },
+] as const;
+
 export function getResearchTask(taskId: string): ResearchTaskV1 {
   const task = RESEARCH_TASKS.get(taskId);
   if (!task) {

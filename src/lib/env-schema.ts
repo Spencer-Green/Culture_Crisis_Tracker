@@ -41,6 +41,7 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "LPA_BASE_URL",
   "MEDIASTACK_BASE_URL",
   "OPENAI_BASE_URL",
+  "DEEPSEEK_BASE_URL",
 ] as const;
 
 export type BaseUrlEnvironmentKey = (typeof BASE_URL_ENVIRONMENT_KEYS)[number];
@@ -138,6 +139,10 @@ export const serverEnvSchema = z.object({
   OPENAI_BASE_URL: optionalUrl("OPENAI_BASE_URL").default(
     "https://api.openai.com/v1",
   ),
+  DEEPSEEK_BASE_URL: optionalUrl("DEEPSEEK_BASE_URL").default(
+    "https://api.deepseek.com",
+  ),
+  LLM_RESEARCHER_ENABLED: optionalBoolean.default(false),
   LUNA_SYNTHESIS_ENABLED: optionalBoolean.default(false),
   LUNA_SYNTHESIS_MAX_PER_CYCLE: optionalPositiveInteger(
     "LUNA_SYNTHESIS_MAX_PER_CYCLE",

@@ -12,6 +12,7 @@ const definitions = buildScheduledSourceDefinitions({
   lunaSynthesisMaxPerCycle: 4,
   lunaSynthesisDailyCallLimit: 16,
   lunaSynthesisLookbackHours: 48,
+  researcherEnabled: true,
 });
 
 function source(sourceId: string) {
@@ -129,6 +130,17 @@ describe("scheduler source inventory", () => {
     });
   });
 
+  it("runs shadow research at low cadence with no command duplication", () => {
+    expect(source("research-agent")).toMatchObject({
+      schedulingClass: "RELEASE_AWARE",
+      cadenceMinutes: 720,
+      automatic: true,
+      networkKind: "networked",
+    });
+    expect(source("research-agent").commands(new Date())).toEqual([]);
+    expect(source("research-agent").routineScope).toContain("staged evidence");
+  });
+
   it("keeps automatic Luna calls disabled until explicitly enabled", () => {
     const disabled = buildScheduledSourceDefinitions({
       mediaRefreshHours: 3,
@@ -139,7 +151,27 @@ describe("scheduler source inventory", () => {
       lunaSynthesisMaxPerCycle: 4,
       lunaSynthesisDailyCallLimit: 16,
       lunaSynthesisLookbackHours: 48,
+      researcherEnabled: false,
     }).find((definition) => definition.sourceId === "luna-story-synthesis");
+    expect(disabled).toMatchObject({
+      schedulingClass: "MANUAL_ONLY",
+      cadenceMinutes: null,
+      automatic: false,
+    });
+  });
+
+  it("keeps scheduled research disabled until explicitly enabled", () => {
+    const disabled = buildScheduledSourceDefinitions({
+      mediaRefreshHours: 3,
+      ticketmasterRefreshHours: 24,
+      gamingRefreshHours: 24,
+      lunaSynthesisEnabled: false,
+      lunaSynthesisRefreshHours: 3,
+      lunaSynthesisMaxPerCycle: 4,
+      lunaSynthesisDailyCallLimit: 16,
+      lunaSynthesisLookbackHours: 48,
+      researcherEnabled: false,
+    }).find((definition) => definition.sourceId === "research-agent");
     expect(disabled).toMatchObject({
       schedulingClass: "MANUAL_ONLY",
       cadenceMinutes: null,

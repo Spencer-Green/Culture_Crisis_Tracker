@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "@/lib/env";
 import { getPrisma } from "@/lib/prisma";
 import { createCommandExecutor } from "@/services/scheduler/command-executor";
+import { createResearchSchedulerExecutor } from "@/services/research/research-scheduler";
 import {
   calculateNextScheduledAt,
   executeScheduledSource,
@@ -111,7 +112,16 @@ export async function runSchedulerOnce(
   await initializeStates(evaluations, store, capturedAt);
   evaluations = await loadScheduleEvaluations(capturedAt);
   const selected = selectScheduleEvaluations(evaluations, options.sourceId);
-  const executor = options.executor ?? createCommandExecutor(store);
+  const executor =
+    options.executor ??
+    (() => {
+      const commandExecutor = createCommandExecutor(store);
+      const researchExecutor = createResearchSchedulerExecutor();
+      return ((input) =>
+        input.definition.sourceId === "research-agent"
+          ? researchExecutor(input)
+          : commandExecutor(input)) satisfies ScheduledSourceExecutor;
+    })();
   const ticketmaster = selected.filter(
     (evaluation) => evaluation.definition.sourceId === "ticketmaster",
   );

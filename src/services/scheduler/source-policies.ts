@@ -18,6 +18,7 @@ export type SchedulerPolicyConfig = {
   lunaSynthesisMaxPerCycle: number;
   lunaSynthesisDailyCallLimit: number;
   lunaSynthesisLookbackHours: number;
+  researcherEnabled: boolean;
 };
 
 function command(
@@ -397,6 +398,23 @@ export function buildScheduledSourceDefinitions(
             "Specialist analysis scheduled separately from the three-hour journalism cycle.",
         }) satisfies ScheduledSourceDefinition,
     ),
+    {
+      sourceId: "research-agent",
+      schedulingClass: config.researcherEnabled
+        ? "RELEASE_AWARE"
+        : "MANUAL_ONLY",
+      cadenceMinutes: config.researcherEnabled ? 12 * 60 : null,
+      automatic: config.researcherEnabled,
+      networkKind: "networked",
+      publicationFrequency: "Daily bounded shadow research task",
+      requestIntensity:
+        "At most one task per scheduler cycle and two completed executions per rolling 24 hours",
+      routineScope:
+        "One versioned Australian live-music venue viability task; staged evidence only",
+      commands: () => [],
+      notes:
+        "Operational research subsystem source; discovered publishers remain separate staged evidence and no candidate is automatically ingested or approved.",
+    },
     {
       sourceId: "luna-story-synthesis",
       schedulingClass: config.lunaSynthesisEnabled

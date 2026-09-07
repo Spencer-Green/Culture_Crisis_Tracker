@@ -18,6 +18,7 @@ export function schedulerDefinitions() {
     lunaSynthesisMaxPerCycle: env.LUNA_SYNTHESIS_MAX_PER_CYCLE,
     lunaSynthesisDailyCallLimit: env.LUNA_SYNTHESIS_DAILY_CALL_LIMIT,
     lunaSynthesisLookbackHours: env.LUNA_SYNTHESIS_LOOKBACK_HOURS,
+    researcherEnabled: env.LLM_RESEARCHER_ENABLED,
   });
 }
 

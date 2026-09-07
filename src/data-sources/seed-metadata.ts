@@ -98,6 +98,7 @@ export function buildSourceSeedOperation(
       "mvt",
       "census",
       "lpa",
+      "research-agent",
       "luna-story-synthesis",
     ].includes(source.slug),
   };

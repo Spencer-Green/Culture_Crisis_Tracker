@@ -695,6 +695,18 @@ export const SOURCE_DEFINITIONS = [
     implementationStatus: "implemented",
   },
   {
+    slug: "research-agent",
+    name: "DeepSeek Research Agent",
+    provider: "DeepSeek",
+    baseUrlEnvironmentKey: "DEEPSEEK_BASE_URL",
+    requiredCredentialEnvironmentKeys: [],
+    countries: ALL_COUNTRIES,
+    sectors: ALL_SECTORS,
+    requiresAuthentication: true,
+    implementationStatus: "implemented",
+    sourceUrl: "https://api.deepseek.com/responses",
+  },
+  {
     slug: "luna-story-synthesis",
     name: "Luna Intelligence Synthesis",
     provider: "OpenAI",

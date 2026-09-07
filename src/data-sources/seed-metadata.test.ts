@@ -34,6 +34,7 @@ describe("source seed metadata", () => {
       getSourceDefinition("mvt"),
       getSourceDefinition("lpa"),
       getSourceDefinition("census"),
+      getSourceDefinition("research-agent"),
       getSourceDefinition("luna-story-synthesis"),
     ].map((source) =>
       buildSourceSeedOperation(
@@ -114,6 +115,11 @@ describe("source seed metadata", () => {
                                                   CENSUS_BASE_URL:
                                                     "https://www2.census.gov/programs-surveys/aies/data",
                                                 }
+                                            : source.slug === "research-agent"
+                                              ? {
+                                                  DEEPSEEK_BASE_URL:
+                                                    "https://api.deepseek.com",
+                                                }
                                               : {
                                                   OPENAI_BASE_URL:
                                                     "https://api.openai.com/v1",
@@ -143,6 +149,7 @@ describe("source seed metadata", () => {
           "mvt",
           "lpa",
           "census",
+          "research-agent",
           "luna-story-synthesis",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
@@ -167,6 +174,7 @@ describe("source seed metadata", () => {
       "mvt",
       "lpa",
       "census",
+      "research-agent",
       "luna-story-synthesis",
     ]);
     expect(
@@ -196,6 +204,18 @@ describe("source seed metadata", () => {
       enabled: true,
       requiresAuthentication: true,
       baseUrl: "https://api.openai.com/v1/responses",
+    });
+  });
+
+  it("registers the research agent as an operational authenticated source", () => {
+    const operation = buildSourceSeedOperation(
+      getSourceDefinition("research-agent"),
+      { DEEPSEEK_BASE_URL: "https://api.deepseek.com" },
+    );
+    expect(operation.create).toMatchObject({
+      enabled: true,
+      requiresAuthentication: true,
+      baseUrl: "https://api.deepseek.com/responses",
     });
   });
 

@@ -41,16 +41,24 @@ describe("source registry", () => {
       CENSUS_BASE_URL: "https://www2.census.gov/programs-surveys/aies/data",
       OPENAI_BASE_URL: "https://api.openai.com/v1",
       OPENAI_API_KEY: apiKey,
+      DEEPSEEK_BASE_URL: "https://api.deepseek.com",
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(42);
+    expect(sources).toHaveLength(43);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(39);
+    ).toHaveLength(40);
     expect(
       sources.find((source) => source.slug === "luna-story-synthesis"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      requiresAuthentication: true,
+    });
+    expect(
+      sources.find((source) => source.slug === "research-agent"),
     ).toMatchObject({
       configured: true,
       implementationStatus: "implemented",

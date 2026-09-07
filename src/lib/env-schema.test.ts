@@ -33,4 +33,10 @@ describe("server environment parsing", () => {
       LUNA_SYNTHESIS_REFRESH_HOURS: 3,
     });
   });
+
+  it("keeps scheduled research explicitly disabled by default", () => {
+    const parsed = parseServerEnv({ DEEPSEEK_API_KEY: "configured" });
+    expect(parsed.LLM_RESEARCHER_ENABLED).toBe(false);
+    expect(parsed.DEEPSEEK_BASE_URL).toBe("https://api.deepseek.com");
+  });
 });

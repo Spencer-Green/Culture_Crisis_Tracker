@@ -115,15 +115,15 @@ describe("source seed metadata", () => {
                                                   CENSUS_BASE_URL:
                                                     "https://www2.census.gov/programs-surveys/aies/data",
                                                 }
-                                            : source.slug === "research-agent"
-                                              ? {
-                                                  DEEPSEEK_BASE_URL:
-                                                    "https://api.deepseek.com",
-                                                }
-                                              : {
-                                                  OPENAI_BASE_URL:
-                                                    "https://api.openai.com/v1",
-                                                },
+                                              : source.slug === "research-agent"
+                                                ? {
+                                                    DEEPSEEK_BASE_URL:
+                                                      "https://api.deepseek.com",
+                                                  }
+                                                : {
+                                                    OPENAI_BASE_URL:
+                                                      "https://api.openai.com/v1",
+                                                  },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(

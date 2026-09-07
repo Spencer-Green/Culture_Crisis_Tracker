@@ -22,10 +22,7 @@ export type ResearchTaskRunHistory = {
 };
 
 export type ResearchSchedulerSkipReason =
-  | "DISABLED"
-  | "MISSING_API_KEY"
-  | "ROLLING_EXECUTION_LIMIT"
-  | "NO_TASK_DUE";
+  "DISABLED" | "MISSING_API_KEY" | "ROLLING_EXECUTION_LIMIT" | "NO_TASK_DUE";
 
 export type ResearchTaskDueState = {
   task: ScheduledResearchTask;
@@ -58,7 +55,8 @@ function latestRunForTask(
           run.researchTaskVersion === task.task.version,
       )
       .sort(
-        (left, right) => right.completedAt.getTime() - left.completedAt.getTime(),
+        (left, right) =>
+          right.completedAt.getTime() - left.completedAt.getTime(),
       )[0] ?? null
   );
 }
@@ -79,9 +77,7 @@ export function evaluateResearchScheduler(input: {
     .map((task) => {
       const lastRun = latestRunForTask(task, input.history);
       const nextDueAt = lastRun
-        ? new Date(
-            lastRun.completedAt.getTime() + task.cadenceMinutes * 60_000,
-          )
+        ? new Date(lastRun.completedAt.getTime() + task.cadenceMinutes * 60_000)
         : input.now;
       return {
         task,
@@ -124,4 +120,20 @@ export function evaluateResearchScheduler(input: {
     lastRun,
     nextDueAt,
   };
+}
+
+export function researchSchedulerInspectionLines(
+  decision: ResearchSchedulerDecision,
+  lock: { running: boolean; expiresAt: Date | null },
+): string[] {
+  return [
+    `  research tasks: ${decision.taskCount}`,
+    `  due research task: ${decision.selectedTask?.task.id ?? "none"}`,
+    `  last research run: ${decision.lastRun?.completedAt.toISOString() ?? "never"}`,
+    `  last research status: ${decision.lastRun?.status ?? "never"}`,
+    `  next task due: ${decision.nextDueAt?.toISOString() ?? "not scheduled"}`,
+    `  rolling 24h executions: ${decision.rollingRunCount}/${decision.rollingRunLimit}`,
+    `  research skip reason: ${decision.skipReason ?? "none"}`,
+    `  lock: ${lock.running ? `active until ${lock.expiresAt?.toISOString() ?? "unknown"}` : "available"}`,
+  ];
 }

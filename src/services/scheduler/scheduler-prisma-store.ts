@@ -50,6 +50,7 @@ export class PrismaSchedulerStore implements SchedulerExecutionStore {
       update: {
         schedulingClass: input.definition.schedulingClass,
         cadenceMinutes: input.definition.cadenceMinutes,
+        nextScheduledAt: input.nextScheduledAt,
       },
       create: {
         sourceId: input.source.id,

@@ -10,7 +10,6 @@ import {
 } from "@/services/research/deepseek-research-provider";
 import {
   evaluateResearchScheduler,
-  RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT,
   RESEARCH_SCHEDULER_ROLLING_WINDOW_MS,
   RESEARCH_SCHEDULER_SOURCE_ID,
   type ResearchSchedulerDecision,
@@ -27,10 +26,7 @@ import {
 } from "@/services/research/research-staging-store";
 import { runResearchOnce } from "@/services/research/research-runner";
 import { SCHEDULED_RESEARCH_TASKS } from "@/services/research/research-tasks";
-import type {
-  ResearchProvider,
-  ResearchRunResult,
-} from "@/services/research/research-types";
+import type { ResearchProvider } from "@/services/research/research-types";
 import type { ScheduledSourceExecutor } from "@/services/scheduler/scheduler-core";
 
 export type ResearchSchedulerHistoryStore = {
@@ -50,9 +46,7 @@ export type ScheduledResearchResult = {
   persisted: PersistedResearchRunResult | null;
 };
 
-export class PrismaResearchSchedulerHistoryStore
-  implements ResearchSchedulerHistoryStore
-{
+export class PrismaResearchSchedulerHistoryStore implements ResearchSchedulerHistoryStore {
   constructor(private readonly prisma: PrismaClient) {}
 
   async loadHistory(input: {

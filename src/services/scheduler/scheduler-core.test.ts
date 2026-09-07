@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   calculateNextScheduledAt,
@@ -259,5 +259,23 @@ describe("scheduler locking and failure isolation", () => {
       value === "failed" ? "recorded failure" : "completed",
     );
     expect(results).toEqual(["recorded failure", "completed"]);
+  });
+
+  it("prevents overlapping research-agent execution with the source lock", async () => {
+    const executor = vi.fn();
+    const result = await executeScheduledSource({
+      definition: definition({ sourceId: "research-agent" }),
+      source: source({ slug: "research-agent" }),
+      store: {
+        acquire: async () => false,
+        complete: async () => undefined,
+        fail: async () => undefined,
+      },
+      executor,
+      runId: "f135219c-7d84-476e-a6e6-774a0be40268",
+      now: () => NOW,
+    });
+    expect(result.status).toBe("skipped_locked");
+    expect(executor).not.toHaveBeenCalled();
   });
 });

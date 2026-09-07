@@ -1503,33 +1503,47 @@ Run artifacts are written under gitignored `data/evaluations/story-synthesis/`; 
 evidence, results, comparisons, usage, flags, and optional human judgments, but no API key. They are
 evaluation data only and are not persisted to Prisma or used by production pages.
 
-### Manual DeepSeek live-research experiment
+### DeepSeek live-research shadow staging
 
-Phase A includes one manual, ephemeral evidence-discovery task for Australian live-music venue
-viability. It uses two explicit DeepSeek Responses API stages with `deepseek-v4-flash`. Stage 1
+The research subsystem includes one versioned evidence-discovery task for Australian live-music
+venue viability. It uses two explicit DeepSeek Responses API stages with `deepseek-v4-flash`. Stage 1
 enables provider-native `web_search` with automatic tool choice, requests high reasoning effort,
 and produces a bounded plain-text evidence artifact; it fails closed unless at least one native
 search call is observable. Stage 2 receives only that artifact and static task identity, has no
 tools or retrieval, and converts the evidence into JSON Schema output followed by local Zod and
-cross-stage provenance validation. The command has no scheduler registration,
-persistence adapter, canonical-ingestion path, page integration, retry, or application-controlled
-web fetcher.
+cross-stage provenance validation. The pipeline has no canonical-ingestion path, page integration,
+automatic review, retry, external search provider, or application-controlled web fetcher.
 
 Configure the ignored local environment with `DEEPSEEK_API_KEY=` and run exactly one explicit task:
 
 ```bash
 npm run research:once -- --task=au-live-music-venue-viability
 npm run research:once -- --task=au-live-music-venue-viability --debug-search-trace
+npm run research:once -- --task=au-live-music-venue-viability --persist
+npm run research:inspect -- --task=au-live-music-venue-viability
+npm run research:review -- --candidate=<id> --decision=approve-for-investigation --reason="..."
 ```
 
 The readable result separates source publication dates from reporting periods, accepts at most two
 sourced candidates, permits zero discoveries, prints the compact Stage-1 artifact plus sanitized
 native-search metadata, and reports each stage's provider usage and combined totals. Stage 2 cannot
 introduce source URLs, dates, or numeric observations absent from Stage 1. It never prints reasoning
-content or the API key. Every result is
-labelled `EPHEMERAL`, `NOT PERSISTED`, `NOT CANONICAL`, and `NOT INGESTED`. Candidate URLs are not
-fetched locally, and a discovered source requires separate deterministic and human review before
-any future ingestion work.
+content or the API key. Without `--persist`, every result is labelled `EPHEMERAL`, `NOT PERSISTED`,
+`NOT CANONICAL`, and `NOT INGESTED`. With `--persist`, runs, source evidence, validated candidates,
+deduplicated occurrences, usage, and sanitized provenance are written only to the research-staging
+tables. Candidate review is append-only and approval means only approval for ingestion
+investigation. Candidate URLs are not fetched locally, and a discovered source requires separate
+deterministic and human review before any future ingestion work.
+
+Scheduled shadow research is independently controlled by `LLM_RESEARCHER_ENABLED=false`; a
+configured `DEEPSEEK_API_KEY` alone never enables it. When enabled alongside the scheduler worker,
+the operational `research-agent` source is inspected every 12 hours and may run the single
+versioned task once per 24 hours. It executes at most one task per scheduler cycle and no more than
+two completed research executions in any rolling 24-hour window. Successful and failed provider
+attempts advance the task cadence; disabled, missing-key, rolling-limit, and not-due preflight
+outcomes make no model call and create no false research run. There is no immediate retry. Use
+`npm run scheduler:inspect` for operational due/lock/limit state and `npm run research:inspect` for
+the staged evidence itself.
 
 Important media-methodology limits:
 
@@ -2149,9 +2163,10 @@ npm run scheduler:once -- --source=rss
 The continuously polling worker is disabled by default. Configuration is kept
 small: `SCHEDULER_ENABLED=false`, `SCHEDULER_CONCURRENCY=1`,
 `SCHEDULER_POLL_MINUTES=5`, `MEDIA_REFRESH_HOURS=3`,
-`TICKETMASTER_REFRESH_HOURS=24`, and `GAMING_REFRESH_HOURS=24`. Concurrency is
-hard-limited to 1–2 jobs. Ticketmaster always runs alone; RSS and TheNewsAPI are
-serialized. All timestamps and cadence arithmetic use UTC.
+`TICKETMASTER_REFRESH_HOURS=24`, `GAMING_REFRESH_HOURS=24`, and
+`LLM_RESEARCHER_ENABLED=false`. Concurrency is hard-limited to 1–2 jobs. Ticketmaster always runs
+alone; RSS and TheNewsAPI are serialized. The research agent uses the same durable source lock and
+runs only one internal task at a time. All timestamps and cadence arithmetic use UTC.
 
 ### Scheduling inventory
 
@@ -2187,6 +2202,7 @@ serialized. All timestamps and cadence arithmetic use UTC.
 | LPA                       | Monthly / 30d       | Latest two report years from the official bundle                                               |
 | MVT                       | Monthly / 30d       | Re-applies reviewed official-report mappings; it cannot discover an unregistered future report |
 | Census AIES               | Monthly / 30d       | Two official configured-vintage ZIP files                                                      |
+| DeepSeek Research Agent   | Release-aware / 12h | Shadow-only check; one 24h task, max one/cycle and two completed executions/rolling 24h        |
 | Stats NZ                  | Disabled            | Not implemented; no scheduled action                                                           |
 | Eventbrite                | Disabled            | Not implemented; no scheduled action                                                           |
 | Mediastack                | Disabled            | Not implemented; no scheduled action                                                           |

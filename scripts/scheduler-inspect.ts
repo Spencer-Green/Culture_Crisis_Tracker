@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { disconnectPrisma } from "@/lib/prisma";
 import { getResearchSchedulerInspection } from "@/services/research/research-scheduler";
+import { researchSchedulerInspectionLines } from "@/services/research/research-scheduler-core";
 import {
   loadScheduleEvaluations,
   schedulerInventory,
@@ -39,28 +40,12 @@ async function main() {
     console.log(`  routine scope: ${details.routineScope}`);
     console.log(`  request intensity: ${details.requestIntensity}`);
     if (evaluation.definition.sourceId === "research-agent") {
-      console.log(`  research tasks: ${research.taskCount}`);
-      console.log(
-        `  due research task: ${research.selectedTask?.task.id ?? "none"}`,
-      );
-      console.log(
-        `  last research run: ${research.lastRun?.completedAt.toISOString() ?? "never"}`,
-      );
-      console.log(
-        `  last research status: ${research.lastRun?.status ?? "never"}`,
-      );
-      console.log(
-        `  next task due: ${research.nextDueAt?.toISOString() ?? "not scheduled"}`,
-      );
-      console.log(
-        `  rolling 24h executions: ${research.rollingRunCount}/${research.rollingRunLimit}`,
-      );
-      console.log(
-        `  research skip reason: ${research.skipReason ?? "none"}`,
-      );
-      console.log(
-        `  lock: ${evaluation.running ? `active until ${evaluation.state?.lockExpiresAt?.toISOString() ?? "unknown"}` : "available"}`,
-      );
+      for (const line of researchSchedulerInspectionLines(research, {
+        running: evaluation.running,
+        expiresAt: evaluation.state?.lockExpiresAt ?? null,
+      })) {
+        console.log(line);
+      }
     }
   }
 }

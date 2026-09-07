@@ -27,9 +27,9 @@ describe("health response", () => {
       database: { status: "unavailable" },
       externalApis: { status: "not-checked" },
       sources: {
-        supported: 42,
+        supported: 43,
         configured: 2,
-        implemented: 39,
+        implemented: 40,
         enabled: 0,
       },
     });

@@ -13,6 +13,11 @@ export type SchedulerPolicyConfig = {
   mediaRefreshHours: number;
   ticketmasterRefreshHours: number;
   gamingRefreshHours: number;
+  lunaSynthesisEnabled: boolean;
+  lunaSynthesisRefreshHours: number;
+  lunaSynthesisMaxPerCycle: number;
+  lunaSynthesisDailyCallLimit: number;
+  lunaSynthesisLookbackHours: number;
 };
 
 function command(
@@ -392,6 +397,34 @@ export function buildScheduledSourceDefinitions(
             "Specialist analysis scheduled separately from the three-hour journalism cycle.",
         }) satisfies ScheduledSourceDefinition,
     ),
+    {
+      sourceId: "luna-story-synthesis",
+      schedulingClass: config.lunaSynthesisEnabled
+        ? "RELEASE_AWARE"
+        : "MANUAL_ONLY",
+      cadenceMinutes: config.lunaSynthesisEnabled
+        ? config.lunaSynthesisRefreshHours * 60
+        : null,
+      automatic: config.lunaSynthesisEnabled,
+      networkKind: "networked",
+      publicationFrequency: "Precomputed after recent evidence is available",
+      requestIntensity: `At most ${config.lunaSynthesisMaxPerCycle} model calls per cycle and ${config.lunaSynthesisDailyCallLimit} per rolling day`,
+      routineScope: `Eligible clusters from the trailing ${config.lunaSynthesisLookbackHours} hours; unchanged evidence is reused`,
+      commands: () => [
+        command(
+          "Luna story synthesis",
+          "scripts/generate-luna-story-syntheses.ts",
+          [
+            "--scheduled",
+            `--limit=${config.lunaSynthesisMaxPerCycle}`,
+            `--daily-limit=${config.lunaSynthesisDailyCallLimit}`,
+            `--hours=${config.lunaSynthesisLookbackHours}`,
+          ],
+        ),
+      ],
+      notes:
+        "Asynchronous validated interpretation only; never runs from a page request and never changes deterministic classification or ranking.",
+    },
     {
       sourceId: "us-box-office",
       schedulingClass: "DAILY",

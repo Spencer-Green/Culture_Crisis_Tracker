@@ -7,6 +7,11 @@ const definitions = buildScheduledSourceDefinitions({
   mediaRefreshHours: 3,
   ticketmasterRefreshHours: 24,
   gamingRefreshHours: 24,
+  lunaSynthesisEnabled: true,
+  lunaSynthesisRefreshHours: 3,
+  lunaSynthesisMaxPerCycle: 4,
+  lunaSynthesisDailyCallLimit: 16,
+  lunaSynthesisLookbackHours: 48,
 });
 
 function source(sourceId: string) {
@@ -109,6 +114,37 @@ describe("scheduler source inventory", () => {
       "--source=chinai",
     ]);
     expect(source("rss").commands(new Date())[0].args).toEqual(["--hours=24"]);
+  });
+
+  it("runs Luna as a bounded asynchronous scheduler source", () => {
+    expect(source("luna-story-synthesis")).toMatchObject({
+      schedulingClass: "RELEASE_AWARE",
+      cadenceMinutes: 180,
+      automatic: true,
+    });
+    expect(source("luna-story-synthesis").commands(new Date())[0]).toEqual({
+      label: "Luna story synthesis",
+      script: "scripts/generate-luna-story-syntheses.ts",
+      args: ["--scheduled", "--limit=4", "--daily-limit=16", "--hours=48"],
+    });
+  });
+
+  it("keeps automatic Luna calls disabled until explicitly enabled", () => {
+    const disabled = buildScheduledSourceDefinitions({
+      mediaRefreshHours: 3,
+      ticketmasterRefreshHours: 24,
+      gamingRefreshHours: 24,
+      lunaSynthesisEnabled: false,
+      lunaSynthesisRefreshHours: 3,
+      lunaSynthesisMaxPerCycle: 4,
+      lunaSynthesisDailyCallLimit: 16,
+      lunaSynthesisLookbackHours: 48,
+    }).find((definition) => definition.sourceId === "luna-story-synthesis");
+    expect(disabled).toMatchObject({
+      schedulingClass: "MANUAL_ONLY",
+      cadenceMinutes: null,
+      automatic: false,
+    });
   });
 
   it("marks GDELT blocked and ACPSA's provider note structural", () => {

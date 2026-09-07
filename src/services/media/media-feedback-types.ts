@@ -75,6 +75,7 @@ export type MediaMachineClassificationSnapshot = {
 export type MediaClassificationCorrections = {
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
+  correctedEventTypeToNull?: boolean;
   correctedAiTag: AiImpactType | null;
   correctedSignalDirection: SignalDirection | null;
   correctedImportance: MediaImportance | null;

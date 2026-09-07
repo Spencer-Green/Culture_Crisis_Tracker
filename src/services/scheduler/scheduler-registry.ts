@@ -13,6 +13,11 @@ export function schedulerDefinitions() {
     mediaRefreshHours: env.MEDIA_REFRESH_HOURS,
     ticketmasterRefreshHours: env.TICKETMASTER_REFRESH_HOURS,
     gamingRefreshHours: env.GAMING_REFRESH_HOURS,
+    lunaSynthesisEnabled: env.LUNA_SYNTHESIS_ENABLED,
+    lunaSynthesisRefreshHours: env.LUNA_SYNTHESIS_REFRESH_HOURS,
+    lunaSynthesisMaxPerCycle: env.LUNA_SYNTHESIS_MAX_PER_CYCLE,
+    lunaSynthesisDailyCallLimit: env.LUNA_SYNTHESIS_DAILY_CALL_LIMIT,
+    lunaSynthesisLookbackHours: env.LUNA_SYNTHESIS_LOOKBACK_HOURS,
   });
 }
 

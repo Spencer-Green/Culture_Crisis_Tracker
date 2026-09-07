@@ -26,6 +26,7 @@ const feedbackRequestSchema = z
       .enum(MEDIA_CORRECTABLE_EVENT_TYPES)
       .nullable()
       .optional(),
+    correctedEventTypeToNull: z.boolean().optional(),
     correctedAiTag: z.enum(MEDIA_CORRECTABLE_AI_TAGS).nullable().optional(),
     correctedSignalDirection: z
       .enum(MEDIA_CORRECTABLE_SIGNAL_DIRECTIONS)
@@ -57,6 +58,7 @@ export async function PATCH(
       corrections: {
         correctedSector: parsed.data.correctedSector,
         correctedEventType: parsed.data.correctedEventType,
+        correctedEventTypeToNull: parsed.data.correctedEventTypeToNull,
         correctedAiTag: parsed.data.correctedAiTag,
         correctedSignalDirection: parsed.data.correctedSignalDirection,
         correctedImportance: parsed.data.correctedImportance,
@@ -70,6 +72,7 @@ export async function PATCH(
             reasons: feedback.reasons,
             correctedSector: feedback.correctedSector,
             correctedEventType: feedback.correctedEventType,
+            correctedEventTypeToNull: feedback.correctedEventTypeToNull,
             correctedAiTag: feedback.correctedAiTag,
             correctedSignalDirection: feedback.correctedSignalDirection,
             correctedImportance: feedback.correctedImportance,

@@ -132,6 +132,10 @@ const LOW_SIGNAL_PATTERN =
   /\b(how to|tutorial|tips? for|beginner'?s guide|what is ai|explainer|opinion:|celebrity[^.]{0,30}(?:says?|thinks?)|could change everything|is changing everything)\b/i;
 const MINOR_FEATURE_PATTERN =
   /\b(minor|small|experimental|beta)\b[^.]{0,30}\b(feature|update|tool)\b|\bfeature update\b/i;
+const AI_NON_USE_PATTERN =
+  /\bno\s+(?:generative[- ]?)?ai\b[^.!?]{0,50}\buse[sd]?\b|\bwithout\s+(?:using\s+)?(?:generative[- ]?)?ai\b|\bnon[- ]ai\b|\bai[- ]free\b|\bnot\s+(?:generated|made|created|built|produced)\s+(?:with|using|by)\s+(?:generative[- ]?)?ai\b|\b(?:did|does|do|will|would)\s+not\s+use\s+(?:generative[- ]?)?ai\b|\bwon't\s+use\s+(?:generative[- ]?)?ai\b|\b(?:avoid(?:s|ed|ing)?|reject(?:s|ed|ing)?)\b[^.!?]{0,35}\b(?:generative[- ]?)?ai(?:\s+use)?\b|\b(?:generative[- ]?)?ai\b[^.!?]{0,35}\b(?:was|were|is|are|will be)?\s*not\s+(?:used|adopted|deployed)\b/i;
+const AI_ADOPTION_ACTION_PATTERN =
+  /\b(?:adopts?|adopted|deploys?|deployed|integrates?|integrated|implements?|implemented|uses?|used|rolls? out|rolled out|puts? into production)\b[^.!?]{0,70}\b(?:generative[- ]?ai|artificial intelligence|ai)\b|\b(?:generative[- ]?ai|artificial intelligence|ai)\b[^.!?]{0,70}\b(?:adopts?|adopted|deploys?|deployed|integrates?|integrated|implements?|implemented|uses?|used|rolls? out|rolled out|in production)\b/i;
 const PRIMARY_ANALYSIS_TITLE_PATTERN =
   /\b(analysis|discussion paper|guidance|policy paper|report|research|remarks|study|white paper)\b/i;
 const SPECIALIST_ANALYSIS_PATTERN =
@@ -145,6 +149,16 @@ function textFor(input: AiIntelligenceInput): string {
   return `${input.title}. ${input.description ?? ""}`
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasUnnegatedAiAdoptionEvidence(text: string): boolean {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .some(
+      (segment) =>
+        !AI_NON_USE_PATTERN.test(segment) &&
+        AI_ADOPTION_ACTION_PATTERN.test(segment),
+    );
 }
 
 function assessment(
@@ -616,6 +630,19 @@ export function assessAiIntelligence(
       importance: 2,
       rationale:
         "The specialist source supplies attributed AI analysis, but the stored title and snippet do not support a more specific material classification.",
+    });
+
+  if (AI_NON_USE_PATTERN.test(text) && !hasUnnegatedAiAdoptionEvidence(text))
+    return assessment({
+      category: "AI_ADOPTION",
+      claimKind: "GENERAL_MENTION",
+      eventType: null,
+      aiImpactType: "AMBIGUOUS",
+      polarity: "neutral/ambiguous",
+      confidence: "low",
+      importance: 1,
+      rationale:
+        "The supplied text discusses AI but explicitly states non-use; it does not establish AI adoption.",
     });
 
   return assessment({

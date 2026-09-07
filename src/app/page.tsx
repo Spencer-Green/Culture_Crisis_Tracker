@@ -297,7 +297,10 @@ export default async function OverviewPage() {
     getConsumerSpendingData(),
     getGdeltCorpusOverview(),
     getTicketmasterCrossSectorTrends(),
-    getDailyCultureBrief({ includeMarketContext: false }),
+    getDailyCultureBrief({
+      includeMarketContext: false,
+      includeStorySyntheses: true,
+    }),
     getOverviewAnalytics(),
   ]);
   const schedulerFreshness = dailyBrief.schedulerFreshness;

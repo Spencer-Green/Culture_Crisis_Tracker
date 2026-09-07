@@ -1305,6 +1305,24 @@ Clearing either state deletes the feedback row and returns the article to unrevi
 validation is evaluation data only: it does not affect ranking, routing, eligibility, clustering,
 the Daily Brief, or classifier behavior.
 
+Future explicit review actions also append a `MediaClassificationReviewEvent` inside the same
+database transaction as the operational feedback change. This ledger is historical rather than
+operational: it freezes the review-time title, supplied description, source/query/feed context,
+canonical identity, content hash, machine prediction, classification rationale, intentional
+contract versions, and field-level `UNREVIEWED` / `APPROVED` / `CORRECTED` / `REJECTED` judgments.
+Changing or clearing a review appends a superseding event and leaves the earlier event intact.
+Feedback rows that predate the ledger are not backfilled or represented as equivalent immutable
+examples.
+
+The review ledger versions live in
+`src/services/media/media-classification-contract-versions.ts`. Increment the classifier version
+when the overall prediction contract changes; the ruleset version for material deterministic rule
+changes; the taxonomy version for label additions or semantic changes; the Signal Direction version
+for direction-derivation changes; the input-schema version when classifier-relevant serialized input
+changes; and the review-guideline version when the meaning of a human review action changes. These
+versions are intentional semantic identifiers rather than Git commit substitutes. A deployment Git
+revision is recorded separately only when the runtime provides one.
+
 ### Daily Culture Brief
 
 Overview contains a compact Daily Culture Brief and `/brief` exposes the full story-level view.
@@ -1357,8 +1375,9 @@ transparent event-type template, not an article-body summary, causal claim, or m
 narrative. The market-context panel uses only latest validated observations with source, date,
 frequency, unit, and scope caveats. It does not claim that daily reporting caused the structured
 metric. The brief also shows the latest RSS/TheNewsAPI refresh and warns when existing scheduler
-freshness marks either media source late or failed. The production brief uses no external model;
-the optional manual experiment described next is isolated from its request path.
+freshness marks either media source late or failed. Production page rendering uses no external
+model; both the manual experiment and the precomputed production layer described next remain
+isolated from request paths.
 
 Phase 1 includes a manual, ephemeral GPT-5.6 Luna story-synthesis experiment without changing the
 Daily Brief or any production page. It accepts one currently eligible deterministic story cluster,
@@ -1376,11 +1395,15 @@ explicitly:
 
 ```bash
 npm run llm:synthesize-story -- --list
+npm run llm:synthesize-story -- <cluster-or-article-id> --dry-run
 npm run llm:synthesize-story -- <cluster-or-article-id>
 npm run llm:synthesize-story -- <cluster-or-article-id> --yes
 ```
 
 Interactive use requires confirmation before the one API request unless `--yes` is supplied.
+`--evaluation-only` may be combined with an explicit identifier to inspect a low-ranked recent
+cluster without changing its stored labels, deterministic eligibility, rank, Daily Brief routing,
+or any production request path. It never admits `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE` evidence.
 Usage reporting separates uncached input, cached input, and output tokens. Estimated cost uses the
 current documented GPT-5.6 Luna standard rates of USD $0.20, $0.02, and $1.20 per million tokens,
 respectively; it is an estimate rather than an organization billing query. The model output cannot
@@ -1395,6 +1418,43 @@ unsupported causal assertions, investment-to-displacement drift, benchmark-to-de
 unsupported temporal-inflection language, invented numbers, and cross-story connections in a
 single-story packet. Material analysis may retain `eventType = null`.
 
+Validated single-story synthesis can now be precomputed and persisted outside request-time
+rendering. The `luna-story-synthesis` scheduler source reuses the existing scheduler lock and run
+observability, selects only clusters already admitted by deterministic production eligibility,
+and defaults to disabled until `LUNA_SYNTHESIS_ENABLED=true`. When enabled, it checks every three
+hours, considers the four highest-ranked eligible clusters, calls Luna only for stale or missing
+entries in that bounded shortlist, and permits no more than sixteen calls in any rolling 24-hour
+window. These bounds, the 48-hour evidence lookback, and the refresh
+cadence are configurable with `LUNA_SYNTHESIS_MAX_PER_CYCLE`,
+`LUNA_SYNTHESIS_DAILY_CALL_LIMIT`, `LUNA_SYNTHESIS_LOOKBACK_HOURS`, and
+`LUNA_SYNTHESIS_REFRESH_HOURS`.
+
+Each artifact is keyed by a SHA-256 fingerprint of effective evidence v5 plus the prompt version,
+output-schema version, and requested model. A newly joined article, relevant human correction,
+`NOT_RELEVANT` evidence change, or version change therefore creates a new identity; unchanged
+evidence is reused without an API call. Validated results and individual attempts retain model,
+latency, token, estimated-cost, and failure metadata. Invalid output or provider failure never
+replaces the last validated artifact. The read service returns `CURRENT`, `STALE`, or `MISSING`
+and performs no inference; existing deterministic copy remains the application fallback.
+The full Daily Brief and bounded Culture Intelligence highlight cards use one batched artifact
+lookup per page service. `CURRENT` results show a compact interpretation, one material uncertainty,
+and one concrete indicator to watch. `STALE` results retain the last validated interpretation with
+a subtle evidence-changed note. `MISSING` results render no Luna block, spinner, or request-time
+fallback; the deterministic card remains unchanged. The compact Overview brief does not request or
+display Luna synthesis.
+
+Run one bounded manual production cycle with explicit spend confirmation:
+
+```bash
+npm run llm:generate-production -- --limit=1 --hours=48
+npm run llm:generate-production -- --limit=1 --hours=48 --yes
+npm run llm:production-status
+```
+
+Automatic production synthesis remains interpretation-only: it cannot change classification,
+Signal Direction, importance, confidence, ranking, eligibility, clustering, or human feedback.
+Cross-story synthesis remains manual and ephemeral pending a separate persistence/cadence design.
+
 An additional manual-only bounded intelligence experiment can synthesize up to six deterministic
 clusters and two stored evidence rows per cluster, capped at 30,000 serialized characters. A
 deterministic shortlist and relationship hints are built before the one Luna call; only hinted
@@ -1406,7 +1466,15 @@ historical span. This command is not called by `/`, `/brief`, or any production 
 npm run llm:synthesize-intelligence -- --dry-run
 npm run llm:synthesize-intelligence
 npm run llm:synthesize-intelligence -- --yes --limit=6 --hours=336
+npm run llm:synthesize-intelligence -- --dry-run --evaluation-only --ids=<cluster-id>,<cluster-id>
 ```
+
+Explicit `--ids` selection is bounded to six clusters and is manual/evaluation-only when the
+override is supplied. It does not bypass `NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE`, persist output,
+or alter production shortlist selection. Single- and multi-story prompts require explicit
+attribution for forecasts, findings, specialist interpretation, and mediated evidence; cross-story
+causality remains prohibited, and `whatToWatch` is expressed as observable evidence rather than a
+recommendation.
 
 Phase 1B adds a manual evaluation harness without changing that authority. Luna now returns an
 independent qualitative materiality level (`VERY_LOW`, `LOW`, `MODERATE`, `HIGH`, or `VERY_HIGH`)
@@ -1434,6 +1502,34 @@ Interactive runs can record optional synthesis-quality, materiality, grounding, 
 Run artifacts are written under gitignored `data/evaluations/story-synthesis/`; they contain cluster
 evidence, results, comparisons, usage, flags, and optional human judgments, but no API key. They are
 evaluation data only and are not persisted to Prisma or used by production pages.
+
+### Manual DeepSeek live-research experiment
+
+Phase A includes one manual, ephemeral evidence-discovery task for Australian live-music venue
+viability. It uses two explicit DeepSeek Responses API stages with `deepseek-v4-flash`. Stage 1
+enables provider-native `web_search` with automatic tool choice, requests high reasoning effort,
+and produces a bounded plain-text evidence artifact; it fails closed unless at least one native
+search call is observable. Stage 2 receives only that artifact and static task identity, has no
+tools or retrieval, and converts the evidence into JSON Schema output followed by local Zod and
+cross-stage provenance validation. The command has no scheduler registration,
+persistence adapter, canonical-ingestion path, page integration, retry, or application-controlled
+web fetcher.
+
+Configure the ignored local environment with `DEEPSEEK_API_KEY=` and run exactly one explicit task:
+
+```bash
+npm run research:once -- --task=au-live-music-venue-viability
+npm run research:once -- --task=au-live-music-venue-viability --debug-search-trace
+```
+
+The readable result separates source publication dates from reporting periods, accepts at most two
+sourced candidates, permits zero discoveries, prints the compact Stage-1 artifact plus sanitized
+native-search metadata, and reports each stage's provider usage and combined totals. Stage 2 cannot
+introduce source URLs, dates, or numeric observations absent from Stage 1. It never prints reasoning
+content or the API key. Every result is
+labelled `EPHEMERAL`, `NOT PERSISTED`, `NOT CANONICAL`, and `NOT INGESTED`. Candidate URLs are not
+fetched locally, and a discovered source requires separate deterministic and human review before
+any future ingestion work.
 
 Important media-methodology limits:
 

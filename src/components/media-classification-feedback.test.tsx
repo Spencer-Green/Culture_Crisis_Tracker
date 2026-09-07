@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { MediaClassificationFeedback } from "@/components/media-classification-feedback";
+import {
+  MEDIA_EVENT_CORRECTION_OPTIONS,
+  MediaClassificationFeedback,
+} from "@/components/media-classification-feedback";
 import {
   MEDIA_CLASSIFICATION_FEEDBACK_LABELS,
   MEDIA_CLASSIFICATION_FEEDBACK_UI_REASONS,
@@ -106,5 +109,12 @@ describe("MediaClassificationFeedback", () => {
     );
     expect(html).toContain("Classification flagged");
     expect(html).toContain("✓ Mark correct");
+  });
+
+  it("offers an explicit no-material-event correction", () => {
+    expect(MEDIA_EVENT_CORRECTION_OPTIONS[0]).toEqual({
+      value: "__NO_MATERIAL_EVENT__",
+      label: "No material event / none",
+    });
   });
 });

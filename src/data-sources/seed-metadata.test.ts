@@ -34,6 +34,7 @@ describe("source seed metadata", () => {
       getSourceDefinition("mvt"),
       getSourceDefinition("lpa"),
       getSourceDefinition("census"),
+      getSourceDefinition("luna-story-synthesis"),
     ].map((source) =>
       buildSourceSeedOperation(
         source,
@@ -108,10 +109,15 @@ describe("source seed metadata", () => {
                                                 LPA_BASE_URL:
                                                   "https://reports.liveperformance.com.au/",
                                               }
-                                            : {
-                                                CENSUS_BASE_URL:
-                                                  "https://www2.census.gov/programs-surveys/aies/data",
-                                              },
+                                            : source.slug === "census"
+                                              ? {
+                                                  CENSUS_BASE_URL:
+                                                    "https://www2.census.gov/programs-surveys/aies/data",
+                                                }
+                                              : {
+                                                  OPENAI_BASE_URL:
+                                                    "https://api.openai.com/v1",
+                                                },
       ),
     );
     const otherOperations = SOURCE_DEFINITIONS.filter(
@@ -137,6 +143,7 @@ describe("source seed metadata", () => {
           "mvt",
           "lpa",
           "census",
+          "luna-story-synthesis",
         ].includes(source.slug),
     ).map((source) => buildSourceSeedOperation(source, {}));
 
@@ -160,6 +167,7 @@ describe("source seed metadata", () => {
       "mvt",
       "lpa",
       "census",
+      "luna-story-synthesis",
     ]);
     expect(
       operations.every(
@@ -177,6 +185,18 @@ describe("source seed metadata", () => {
       expect(operation.update).not.toHaveProperty("lastSuccessfulSyncAt");
       expect(operation.update).not.toHaveProperty("enabled");
     }
+  });
+
+  it("registers Luna as an enabled authenticated precomputation source", () => {
+    const operation = buildSourceSeedOperation(
+      getSourceDefinition("luna-story-synthesis"),
+      { OPENAI_BASE_URL: "https://api.openai.com/v1" },
+    );
+    expect(operation.create).toMatchObject({
+      enabled: true,
+      requiresAuthentication: true,
+      baseUrl: "https://api.openai.com/v1/responses",
+    });
   });
 
   it("keeps multi-source coverage in the static catalogue", () => {

@@ -5,6 +5,7 @@ import {
   buildSectorMediaTiers,
   collapseDuplicateStories,
   filterMediaArticles,
+  getEffectiveEventType,
   isAiCreativeWorkEligible,
   isAiIntelligenceEligible,
   isCuratedPresentationEligible,
@@ -319,6 +320,47 @@ describe("media service presentation", () => {
 
     expect(isAiIntelligenceEligible(reviewedSignal)).toBe(true);
     expect(reviewedSignal).toMatchObject({ importance: 2, confidence: "low" });
+  });
+
+  it("returns null only for an explicit human no-event correction", () => {
+    const omitted: MediaArticleView = {
+      ...base,
+      eventType: "AI_ADOPTION",
+      publishedAt: "2026-08-29T00:00:00.000Z",
+      classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_EVENT_TYPE"],
+        correctedSector: null,
+        correctedEventType: null,
+        correctedEventTypeToNull: false,
+        correctedAiTag: null,
+        correctedSignalDirection: null,
+        correctedImportance: null,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
+        reviewedAt: "2026-08-30T00:00:00.000Z",
+      },
+    };
+    const explicitNone: MediaArticleView = {
+      ...omitted,
+      classificationFeedback: {
+        ...omitted.classificationFeedback!,
+        correctedEventTypeToNull: true,
+      },
+    };
+
+    expect(getEffectiveEventType(omitted)).toBe("AI_ADOPTION");
+    expect(getEffectiveEventType(explicitNone)).toBeNull();
+    expect(explicitNone.eventType).toBe("AI_ADOPTION");
+    expect(isTopDevelopmentEligible(explicitNone)).toBe(false);
+    expect(buildMediaHighlights([explicitNone]).topDevelopments).toEqual([]);
+    expect(
+      filterMediaArticles(
+        [explicitNone],
+        { hours: 168, eventType: "AI_ADOPTION" },
+        new Date("2026-08-30T00:00:00.000Z"),
+      ),
+    ).toEqual([]);
   });
 
   it("keeps feedback-only error dimensions eligible under machine classification", () => {

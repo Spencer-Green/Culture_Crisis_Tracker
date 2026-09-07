@@ -16,7 +16,10 @@ import {
   getCurrentIntelligenceSynthesisCandidates,
   requestOpenAIIntelligenceSynthesis,
 } from "@/services/media/intelligence-synthesis";
-import { createOpenAIStorySynthesisClient } from "@/services/media/story-synthesis";
+import {
+  createOpenAIStorySynthesisClient,
+  resolveStorySynthesisCluster,
+} from "@/services/media/story-synthesis";
 import {
   StorySynthesisEvidenceError,
   StorySynthesisResponseValidationError,
@@ -28,13 +31,20 @@ type Options = {
   limit: number;
   dryRun: boolean;
   yes: boolean;
+  identifiers: string[];
+  evaluationOnly: boolean;
 };
 
 function parseOptions(arguments_: string[]): Options {
   let hours = 336;
   let limit = 6;
   for (const argument of arguments_) {
-    if (argument === "--dry-run" || argument === "--yes") continue;
+    if (
+      argument === "--dry-run" ||
+      argument === "--yes" ||
+      argument === "--evaluation-only"
+    )
+      continue;
     if (argument.startsWith("--hours=")) {
       hours = Number(argument.slice("--hours=".length));
       continue;
@@ -43,6 +53,7 @@ function parseOptions(arguments_: string[]): Options {
       limit = Number(argument.slice("--limit=".length));
       continue;
     }
+    if (argument.startsWith("--ids=")) continue;
     throw new Error(`Unknown option: ${argument}`);
   }
   if (!Number.isInteger(hours) || hours < 72 || hours > 720) {
@@ -56,6 +67,14 @@ function parseOptions(arguments_: string[]): Options {
     limit,
     dryRun: arguments_.includes("--dry-run"),
     yes: arguments_.includes("--yes"),
+    identifiers:
+      arguments_
+        .find((argument) => argument.startsWith("--ids="))
+        ?.slice("--ids=".length)
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean) ?? [],
+    evaluationOnly: arguments_.includes("--evaluation-only"),
   };
 }
 
@@ -84,10 +103,28 @@ async function main() {
   const candidates = await getCurrentIntelligenceSynthesisCandidates({
     hours: options.hours,
   });
-  const selected = selectIntelligenceSynthesisClusters(
-    candidates,
-    options.limit,
+  if (options.identifiers.length > 6) {
+    throw new Error(
+      "--ids accepts at most six cluster or article identifiers.",
+    );
+  }
+  const resolved = await Promise.all(
+    options.identifiers.map((identifier) =>
+      resolveStorySynthesisCluster(identifier, {
+        hours: options.hours,
+        evaluationOnly: options.evaluationOnly,
+      }),
+    ),
   );
+  if (resolved.some((cluster) => cluster === null)) {
+    throw new StorySynthesisEvidenceError(
+      "One or more explicit cluster identifiers could not be resolved.",
+    );
+  }
+  const selected =
+    resolved.length > 0
+      ? resolved.filter((cluster) => cluster !== null)
+      : selectIntelligenceSynthesisClusters(candidates, options.limit);
   if (selected.length === 0) {
     throw new StorySynthesisEvidenceError(
       "No eligible recent clusters were available for intelligence synthesis.",
@@ -96,6 +133,7 @@ async function main() {
   const evidence = buildIntelligenceSynthesisEvidence({
     clusters: selected,
     generatedAt: new Date(),
+    evaluationOnly: options.evaluationOnly,
   });
   console.log("LUNA INTELLIGENCE SYNTHESIS EVIDENCE");
   console.log(`candidate clusters: ${candidates.length}`);
@@ -106,6 +144,9 @@ async function main() {
   console.log(`relationship hints: ${evidence.relationshipHints.length}`);
   console.log(
     `historical comparator: ${evidence.temporalContext.historicalComparatorAvailable ? "available" : "insufficient"}`,
+  );
+  console.log(
+    `evaluation context: ${evidence.evaluationOnly ? "EVALUATION_ONLY" : "PRODUCTION_ELIGIBLE"}`,
   );
   for (const cluster of evidence.clusters) {
     console.log("");
@@ -135,7 +176,10 @@ async function main() {
   const execution = await synthesizeIntelligenceClusters(
     selected,
     (request) => requestOpenAIIntelligenceSynthesis(client, request),
-    { generatedAt: new Date() },
+    {
+      generatedAt: new Date(),
+      evaluationOnly: options.evaluationOnly,
+    },
   );
   console.log("\nLUNA INTELLIGENCE SYNTHESIS: PASS");
   console.log(JSON.stringify(execution.synthesis, null, 2));

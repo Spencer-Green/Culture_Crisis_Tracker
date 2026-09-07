@@ -7,6 +7,8 @@ import type {
   MediaStoryCluster,
 } from "@/services/media/daily-brief-core";
 import type { SignalDirection } from "@/data-sources/news/media-types";
+import { LunaStoryInsight } from "@/components/luna-story-insight";
+import type { StorySynthesisReadResult } from "@/services/media/production-story-synthesis-core";
 
 function formatTimestamp(value: string): string {
   return new Intl.DateTimeFormat("en-AU", {
@@ -51,10 +53,12 @@ function StoryCard({
   story,
   generatedAt,
   compact = false,
+  synthesis,
 }: {
   story: MediaStoryCluster;
   generatedAt: string;
   compact?: boolean;
+  synthesis?: StorySynthesisReadResult;
 }) {
   return (
     <article className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
@@ -99,6 +103,7 @@ function StoryCard({
           {story.whyItMatters}
         </p>
       ) : null}
+      <LunaStoryInsight result={synthesis} />
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600">
         <span>
           {story.sourceCount === 1
@@ -142,12 +147,14 @@ function StorySection({
   stories,
   generatedAt,
   quietMessage,
+  storySyntheses,
 }: {
   title: string;
   description?: string;
   stories: readonly MediaStoryCluster[];
   generatedAt: string;
   quietMessage: string;
+  storySyntheses: DailyCultureBrief["storySyntheses"];
 }) {
   return (
     <section className="rounded-2xl border border-zinc-800/90 bg-zinc-950/70 p-5">
@@ -164,6 +171,7 @@ function StorySection({
               key={story.clusterId}
               story={story}
               generatedAt={generatedAt}
+              synthesis={storySyntheses[story.clusterId]}
             />
           ))
         ) : (
@@ -191,7 +199,7 @@ const FULL_BRIEF_SECTIONS: readonly {
 }[] = [
   {
     id: "ai-intelligence",
-    title: "AI Intelligence",
+    title: "AI",
     description:
       "Material AI developments, including creative-work, policy, labour, infrastructure, and market-structure signals.",
     quietMessage: "No qualifying material AI development was identified.",
@@ -254,6 +262,7 @@ export function DailyBriefOverview({ brief }: { brief: DailyCultureBrief }) {
             story={story}
             generatedAt={brief.generatedAt}
             compact
+            synthesis={brief.storySyntheses[story.clusterId]}
           />
         ))}
       </div>
@@ -349,6 +358,7 @@ export function DailyBriefFull({ brief }: { brief: DailyCultureBrief }) {
               stories={brief.fullPageSections[section.id]}
               generatedAt={brief.generatedAt}
               quietMessage={section.quietMessage}
+              storySyntheses={brief.storySyntheses}
             />
           ))}
         </div>

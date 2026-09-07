@@ -342,4 +342,51 @@ describe("first-class AI intelligence assessment", () => {
       importance: 1,
     });
   });
+
+  it.each([
+    "No generative AI was used in production.",
+    "The game was made without AI.",
+    "The studio did not use AI for the project.",
+    "The production remained AI-free.",
+    "The developers rejected generative AI use.",
+  ])("does not treat explicit AI non-use as adoption: %s", (title) => {
+    expect(assess(title)).toMatchObject({
+      category: "AI_ADOPTION",
+      claimKind: "GENERAL_MENTION",
+      eventType: null,
+      importance: 1,
+    });
+  });
+
+  it("retains genuine deployment evidence", () => {
+    expect(
+      assess(
+        "The studio built and deployed generative-AI tools in production.",
+      ),
+    ).toMatchObject({
+      eventType: "AI_ADOPTION",
+    });
+  });
+
+  it("does not turn an AI restriction into adoption", () => {
+    expect(
+      assess(
+        "The national competition bans AI-generated entries",
+        "The authority adopted new eligibility rules for creative submissions.",
+      ),
+    ).toMatchObject({
+      eventType: "RIGHTS_OR_ELIGIBILITY_RULE_CHANGE",
+    });
+  });
+
+  it("keeps independent deployment evidence in a mixed article", () => {
+    expect(
+      assess(
+        "The development team avoided generative AI.",
+        "The publisher separately deployed an AI moderation system in production.",
+      ),
+    ).toMatchObject({
+      eventType: "AI_ADOPTION",
+    });
+  });
 });

@@ -81,6 +81,24 @@ describe("media classification", () => {
     });
   });
 
+  it("does not classify explicit generative-AI non-use as adoption", () => {
+    expect(
+      classifyMediaArticle(
+        article(
+          "A native port of Donkey Kong 64 is finally playable on PC thanks to programmers who boast that 'no generative AI [was] used at any point in the process'",
+          "The native port was completed by a team of game developers.",
+          { sectorHint: "gaming" },
+        ),
+      ),
+    ).toMatchObject({
+      sectorSlug: "gaming",
+      eventType: null,
+      signalDirection: "AMBIGUOUS",
+      importance: 1,
+      confidence: "low",
+    });
+  });
+
   it("does not turn an attributed AI forecast into a fallback event", () => {
     expect(
       classifyMediaArticle(

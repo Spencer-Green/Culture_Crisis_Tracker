@@ -68,6 +68,7 @@ function optionalTaxonomyValue<T extends string>(
 export type MediaClassificationCorrectionInput = {
   correctedSector?: unknown;
   correctedEventType?: unknown;
+  correctedEventTypeToNull?: unknown;
   correctedAiTag?: unknown;
   correctedSignalDirection?: unknown;
   correctedImportance?: unknown;
@@ -85,6 +86,18 @@ export function normaliseMediaClassificationCorrections(
     input.correctedEventType,
     MEDIA_CORRECTABLE_EVENT_TYPES,
   );
+  if (
+    input.correctedEventTypeToNull !== undefined &&
+    typeof input.correctedEventTypeToNull !== "boolean"
+  ) {
+    throw new InvalidMediaClassificationFeedbackError();
+  }
+  const correctedEventTypeToNull =
+    reasons.includes("WRONG_EVENT_TYPE") &&
+    input.correctedEventTypeToNull === true;
+  if (correctedEventTypeToNull && correctedEventType !== null) {
+    throw new InvalidMediaClassificationFeedbackError();
+  }
   const correctedAiTag = optionalTaxonomyValue(
     input.correctedAiTag,
     MEDIA_CORRECTABLE_AI_TAGS,
@@ -113,6 +126,7 @@ export function normaliseMediaClassificationCorrections(
     correctedEventType: reasons.includes("WRONG_EVENT_TYPE")
       ? correctedEventType
       : null,
+    correctedEventTypeToNull,
     correctedAiTag: reasons.includes("WRONG_AI_TAG") ? correctedAiTag : null,
     correctedSignalDirection: reasons.includes("WRONG_SIGNAL_DIRECTION")
       ? correctedSignalDirection
@@ -126,6 +140,7 @@ export function normaliseMediaClassificationCorrections(
 const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
+  correctedEventTypeToNull: false,
   correctedAiTag: null,
   correctedSignalDirection: null,
   correctedImportance: null,
@@ -138,6 +153,7 @@ function correctionsEqual(
   return (
     left.correctedSector === right.correctedSector &&
     left.correctedEventType === right.correctedEventType &&
+    left.correctedEventTypeToNull === right.correctedEventTypeToNull &&
     left.correctedAiTag === right.correctedAiTag &&
     left.correctedSignalDirection === right.correctedSignalDirection &&
     left.correctedImportance === right.correctedImportance

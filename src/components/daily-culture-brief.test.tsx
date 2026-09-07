@@ -7,6 +7,7 @@ import {
 } from "@/components/daily-culture-brief";
 import type { DailyCultureBrief } from "@/services/media/daily-brief";
 import type { MediaStoryCluster } from "@/services/media/daily-brief-core";
+import type { StorySynthesisReadResult } from "@/services/media/production-story-synthesis-core";
 
 function story(overrides: Partial<MediaStoryCluster> = {}): MediaStoryCluster {
   return {
@@ -123,6 +124,51 @@ function brief(withStory = true): DailyCultureBrief {
       },
     },
     marketContext: [],
+    storySyntheses: {},
+  };
+}
+
+function synthesis(
+  freshness: StorySynthesisReadResult["freshness"] = "CURRENT",
+): StorySynthesisReadResult {
+  return {
+    freshness,
+    artifact: {
+      identityKey: "identity",
+      storyKey: "story",
+      clusterId: "cluster-one",
+      representativeArticleId: "article-one",
+      evidenceArticleIds: ["article-one", "article-two"],
+      evidenceFingerprint: "fingerprint",
+      evidenceVersion: "story-synthesis-evidence-v5",
+      promptVersion: "story-synthesis-prompt-v5.1",
+      outputSchemaVersion: "story-synthesis-output-v2",
+      requestedModel: "gpt-5.6-luna",
+      responseModel: "gpt-5.6-luna",
+      generatedAt: "2026-08-22T12:00:00.000Z",
+      latencyMs: 8_000,
+      synthesis: {
+        eventSummary: "The studio announced workforce reductions.",
+        whyItMatters:
+          "The reductions may constrain production capacity, although the longer-term effect is not established.",
+        affectedSectors: ["film"],
+        mechanisms: ["EMPLOYMENT_LABOUR", "PRODUCTION_CAPACITY"],
+        evidenceStrength: "HIGH",
+        claimKind: "OBSERVED_ACTION_OR_EVENT",
+        structuralSignificance: "SIGNAL",
+        connections: [],
+        uncertainties: [
+          {
+            type: "TRAJECTORY",
+            statement: "The duration of the production impact is unknown.",
+          },
+        ],
+        whatToWatch: ["Disclosed changes to the studio's production slate."],
+        materialityLevel: "HIGH",
+        materialityRationale:
+          "The action affects a meaningful creative workforce.",
+      },
+    },
   };
 }
 
@@ -147,15 +193,56 @@ describe("Daily Culture Brief UI", () => {
   it("renders full-page domain sections without Top Developments", () => {
     const html = renderToStaticMarkup(<DailyBriefFull brief={brief()} />);
     expect(html).not.toContain("Top Developments");
-    for (const section of [
-      "AI Intelligence",
-      "Music",
-      "Film",
-      "Gaming",
-      "Theatre",
-    ]) {
+    for (const section of ["AI", "Music", "Film", "Gaming", "Theatre"]) {
       expect(html).toContain(`>${section}</h2>`);
     }
+  });
+
+  it("renders persisted Luna interpretation on the full brief and Overview", () => {
+    const value = brief();
+    value.storySyntheses = { "cluster-one": synthesis() };
+    const full = renderToStaticMarkup(<DailyBriefFull brief={value} />);
+    const overview = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
+    expect(full).toContain("Luna intelligence");
+    expect(full).toContain("may constrain production capacity");
+    expect(overview).toContain("Luna intelligence");
+    expect(overview).toContain("may constrain production capacity");
+  });
+
+  it("preserves the stale Luna indication on Overview", () => {
+    const value = brief();
+    value.storySyntheses = { "cluster-one": synthesis("STALE") };
+    const html = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
+    expect(html).toContain("Luna intelligence");
+    expect(html).toContain("last validated · evidence changed");
+    expect(html).toContain('data-luna-freshness="STALE"');
+  });
+
+  it("renders no Luna block for a missing Overview artifact", () => {
+    const value = brief();
+    value.storySyntheses = {
+      "cluster-one": { freshness: "MISSING", artifact: null },
+    };
+    const html = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
+    expect(html).not.toContain("Luna intelligence");
+    expect(html).toContain("Film studio announces production layoffs");
+  });
+
+  it("does not change Overview story order when Luna is present", () => {
+    const value = brief();
+    const second = story({
+      clusterId: "cluster-two",
+      comparisonKey: "INVESTMENT:second-story",
+      representativeArticleId: "article-three",
+      articleIds: ["article-three"],
+      canonicalHeadline: "Second ranked deterministic development",
+    });
+    value.topDevelopments = [value.topDevelopments[0], second];
+    value.storySyntheses = { "cluster-two": synthesis() };
+    const html = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
+    expect(
+      html.indexOf("Film studio announces production layoffs"),
+    ).toBeLessThan(html.indexOf("Second ranked deterministic development"));
   });
 
   it("renders each full-page cluster once with underlying article counts intact", () => {

@@ -74,7 +74,8 @@ export function filterMediaArticles(
         (!filters.sector || article.sectorSlug === filters.sector) &&
         (!filters.aiOnly || article.aiImpactType !== null) &&
         (!filters.polarity || article.polarity === filters.polarity) &&
-        (!filters.eventType || article.eventType === filters.eventType) &&
+        (!filters.eventType ||
+          getEffectiveEventType(article) === filters.eventType) &&
         (!filters.minimumImportance ||
           article.importance >= filters.minimumImportance) &&
         (!publisher || article.publisher.toLowerCase().includes(publisher))
@@ -180,6 +181,17 @@ export function getEffectiveSignalDirection(
   );
 }
 
+export function getEffectiveEventType(
+  article: MediaArticleView,
+): MediaEventType | null {
+  const feedback = article.classificationFeedback;
+  if (feedback?.reasons.includes("WRONG_EVENT_TYPE") !== true) {
+    return article.eventType;
+  }
+  if (feedback.correctedEventTypeToNull === true) return null;
+  return feedback.correctedEventType ?? article.eventType;
+}
+
 type AiIntelligenceAssessment = ReturnType<typeof assessAiIntelligence>;
 
 const AI_INTELLIGENCE_ASSESSMENT_CACHE = new WeakMap<
@@ -208,11 +220,7 @@ export function isAiIntelligenceEligibleWithAssessment(
 ): boolean {
   if (!assessment) return false;
 
-  const correctedEventType = correctedClassificationValue(
-    article,
-    "WRONG_EVENT_TYPE",
-    article.classificationFeedback?.correctedEventType,
-  );
+  const effectiveEventType = getEffectiveEventType(article);
   const correctedAiTag = correctedClassificationValue(
     article,
     "WRONG_AI_TAG",
@@ -226,7 +234,7 @@ export function isAiIntelligenceEligibleWithAssessment(
   const humanMaterialCorrection =
     correctedImportance !== null &&
     correctedImportance >= 3 &&
-    ((correctedEventType ?? article.eventType)?.startsWith("AI_") === true ||
+    (effectiveEventType?.startsWith("AI_") === true ||
       (correctedAiTag ?? article.aiImpactType) !== null);
 
   return isMaterialAiAssessment(assessment) || humanMaterialCorrection;
@@ -242,7 +250,7 @@ export function isAiIntelligenceEligible(article: MediaArticleView): boolean {
 function hasClassificationEventEvidence(article: MediaArticleView): boolean {
   const text = articleText(article);
   return (
-    article.eventType !== "BANKRUPTCY_INSOLVENCY" ||
+    getEffectiveEventType(article) !== "BANKRUPTCY_INSOLVENCY" ||
     /\b(bankrupt|bankruptcy|insolvent|insolvency|liquidation|receivership)\b/i.test(
       text,
     ) ||
@@ -263,11 +271,12 @@ export function isTopDevelopmentEligible(article: MediaArticleView): boolean {
     (correctedImportance ?? article.importance) >= 3
   )
     return true;
+  const effectiveEventType = getEffectiveEventType(article);
   return (
     hasCredibleCulturalRelevance(article) &&
     hasClassificationEventEvidence(article) &&
-    article.eventType !== null &&
-    MATERIAL_EVENT_TYPES.has(article.eventType) &&
+    effectiveEventType !== null &&
+    MATERIAL_EVENT_TYPES.has(effectiveEventType) &&
     article.confidence !== "low" &&
     article.importance >= 3
   );
@@ -378,14 +387,14 @@ export function buildMediaHighlights(articles: readonly MediaArticleView[]) {
   const healthCandidates = curatedArticles.filter(
     (article) =>
       getEffectiveSignalDirection(article) === "NEGATIVE" &&
-      article.eventType !== null &&
+      getEffectiveEventType(article) !== null &&
       article.confidence !== "low" &&
       hasCredibleCulturalRelevance(article),
   );
   const positiveCandidates = curatedArticles.filter(
     (article) =>
       getEffectiveSignalDirection(article) === "POSITIVE" &&
-      article.eventType !== null &&
+      getEffectiveEventType(article) !== null &&
       article.confidence !== "low" &&
       hasCredibleCulturalRelevance(article),
   );

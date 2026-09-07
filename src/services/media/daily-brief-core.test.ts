@@ -321,6 +321,39 @@ describe("daily brief story clustering", () => {
     );
   });
 
+  it("applies an explicit human no-event correction without changing machine fields", () => {
+    const source = article({
+      id: "explicit-no-event",
+      title: "Developers say no generative AI was used for the game port",
+      sectorSlug: "gaming",
+      eventType: "AI_ADOPTION",
+      signalDirection: "AMBIGUOUS",
+      importance: 1,
+      confidence: "low",
+      classificationFeedback: {
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_EVENT_TYPE"],
+        correctedSector: null,
+        correctedEventType: null,
+        correctedEventTypeToNull: true,
+        correctedAiTag: null,
+        correctedSignalDirection: null,
+        correctedImportance: null,
+        approvedMachineClassification: null,
+        evaluationState: "WRONG_CLASSIFICATION",
+        reviewedAt: "2026-08-22T10:00:00.000Z",
+      },
+    });
+
+    expect(buildMediaStoryClusters([source])[0]).toMatchObject({
+      eventType: null,
+      correctedEventType: null,
+      correctedEventTypeToNull: true,
+      humanReviewState: "corrected",
+    });
+    expect(source.eventType).toBe("AI_ADOPTION");
+  });
+
   it("treats generic policy and a compatible specific subtype as one story", () => {
     const clusters = buildMediaStoryClusters([
       article({

@@ -694,6 +694,18 @@ export const SOURCE_DEFINITIONS = [
     requiresAuthentication: false,
     implementationStatus: "implemented",
   },
+  {
+    slug: "luna-story-synthesis",
+    name: "Luna Intelligence Synthesis",
+    provider: "OpenAI",
+    baseUrlEnvironmentKey: "OPENAI_BASE_URL",
+    requiredCredentialEnvironmentKeys: ["OPENAI_API_KEY"],
+    countries: ALL_COUNTRIES,
+    sectors: ALL_SECTORS,
+    requiresAuthentication: true,
+    implementationStatus: "implemented",
+    sourceUrl: "https://api.openai.com/v1/responses",
+  },
 ] as const satisfies readonly SourceDefinitionShape[];
 
 export type SourceDefinition = (typeof SOURCE_DEFINITIONS)[number] &

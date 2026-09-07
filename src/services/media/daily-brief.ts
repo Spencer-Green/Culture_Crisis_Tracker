@@ -16,6 +16,8 @@ import {
   getSchedulerFreshness,
 } from "@/services/scheduler/freshness";
 import { getBroadwayMarketData } from "@/services/theatre/theatre";
+import { getPersistedStorySyntheses } from "@/services/media/production-story-synthesis-read";
+import { synthesisRecord } from "@/services/media/production-story-synthesis-presentation";
 
 const HOUR_MS = 60 * 60 * 1_000;
 
@@ -189,6 +191,7 @@ async function buildMarketContext(now: Date): Promise<BriefMarketContext[]> {
 export async function getDailyCultureBrief(input?: {
   now?: Date;
   includeMarketContext?: boolean;
+  includeStorySyntheses?: boolean;
 }) {
   const now = input?.now ?? new Date();
   const start = new Date(now.getTime() - 72 * HOUR_MS);
@@ -214,9 +217,20 @@ export async function getDailyCultureBrief(input?: {
     briefPromise,
     marketContextPromise,
   ]);
+  const synthesisClusters = [
+    ...new Map(
+      Object.values(brief.fullPageSections)
+        .flat()
+        .map((cluster) => [cluster.clusterId, cluster]),
+    ).values(),
+  ];
+  const storySyntheses = input?.includeStorySyntheses
+    ? synthesisRecord(await getPersistedStorySyntheses(synthesisClusters))
+    : {};
   return {
     ...brief,
     marketContext,
+    storySyntheses,
   };
 }
 

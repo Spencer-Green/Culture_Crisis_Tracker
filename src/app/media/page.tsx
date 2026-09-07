@@ -25,11 +25,14 @@ export default async function MediaPage({
   )
     ? (view as MediaSectorSlug)
     : undefined;
-  const data = await getMediaPageData({
-    hours,
-    sector,
-    aiOnly: view === "ai-policy",
-  });
+  const data = await getMediaPageData(
+    {
+      hours,
+      sector,
+      aiOnly: view === "ai-policy",
+    },
+    { includeStorySyntheses: true },
+  );
   const tabs = [
     ["latest", "Latest"],
     ["ai-policy", "AI & Policy"],
@@ -86,7 +89,7 @@ export default async function MediaPage({
       <div className="grid gap-5 xl:grid-cols-4">
         {[
           ["Top Developments", data.highlights.topDevelopments],
-          ["AI Intelligence", data.highlights.aiAndCreativeWork],
+          ["AI", data.highlights.aiAndCreativeWork],
           ["Industry Health", data.highlights.industryHealth],
           ["Positive Signals", data.highlights.positiveSignals],
         ].map(([title, articles]) => (
@@ -102,6 +105,7 @@ export default async function MediaPage({
                 articles={articles as typeof data.articles}
                 compact
                 feedbackEnabled
+                storySyntheses={data.storySynthesesByArticleId}
               />
             </div>
           </section>

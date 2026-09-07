@@ -15,6 +15,8 @@ import {
 import type { MediaSectorSlug } from "@/data-sources/news/media-types";
 import { assessAiIntelligence } from "@/data-sources/news/ai-intelligence";
 import { deriveSignalDirection } from "@/data-sources/news/signal-direction";
+import { env } from "@/lib/env";
+import { buildMediaStoryClusters } from "@/services/media/daily-brief-core";
 import { mediaClassificationEvaluationState } from "@/services/media/media-feedback-core";
 import { readMediaSourceEvidenceMetadata } from "@/data-sources/news/media-source-metadata";
 import type {
@@ -24,6 +26,8 @@ import type {
   MediaMachineClassificationSnapshot,
   PersistedMediaClassificationReviewState,
 } from "@/services/media/media-feedback-types";
+import { getPersistedStorySyntheses } from "@/services/media/production-story-synthesis-read";
+import { mapStorySynthesesToArticleIds } from "@/services/media/production-story-synthesis-presentation";
 
 const DATABASE_UNAVAILABLE_CODES = new Set([
   "P1000",
@@ -76,6 +80,7 @@ function toView(article: {
     reasons: string[];
     correctedSector: string | null;
     correctedEventType: string | null;
+    correctedEventTypeToNull: boolean;
     correctedAiTag: string | null;
     correctedSignalDirection: string | null;
     correctedImportance: number | null;
@@ -143,6 +148,7 @@ function toView(article: {
           rawFeedback.correctedSector as MediaClassificationCorrections["correctedSector"],
         correctedEventType:
           rawFeedback.correctedEventType as MediaClassificationCorrections["correctedEventType"],
+        correctedEventTypeToNull: rawFeedback.correctedEventTypeToNull,
         correctedAiTag:
           rawFeedback.correctedAiTag as MediaClassificationCorrections["correctedAiTag"],
         correctedSignalDirection:
@@ -177,6 +183,7 @@ function toView(article: {
           correctedEventType: rawFeedback.correctedEventType as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedEventType"],
+          correctedEventTypeToNull: rawFeedback.correctedEventTypeToNull,
           correctedAiTag: rawFeedback.correctedAiTag as NonNullable<
             MediaArticleView["classificationFeedback"]
           >["correctedAiTag"],
@@ -238,6 +245,7 @@ async function loadRecent(hours: number): Promise<MediaArticleView[]> {
           reasons: true,
           correctedSector: true,
           correctedEventType: true,
+          correctedEventTypeToNull: true,
           correctedAiTag: true,
           correctedSignalDirection: true,
           correctedImportance: true,
@@ -298,6 +306,7 @@ export async function getMediaArticlesPublishedBetween(input: {
             reasons: true,
             correctedSector: true,
             correctedEventType: true,
+            correctedEventTypeToNull: true,
             correctedAiTag: true,
             correctedSignalDirection: true,
             correctedImportance: true,
@@ -324,16 +333,36 @@ export async function getMediaArticlesPublishedBetween(input: {
   }
 }
 
-export async function getMediaPageData(filters: MediaFilters) {
+export async function getMediaPageData(
+  filters: MediaFilters,
+  options?: { includeStorySyntheses?: boolean },
+) {
   try {
     const now = new Date();
     const all = await loadRecent(168);
     const articles = filterMediaArticles(all, filters, now);
+    const synthesisClusters = options?.includeStorySyntheses
+      ? buildMediaStoryClusters(
+          all.filter(
+            (article) =>
+              new Date(article.publishedAt).getTime() >=
+              now.getTime() -
+                env.LUNA_SYNTHESIS_LOOKBACK_HOURS * 60 * 60 * 1_000,
+          ),
+        )
+      : [];
+    const storySynthesesByArticleId = options?.includeStorySyntheses
+      ? mapStorySynthesesToArticleIds({
+          clusters: synthesisClusters,
+          syntheses: await getPersistedStorySyntheses(synthesisClusters),
+        })
+      : {};
     return {
       databaseStatus: "available" as const,
       articles,
       highlights: buildMediaHighlights(articles),
       counts: buildMediaCounts(articles),
+      storySynthesesByArticleId,
     };
   } catch (error) {
     if (isDatabaseUnavailable(error))
@@ -342,6 +371,7 @@ export async function getMediaPageData(filters: MediaFilters) {
         articles: [],
         highlights: buildMediaHighlights([]),
         counts: buildMediaCounts([]),
+        storySynthesesByArticleId: {},
       };
     throw new MediaLoadError(error);
   }

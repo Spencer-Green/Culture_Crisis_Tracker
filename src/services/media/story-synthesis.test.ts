@@ -8,6 +8,10 @@ import { requestOpenAIStorySynthesis } from "@/services/media/story-synthesis";
 
 const request = buildStorySynthesisRequest({
   evidenceVersion: "story-synthesis-evidence-v5",
+  evaluationContext: {
+    productionEligible: true,
+    evaluationOnly: false,
+  },
   clusterId: "cluster",
   representativeArticleId: "article",
   representativeHeadline: "Headline",

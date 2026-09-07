@@ -20,6 +20,9 @@ import {
 } from "@/lib/openai-usage";
 
 export const STORY_SYNTHESIS_EVIDENCE_VERSION = "story-synthesis-evidence-v5";
+export const STORY_SYNTHESIS_PROMPT_VERSION = "story-synthesis-prompt-v5.1";
+export const STORY_SYNTHESIS_OUTPUT_SCHEMA_VERSION =
+  "story-synthesis-output-v2";
 export const STORY_SYNTHESIS_MAX_EVIDENCE_CHARACTERS = 12_000;
 export const STORY_SYNTHESIS_MAX_ARTICLES = 6;
 
@@ -115,6 +118,18 @@ const storySynthesisResultSchema = z
 
 export type StorySynthesisResult = z.infer<typeof storySynthesisResultSchema>;
 
+export function parsePersistedStorySynthesisPayload(
+  value: unknown,
+): StorySynthesisResult {
+  const result = storySynthesisResultSchema.safeParse(value);
+  if (!result.success) {
+    throw new StorySynthesisValidationError(
+      "Persisted synthesis did not match the story-synthesis schema.",
+    );
+  }
+  return result.data;
+}
+
 type LabelSource = "MACHINE" | "HUMAN_CORRECTED" | "AMBIGUOUS";
 
 export type StorySynthesisEvidenceArticle = {
@@ -170,6 +185,7 @@ export type StorySynthesisEvidenceArticle = {
     reasons: string[];
     correctedSector: MediaSectorSlug | null;
     correctedEventType: string | null;
+    correctedEventTypeToNull: boolean;
     correctedAiTag: string | null;
     correctedSignalDirection: string | null;
     correctedImportance: number | null;
@@ -181,6 +197,10 @@ export type StorySynthesisEvidenceArticle = {
 
 export type StorySynthesisEvidence = {
   evidenceVersion: typeof STORY_SYNTHESIS_EVIDENCE_VERSION;
+  evaluationContext: {
+    productionEligible: boolean;
+    evaluationOnly: boolean;
+  };
   clusterId: string;
   representativeArticleId: string;
   representativeHeadline: string;
@@ -233,6 +253,10 @@ export type StorySynthesisEvidence = {
     excludedNotRelevantArticles: number;
     truncatedFields: string[];
   };
+};
+
+export type StorySynthesisEvidenceOptions = {
+  evaluationOnly?: boolean;
 };
 
 export interface StorySynthesisApiResponse {
@@ -484,6 +508,7 @@ function evidenceArticle(
           reasons: feedback.reasons,
           correctedSector: effective.correctedSector,
           correctedEventType: effective.correctedEventType,
+          correctedEventTypeToNull: effective.correctedEventTypeToNull,
           correctedAiTag: effective.correctedAiTag,
           correctedSignalDirection: effective.correctedSignalDirection,
           correctedImportance: effective.correctedImportance,
@@ -516,19 +541,27 @@ export function isStorySynthesisEligible(cluster: MediaStoryCluster): boolean {
 
 export function buildStorySynthesisEvidence(
   cluster: MediaStoryCluster,
+  options: StorySynthesisEvidenceOptions = {},
 ): StorySynthesisEvidence {
-  if (!isStorySynthesisEligible(cluster)) {
+  const productionEligible = isStorySynthesisEligible(cluster);
+  if (!productionEligible && !options.evaluationOnly) {
     throw new StorySynthesisEvidenceError(
       "Story cluster is not currently eligible for deterministic brief synthesis.",
     );
   }
 
+  const isExplicitlyNotRelevant = (
+    article: MediaStoryCluster["articles"][number],
+  ) =>
+    article.classificationFeedback?.reasons.includes(
+      "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE",
+    ) === true;
   const excludedNotRelevantArticles = cluster.articles.filter(
-    (article) => !isCuratedPresentationEligible(article),
+    isExplicitlyNotRelevant,
   ).length;
-  const eligibleArticles = cluster.articles.filter(
-    isCuratedPresentationEligible,
-  );
+  const eligibleArticles = options.evaluationOnly
+    ? cluster.articles.filter((article) => !isExplicitlyNotRelevant(article))
+    : cluster.articles.filter(isCuratedPresentationEligible);
   if (eligibleArticles.length === 0) {
     throw new StorySynthesisEvidenceError(
       "Story cluster has no eligible stored article evidence.",
@@ -585,6 +618,10 @@ export function buildStorySynthesisEvidence(
   );
   const base: Omit<StorySynthesisEvidence, "articles" | "bounds"> = {
     evidenceVersion: STORY_SYNTHESIS_EVIDENCE_VERSION,
+    evaluationContext: {
+      productionEligible,
+      evaluationOnly: options.evaluationOnly === true,
+    },
     clusterId: cluster.clusterId,
     representativeArticleId: cluster.representativeArticleId,
     representativeHeadline: truncateText(
@@ -605,7 +642,9 @@ export function buildStorySynthesisEvidence(
           cluster.ambiguousHumanCorrections,
         ),
         eventType: labelSource(
-          cluster.correctedEventType,
+          cluster.correctedEventTypeToNull
+            ? "__EXPLICIT_NULL_EVENT__"
+            : cluster.correctedEventType,
           cluster.ambiguousHumanCorrections,
         ),
         signalDirection: labelSource(
@@ -723,10 +762,12 @@ GROUNDING RULES:
    - EMPIRICAL_FINDING: supplied research or data reports a finding; preserve study/source attribution and scope.
    - INTERPRETATION: a specialist or journalist interprets implications; do not turn the interpretation into an event or established outcome.
    - GENERIC_MENTION: the packet does not establish a material development.
+4a. When claimDiscipline.attributionRequired=true, eventSummary must explicitly name the source, study, institution, or attributed actor and use an attribution verb such as reports, finds, argues, interprets, estimates, or suggests. For TRANSLATED_OR_SUMMARISED evidence, name the mediating publication as the translator or summariser; do not present it as the original primary source.
 5. Do not convert correlation, co-occurrence, investment, or strategic intent into causation. AI investment alongside restructuring does not establish AI-caused displacement.
 5a. A benchmark or performance claim is not deployment. A proposal is not implementation. Legal analysis is not a ruling. A company forecast is evidence that the company expressed that view, not that the forecast is correct.
 6. Do not override the supplied effective classifications. Signal direction is deterministic context about the direction of supported change, not sentiment, causality, confidence, or materiality. AMBIGUOUS can be high-confidence and highly material. The supplied numerical importance remains authoritative for production, but your evaluation-only materialityLevel must be an independent assessment and may disagree with it.
 7. Human-corrected sector, event type, and signal direction are hard authoritative labels. Human-corrected importance is a softer production judgment: preserve it as supplied context, but independently assess materiality. legacyAiImpactCompatibility preserves deprecated historical AI-tag meaning and is not a second signal-direction field. NOT_RELEVANT evidence has already been excluded and must never be reconstructed.
+7a. evaluationContext is trusted metadata. evaluationOnly=true permits manual assessment of a low-ranked cluster; it does not make that cluster production-eligible and must not change any supplied label.
 8. evidenceStrength answers how strongly the stored evidence supports your factual synthesis. materialityLevel answers how consequential the supported development itself could be to the cultural economy or to AI's structural development. These are independent: HIGH evidence with LOW materiality and LOW evidence with HIGH potential materiality are both valid.
 9. affectedSectors must be selected only from allowedAffectedSectors in the packet.
 10. publisherCount is not independent confirmation. Do not lower evidenceStrength solely because there is one publisher when the narrow claim is directly and specifically supported. Do not raise it merely because several publishers repeat the same originating claim.
@@ -737,7 +778,7 @@ GROUNDING RULES:
 14. structuralSignificance distinguishes INCIDENT, SIGNAL, STRUCTURAL_DEVELOPMENT, and POSSIBLE_INFLECTION. A single packet with no supplied history should almost never be POSSIBLE_INFLECTION.
 15. connections must be empty unless the packet itself contains distinct supported developments that can be related without inventing causality.
 16. uncertainties must include only material unknowns and classify them as FACTUAL, MAGNITUDE, CAUSAL, TRAJECTORY, IMPLEMENTATION, or MEASUREMENT.
-17. whatToWatch contains concrete observable next evidence, phrased as indicators, never a prediction or a generic 'watch this space' statement.
+17. whatToWatch contains concrete observable next evidence, phrased as indicators, never a prediction, recommendation, or generic 'watch this space' statement. Use observable noun phrases such as 'Publication of the final rule' or 'Independent benchmark replication'; do not write that an actor 'should' do something.
 18. Avoid breathless language, inevitability, and generic AI hype. Output only the requested structured schema.
 
 MATERIALITY ANCHORS:
@@ -1034,8 +1075,19 @@ export async function synthesizeMediaStoryCluster(
     request: ReturnType<typeof buildStorySynthesisRequest>,
   ) => Promise<StorySynthesisApiResponse>,
   now: () => number = () => performance.now(),
+  evidenceOptions: StorySynthesisEvidenceOptions = {},
 ): Promise<StorySynthesisExecution> {
-  const evidence = buildStorySynthesisEvidence(cluster);
+  const evidence = buildStorySynthesisEvidence(cluster, evidenceOptions);
+  return synthesizeStorySynthesisEvidence(evidence, createResponse, now);
+}
+
+export async function synthesizeStorySynthesisEvidence(
+  evidence: StorySynthesisEvidence,
+  createResponse: (
+    request: ReturnType<typeof buildStorySynthesisRequest>,
+  ) => Promise<StorySynthesisApiResponse>,
+  now: () => number = () => performance.now(),
+): Promise<StorySynthesisExecution> {
   const request = buildStorySynthesisRequest(evidence);
   const startedAt = now();
   const response = await createResponse(request);

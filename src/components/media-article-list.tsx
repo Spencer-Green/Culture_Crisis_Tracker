@@ -2,10 +2,13 @@ import Link from "next/link";
 
 import { MediaClassificationFeedback } from "@/components/media-classification-feedback";
 import {
+  getEffectiveEventType,
   getEffectiveSignalDirection,
   type MediaArticleView,
 } from "@/services/media/media-service-core";
 import type { SignalDirection } from "@/data-sources/news/media-types";
+import { LunaStoryInsight } from "@/components/luna-story-insight";
+import type { StorySynthesisPresentationMap } from "@/services/media/production-story-synthesis-presentation";
 
 function age(value: string): string {
   const hours = Math.max(
@@ -41,12 +44,14 @@ export function MediaArticleList({
   compact = false,
   dense = false,
   feedbackEnabled = false,
+  storySyntheses = {},
   emptyMessage = "No developments match this view.",
 }: {
   articles: readonly MediaArticleView[];
   compact?: boolean;
   dense?: boolean;
   feedbackEnabled?: boolean;
+  storySyntheses?: StorySynthesisPresentationMap;
   emptyMessage?: string;
 }) {
   if (articles.length === 0)
@@ -70,8 +75,10 @@ export function MediaArticleList({
             className={`flex flex-wrap gap-2 text-[10px] tracking-wide text-zinc-500 uppercase ${dense ? "mt-1" : ""}`}
           >
             <span>{label(article.sectorSlug)}</span>
-            {article.eventType ? (
-              <span className="text-blue-400">{label(article.eventType)}</span>
+            {getEffectiveEventType(article) ? (
+              <span className="text-blue-400">
+                {label(getEffectiveEventType(article)!)}
+              </span>
             ) : null}
             <span className={signalClass(getEffectiveSignalDirection(article))}>
               {signalLabel(getEffectiveSignalDirection(article))}
@@ -93,6 +100,9 @@ export function MediaArticleList({
             <p className="mt-2 text-xs leading-5 text-zinc-500">
               {article.description}
             </p>
+          ) : null}
+          {!dense ? (
+            <LunaStoryInsight result={storySyntheses[article.id]} />
           ) : null}
           <p className={`${dense ? "mt-1" : "mt-3"} text-xs text-zinc-600`}>
             {article.publisher} · {age(article.publishedAt)} ·{" "}

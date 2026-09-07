@@ -107,6 +107,9 @@ export type IntelligenceSynthesisResult = z.infer<
 type CompactClusterEvidence = {
   clusterId: string;
   headline: string;
+  evaluationContext: ReturnType<
+    typeof buildStorySynthesisEvidence
+  >["evaluationContext"];
   classification: {
     sector: string | null;
     eventType: string | null;
@@ -157,6 +160,7 @@ export type IntelligenceRelationshipHint = {
 
 export type IntelligenceSynthesisEvidence = {
   evidenceVersion: typeof INTELLIGENCE_SYNTHESIS_EVIDENCE_VERSION;
+  evaluationOnly: boolean;
   generatedAt: string;
   clusters: CompactClusterEvidence[];
   relationshipHints: IntelligenceRelationshipHint[];
@@ -306,11 +310,15 @@ export function selectIntelligenceSynthesisClusters(
   return selected;
 }
 
-function compactCluster(cluster: MediaStoryCluster): CompactClusterEvidence {
-  const evidence = buildStorySynthesisEvidence(cluster);
+function compactCluster(
+  cluster: MediaStoryCluster,
+  evaluationOnly: boolean,
+): CompactClusterEvidence {
+  const evidence = buildStorySynthesisEvidence(cluster, { evaluationOnly });
   return {
     clusterId: evidence.clusterId,
     headline: evidence.representativeHeadline,
+    evaluationContext: evidence.evaluationContext,
     classification: {
       sector: evidence.effectiveClassification.sector,
       eventType: evidence.effectiveClassification.eventType,
@@ -442,6 +450,7 @@ function relationshipHint(
 export function buildIntelligenceSynthesisEvidence(input: {
   clusters: readonly MediaStoryCluster[];
   generatedAt: Date;
+  evaluationOnly?: boolean;
 }): IntelligenceSynthesisEvidence {
   if (input.clusters.length === 0) {
     throw new StorySynthesisEvidenceError(
@@ -450,7 +459,7 @@ export function buildIntelligenceSynthesisEvidence(input: {
   }
   const clusters = input.clusters
     .slice(0, INTELLIGENCE_SYNTHESIS_MAX_CLUSTERS)
-    .map(compactCluster);
+    .map((cluster) => compactCluster(cluster, input.evaluationOnly === true));
   const relationshipHints: IntelligenceRelationshipHint[] = [];
   for (let leftIndex = 0; leftIndex < clusters.length; leftIndex += 1) {
     for (
@@ -474,6 +483,7 @@ export function buildIntelligenceSynthesisEvidence(input: {
     relationshipHints.some((hint) => hint.temporalOrder === "EARLIER_TO_LATER");
   const packet: IntelligenceSynthesisEvidence = {
     evidenceVersion: INTELLIGENCE_SYNTHESIS_EVIDENCE_VERSION,
+    evaluationOnly: input.evaluationOnly === true,
     generatedAt: input.generatedAt.toISOString(),
     clusters,
     relationshipHints,
@@ -523,13 +533,15 @@ DISCIPLINE:
 3. PRIMARY_DOCUMENT establishes what its institution did, published, measured, or claimed; JOURNALISTIC_REPORTING may independently report context or reaction; SPECIALIST_ANALYSIS supplies attributed interpretation; TRANSLATED_OR_SUMMARISED evidence is mediated. Do not rank these roles simplistically.
 4. publisherCount is not independent confirmation. Do not count syndicated repetition as corroboration.
 5. Connections are analytical pathways, not assumed causal chains. Use only supplied relationshipHints and set causality to NOT_ESTABLISHED. Prefer 'consistent with', 'the combination suggests', and 'does not establish' over causal assertions.
+5a. No supplied relationship establishes cross-story causality. Do not use 'caused', 'causes', 'led to', 'resulted in', or 'proves' anywhere in the output, including dominantSignal, contributions, connections, uncertainties, and whatToWatch.
 6. Do not turn investment into displacement, benchmark claims into deployment, proposals into implementation, legal analysis into rulings, or attributed forecasts into observed facts.
 7. Preserve disagreement rather than averaging it. Only populate contradictions when supplied clusters genuinely differ; state what each source establishes.
 8. Temporal language requires supplied history. A single story rarely establishes an inflection. If historicalComparatorAvailable is false, use NEW_DEVELOPMENTS or INSUFFICIENT_HISTORY.
 9. structuralSignificance is distinct from numerical importance: INCIDENT, SIGNAL, STRUCTURAL_DEVELOPMENT, or POSSIBLE_INFLECTION.
-10. Uncertainties must be material and typed. whatToWatch must name concrete observable next evidence, never predictions.
+10. Uncertainties must be material and typed. whatToWatch must name concrete observable next evidence as noun-phrase indicators, never predictions or recommendations. Do not write that an actor 'should' do something.
 11. Signal direction is deterministic context about supported change, not sentiment, causality, confidence, or materiality. AMBIGUOUS can be highly material and well evidenced. Do not reinterpret it or use direction as a relationship/corroboration signal.
-12. Be concise, analytical, and non-breathless. No tools, browsing, hidden reasoning, or unsupported numbers. Output only the schema.`;
+12. evaluationOnly permits manual assessment of low-ranked clusters; it never changes production eligibility, classification, or rank.
+13. Be concise, analytical, and non-breathless. No tools, browsing, hidden reasoning, or unsupported numbers. Output only the schema.`;
 
 export function buildIntelligenceSynthesisRequest(
   evidence: IntelligenceSynthesisEvidence,
@@ -805,11 +817,12 @@ export async function synthesizeIntelligenceClusters(
   createResponse: (
     request: ReturnType<typeof buildIntelligenceSynthesisRequest>,
   ) => Promise<StorySynthesisApiResponse>,
-  input?: { generatedAt?: Date; now?: () => number },
+  input?: { generatedAt?: Date; now?: () => number; evaluationOnly?: boolean },
 ): Promise<IntelligenceSynthesisExecution> {
   const evidence = buildIntelligenceSynthesisEvidence({
     clusters,
     generatedAt: input?.generatedAt ?? new Date(),
+    evaluationOnly: input?.evaluationOnly,
   });
   const request = buildIntelligenceSynthesisRequest(evidence);
   const clock = input?.now ?? (() => performance.now());

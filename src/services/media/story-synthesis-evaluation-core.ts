@@ -194,6 +194,7 @@ function hasHumanCorrection(cluster: MediaStoryCluster): boolean {
     return (
       feedback?.correctedSector != null ||
       feedback?.correctedEventType != null ||
+      feedback?.correctedEventTypeToNull === true ||
       feedback?.correctedAiTag != null ||
       feedback?.correctedSignalDirection != null ||
       feedback?.correctedImportance != null

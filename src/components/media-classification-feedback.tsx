@@ -20,6 +20,7 @@ import {
 
 const NOT_RELEVANT = "NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE";
 const FEEDBACK_EVENT = "media-classification-feedback-updated";
+const NO_MATERIAL_EVENT = "__NO_MATERIAL_EVENT__";
 
 type FeedbackResponse = {
   data: ({ articleId: string } & MediaClassificationFeedbackState) | null;
@@ -29,6 +30,7 @@ type FeedbackResponse = {
 const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
+  correctedEventTypeToNull: false,
   correctedAiTag: null,
   correctedSignalDirection: null,
   correctedImportance: null,
@@ -54,6 +56,7 @@ function feedbackCorrections(
   return {
     correctedSector: feedback.correctedSector,
     correctedEventType: feedback.correctedEventType,
+    correctedEventTypeToNull: feedback.correctedEventTypeToNull === true,
     correctedAiTag: feedback.correctedAiTag,
     correctedSignalDirection: feedback.correctedSignalDirection,
     correctedImportance: feedback.correctedImportance,
@@ -66,6 +69,17 @@ function taxonomyLabel(value: string) {
     .replaceAll("_", " ")
     .replace(/(^|\s)\S/g, (character) => character.toUpperCase());
 }
+
+export const MEDIA_EVENT_CORRECTION_OPTIONS = [
+  {
+    value: NO_MATERIAL_EVENT,
+    label: "No material event / none",
+  },
+  ...MEDIA_CORRECTABLE_EVENT_TYPES.map((value) => ({
+    value,
+    label: taxonomyLabel(value),
+  })),
+];
 
 export function MediaClassificationFeedback({
   articleId,
@@ -113,6 +127,9 @@ export function MediaClassificationFeedback({
           setCorrections((values) => ({
             ...values,
             [correctionKey]: null,
+            ...(reason === "WRONG_EVENT_TYPE"
+              ? { correctedEventTypeToNull: false }
+              : {}),
           }));
         }
         return current.filter((value) => value !== reason);
@@ -148,6 +165,8 @@ export function MediaClassificationFeedback({
             reasons: payload.data.reasons,
             correctedSector: payload.data.correctedSector,
             correctedEventType: payload.data.correctedEventType,
+            correctedEventTypeToNull:
+              payload.data.correctedEventTypeToNull === true,
             correctedAiTag: payload.data.correctedAiTag,
             correctedSignalDirection: payload.data.correctedSignalDirection,
             correctedImportance: payload.data.correctedImportance,
@@ -323,17 +342,21 @@ export function MediaClassificationFeedback({
               {isSelected && reason === "WRONG_EVENT_TYPE" ? (
                 <CorrectionSelect
                   label="Correct event type (optional)"
-                  value={corrections.correctedEventType}
+                  value={
+                    corrections.correctedEventTypeToNull
+                      ? NO_MATERIAL_EVENT
+                      : corrections.correctedEventType
+                  }
                   disabled={busy}
-                  options={MEDIA_CORRECTABLE_EVENT_TYPES.map((value) => ({
-                    value,
-                    label: taxonomyLabel(value),
-                  }))}
+                  options={MEDIA_EVENT_CORRECTION_OPTIONS}
                   onChange={(value) =>
                     setCorrections((current) => ({
                       ...current,
                       correctedEventType:
-                        value as MediaClassificationCorrections["correctedEventType"],
+                        value === NO_MATERIAL_EVENT
+                          ? null
+                          : (value as MediaClassificationCorrections["correctedEventType"]),
+                      correctedEventTypeToNull: value === NO_MATERIAL_EVENT,
                     }))
                   }
                 />

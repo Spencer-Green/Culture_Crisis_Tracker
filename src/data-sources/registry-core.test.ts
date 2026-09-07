@@ -39,14 +39,23 @@ describe("source registry", () => {
       MVT_BASE_URL: "https://www.musicvenuetrust.com/resources/",
       LPA_BASE_URL: "https://reports.liveperformance.com.au/",
       CENSUS_BASE_URL: "https://www2.census.gov/programs-surveys/aies/data",
+      OPENAI_BASE_URL: "https://api.openai.com/v1",
+      OPENAI_API_KEY: apiKey,
       DATABASE_URL: databaseUrl,
     });
     const serialised = JSON.stringify(sources);
 
-    expect(sources).toHaveLength(41);
+    expect(sources).toHaveLength(42);
     expect(
       sources.filter((source) => source.implementationStatus === "implemented"),
-    ).toHaveLength(38);
+    ).toHaveLength(39);
+    expect(
+      sources.find((source) => source.slug === "luna-story-synthesis"),
+    ).toMatchObject({
+      configured: true,
+      implementationStatus: "implemented",
+      requiresAuthentication: true,
+    });
     expect(
       sources.find((source) => source.slug === "abs")?.implementationStatus,
     ).toBe("implemented");

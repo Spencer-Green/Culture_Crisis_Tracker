@@ -24,6 +24,7 @@ function clusterHasCorrection(
     return (
       feedback?.correctedSector != null ||
       feedback?.correctedEventType != null ||
+      feedback?.correctedEventTypeToNull === true ||
       feedback?.correctedAiTag != null ||
       feedback?.correctedSignalDirection != null ||
       feedback?.correctedImportance != null
@@ -55,7 +56,9 @@ export async function loadStorySynthesisEvaluationContext(input?: {
       sector: wrongRows.filter((row) => row.feedback?.correctedSector != null)
         .length,
       eventType: wrongRows.filter(
-        (row) => row.feedback?.correctedEventType != null,
+        (row) =>
+          row.feedback?.correctedEventType != null ||
+          row.feedback?.correctedEventTypeToNull === true,
       ).length,
       aiTag: wrongRows.filter((row) => row.feedback?.correctedAiTag != null)
         .length,

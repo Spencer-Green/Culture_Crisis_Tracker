@@ -214,6 +214,42 @@ describe("story synthesis evidence", () => {
     });
   });
 
+  it("serializes an explicit human null event as authoritative", () => {
+    const evidence = buildStorySynthesisEvidence(
+      cluster([
+        article({
+          id: "no-event",
+          title: "Developers state that no generative AI was used",
+          eventType: "AI_ADOPTION",
+          classificationFeedback: {
+            reviewState: "WRONG_CLASSIFICATION",
+            reasons: ["WRONG_EVENT_TYPE"],
+            correctedSector: null,
+            correctedEventType: null,
+            correctedEventTypeToNull: true,
+            correctedAiTag: null,
+            correctedSignalDirection: null,
+            correctedImportance: null,
+            approvedMachineClassification: null,
+            evaluationState: "WRONG_CLASSIFICATION",
+            reviewedAt: "2026-08-24T10:00:00.000Z",
+          },
+        }),
+      ]),
+      { evaluationOnly: true },
+    );
+
+    expect(evidence.effectiveClassification).toMatchObject({
+      eventType: null,
+      labelSources: { eventType: "HUMAN_CORRECTED" },
+    });
+    expect(evidence.articles[0]).toMatchObject({
+      machineClassification: { eventType: "AI_ADOPTION" },
+      effectiveClassification: { eventType: null },
+      humanFeedback: { correctedEventTypeToNull: true },
+    });
+  });
+
   it("retains historical AI-tag corrections as deprecated compatibility data", () => {
     const evidence = buildStorySynthesisEvidence(
       cluster([
@@ -365,6 +401,46 @@ describe("story synthesis evidence", () => {
     expect(() => buildStorySynthesisEvidence(ineligible)).toThrow(
       "not currently eligible",
     );
+
+    const evaluationEvidence = buildStorySynthesisEvidence(ineligible, {
+      evaluationOnly: true,
+    });
+    expect(evaluationEvidence.evaluationContext).toEqual({
+      productionEligible: false,
+      evaluationOnly: true,
+    });
+    expect(evaluationEvidence.articles[0].articleId).toBe("low");
+  });
+
+  it("keeps NOT_RELEVANT as a hard exclusion in evaluation-only mode", () => {
+    const excluded = {
+      ...cluster(),
+      articles: [
+        article({
+          id: "excluded-evaluation",
+          title: "Routine item marked not relevant",
+          eventType: null,
+          confidence: "low",
+          importance: 1,
+          classificationFeedback: {
+            reviewState: "WRONG_CLASSIFICATION",
+            reasons: ["NOT_RELEVANT_TO_CULTURAL_INTELLIGENCE"],
+            correctedSector: null,
+            correctedEventType: null,
+            correctedAiTag: null,
+            correctedSignalDirection: null,
+            correctedImportance: null,
+            approvedMachineClassification: null,
+            evaluationState: "WRONG_CLASSIFICATION",
+            reviewedAt: "2026-08-24T10:00:00.000Z",
+          },
+        }),
+      ],
+    };
+
+    expect(() =>
+      buildStorySynthesisEvidence(excluded, { evaluationOnly: true }),
+    ).toThrow("no eligible stored article evidence");
   });
 
   it("keeps prompt-injection-like article text inside untrusted evidence", () => {
@@ -391,6 +467,15 @@ describe("story synthesis evidence", () => {
     );
     expect(request.instructions).toContain(
       "publisherCount is not independent confirmation",
+    );
+    expect(request.instructions).toContain(
+      "eventSummary must explicitly name the source, study, institution, or attributed actor",
+    );
+    expect(request.instructions).toContain(
+      "name the mediating publication as the translator or summariser",
+    );
+    expect(request.instructions).toContain(
+      "do not write that an actor 'should' do something",
     );
     expect(request).not.toHaveProperty("tools");
     expect(request.store).toBe(false);

@@ -28,6 +28,7 @@ const MACHINE: MediaMachineClassificationSnapshot = {
 const EMPTY_CORRECTIONS: MediaClassificationCorrections = {
   correctedSector: null,
   correctedEventType: null,
+  correctedEventTypeToNull: false,
   correctedAiTag: null,
   correctedSignalDirection: null,
   correctedImportance: null,
@@ -178,6 +179,26 @@ describe("media classification review states", () => {
       correctedAiTag: "LABOR_DISPLACEMENT",
       correctedSignalDirection: null,
       correctedImportance: 5,
+    });
+  });
+
+  it("distinguishes an omitted event correction from explicit no event", async () => {
+    const store = new InMemoryFeedbackStore();
+    const omitted = await saveWrong(store, ["WRONG_EVENT_TYPE"]);
+    expect(omitted).toMatchObject({
+      correctedEventType: null,
+      correctedEventTypeToNull: false,
+    });
+
+    const explicitNone = await saveWrong(
+      store,
+      ["WRONG_EVENT_TYPE"],
+      { correctedEventTypeToNull: true },
+      secondReview,
+    );
+    expect(explicitNone).toMatchObject({
+      correctedEventType: null,
+      correctedEventTypeToNull: true,
     });
   });
 
@@ -341,6 +362,18 @@ describe("media classification review states", () => {
         articleId: "article-1",
         reviewState: "WRONG_CLASSIFICATION",
         reasons: [],
+        reviewedAt: firstReview,
+      }),
+    ).rejects.toBeInstanceOf(InvalidMediaClassificationFeedbackError);
+    await expect(
+      setMediaClassificationFeedback(store, {
+        articleId: "article-1",
+        reviewState: "WRONG_CLASSIFICATION",
+        reasons: ["WRONG_EVENT_TYPE"],
+        corrections: {
+          correctedEventType: "LAYOFFS",
+          correctedEventTypeToNull: true,
+        },
         reviewedAt: firstReview,
       }),
     ).rejects.toBeInstanceOf(InvalidMediaClassificationFeedbackError);

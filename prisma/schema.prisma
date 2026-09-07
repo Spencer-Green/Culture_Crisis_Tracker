@@ -21,6 +21,48 @@ enum MediaClassificationReviewState {
   WRONG_CLASSIFICATION
 }
 
+enum MediaClassificationReviewAction {
+  CORRECT
+  WRONG_CLASSIFICATION
+  CLEAR
+}
+
+enum MediaClassificationDimensionReviewStatus {
+  UNREVIEWED
+  APPROVED
+  CORRECTED
+  REJECTED
+}
+
+enum ResearchRunStatus {
+  SUCCEEDED
+  FAILED
+}
+
+enum ResearchTraceConfidence {
+  TRACE_OPENED
+  TRACE_ATTEMPTED
+  MODEL_REPORTED_ONLY
+}
+
+enum ResearchEvidenceMediation {
+  DIRECTLY_OPENED
+  SEARCH_MEDIATED
+  MODEL_REPORTED
+}
+
+enum ResearchCandidateValidationState {
+  VALIDATED
+}
+
+enum ResearchCandidateReviewDecision {
+  APPROVED_FOR_INGESTION_INVESTIGATION
+  REJECTED
+  ALREADY_COVERED
+  NOT_USEFUL
+  SUPERSEDED
+}
+
 enum ScreenAustraliaBoxOfficePeriodType {
   WEEKLY_TOP_5
   AUSTRALIAN_YTD
@@ -58,38 +100,39 @@ model Sector {
 }
 
 model DataSource {
-  id                     String                    @id @default(uuid()) @db.Uuid
-  slug                   String                    @unique
-  name                   String
-  provider               String
-  baseUrl                String
-  countryCode            String?                   @db.VarChar(3)
-  sectorSlug             String?
-  requiresAuthentication Boolean                   @default(false)
-  enabled                Boolean                   @default(false)
-  lastSuccessfulSyncAt   DateTime?                 @db.Timestamptz(3)
-  lastAttemptedSyncAt    DateTime?                 @db.Timestamptz(3)
-  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                  @updatedAt @db.Timestamptz(3)
-  country                Country?                  @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
-  sector                 Sector?                   @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
-  metricDefinitions      MetricDefinition[]
-  ingestionRuns          IngestionRun[]
-  ticketmasterEvents     TicketmasterEvent[]
-  games                  Game[]
-  steamGameSnapshots     SteamGameSnapshot[]
-  mediaArticles          MediaArticle[]
-  mediaArticleMatches    MediaArticleSourceMatch[]
-  usBoxOfficeWeekends    USBoxOfficeWeekend[]
-  broadwayMarketWeeks    BroadwayMarketWeek[]
-  lpaPerformanceYears    LPAPerformanceMarketYear[]
-  bfiWeekendBoxOffice    BFIWeekendBoxOffice[]
-  bfiFilmMarketYears     BFIFilmMarketYear[]
+  id                                   String                                @id @default(uuid()) @db.Uuid
+  slug                                 String                                @unique
+  name                                 String
+  provider                             String
+  baseUrl                              String
+  countryCode                          String?                               @db.VarChar(3)
+  sectorSlug                           String?
+  requiresAuthentication               Boolean                               @default(false)
+  enabled                              Boolean                               @default(false)
+  lastSuccessfulSyncAt                 DateTime?                             @db.Timestamptz(3)
+  lastAttemptedSyncAt                  DateTime?                             @db.Timestamptz(3)
+  createdAt                            DateTime                              @default(now()) @db.Timestamptz(3)
+  updatedAt                            DateTime                              @updatedAt @db.Timestamptz(3)
+  country                              Country?                              @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                               Sector?                               @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  metricDefinitions                    MetricDefinition[]
+  ingestionRuns                        IngestionRun[]
+  ticketmasterEvents                   TicketmasterEvent[]
+  games                                Game[]
+  steamGameSnapshots                   SteamGameSnapshot[]
+  mediaArticles                        MediaArticle[]
+  mediaArticleMatches                  MediaArticleSourceMatch[]
+  usBoxOfficeWeekends                  USBoxOfficeWeekend[]
+  broadwayMarketWeeks                  BroadwayMarketWeek[]
+  lpaPerformanceYears                  LPAPerformanceMarketYear[]
+  bfiWeekendBoxOffice                  BFIWeekendBoxOffice[]
+  bfiFilmMarketYears                   BFIFilmMarketYear[]
   screenAustraliaBoxOfficeObservations ScreenAustraliaBoxOfficeObservation[]
-  mvtGrassrootsYears     MVTGrassrootsMusicYear[]
-  censusRecordYears      CensusRecordIndustryYear[]
-  beaAcpsaSoundYears     BEAACPSASoundRecordingYear[]
-  schedulerState         SchedulerSourceState?
+  mvtGrassrootsYears                   MVTGrassrootsMusicYear[]
+  censusRecordYears                    CensusRecordIndustryYear[]
+  beaAcpsaSoundYears                   BEAACPSASoundRecordingYear[]
+  schedulerState                       SchedulerSourceState?
+  lunaStorySyntheses                   LunaStorySynthesis[]
 
   @@index([countryCode])
   @@index([sectorSlug])
@@ -245,30 +288,30 @@ model MVTGrassrootsMusicYear {
 }
 
 model BFIWeekendBoxOffice {
-  id                    String     @id @default(uuid()) @db.Uuid
-  sourceId              String     @db.Uuid
-  weekendStart          DateTime   @db.Date
-  weekendEnd            DateTime   @db.Date
-  sourceDateLabel       String
-  reportedGrossGbp      Decimal    @db.Decimal(18, 0)
-  top15GrossGbp         Decimal    @db.Decimal(18, 0)
-  releaseCount          Int
-  topFilm               String?
-  topFilmGrossGbp       Decimal?   @db.Decimal(18, 0)
-  top3GrossGbp          Decimal?   @db.Decimal(18, 0)
-  top5GrossGbp          Decimal?   @db.Decimal(18, 0)
-  top10GrossGbp         Decimal?   @db.Decimal(18, 0)
-  sourceFileUrl         String
-  sourceFileName        String
-  sourceFormat          String
-  sourcePublishedAt     DateTime?  @db.Timestamptz(3)
-  retrievedAt           DateTime   @db.Timestamptz(3)
-  firstSeenAt           DateTime   @db.Timestamptz(3)
-  lastSeenAt            DateTime   @db.Timestamptz(3)
-  metadata              Json       @default("{}")
-  createdAt             DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime   @updatedAt @db.Timestamptz(3)
-  source                DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  id                String     @id @default(uuid()) @db.Uuid
+  sourceId          String     @db.Uuid
+  weekendStart      DateTime   @db.Date
+  weekendEnd        DateTime   @db.Date
+  sourceDateLabel   String
+  reportedGrossGbp  Decimal    @db.Decimal(18, 0)
+  top15GrossGbp     Decimal    @db.Decimal(18, 0)
+  releaseCount      Int
+  topFilm           String?
+  topFilmGrossGbp   Decimal?   @db.Decimal(18, 0)
+  top3GrossGbp      Decimal?   @db.Decimal(18, 0)
+  top5GrossGbp      Decimal?   @db.Decimal(18, 0)
+  top10GrossGbp     Decimal?   @db.Decimal(18, 0)
+  sourceFileUrl     String
+  sourceFileName    String
+  sourceFormat      String
+  sourcePublishedAt DateTime?  @db.Timestamptz(3)
+  retrievedAt       DateTime   @db.Timestamptz(3)
+  firstSeenAt       DateTime   @db.Timestamptz(3)
+  lastSeenAt        DateTime   @db.Timestamptz(3)
+  metadata          Json       @default("{}")
+  createdAt         DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @db.Timestamptz(3)
+  source            DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
 
   @@unique([sourceId, weekendEnd])
   @@index([weekendEnd])
@@ -276,26 +319,26 @@ model BFIWeekendBoxOffice {
 }
 
 model BFIFilmMarketYear {
-  id                        String     @id @default(uuid()) @db.Uuid
-  sourceId                  String     @db.Uuid
-  year                      Int
+  id                       String     @id @default(uuid()) @db.Uuid
+  sourceId                 String     @db.Uuid
+  year                     Int
   cinemaAdmissionsMillions Decimal?   @db.Decimal(10, 1)
-  ukBoxOfficeGrossGbpM      Decimal?   @db.Decimal(12, 1)
-  releaseCount              Int?
+  ukBoxOfficeGrossGbpM     Decimal?   @db.Decimal(12, 1)
+  releaseCount             Int?
   filmProductionSpendGbpM  Decimal?   @db.Decimal(12, 1)
   filmProductionCount      Int?
   hetvProductionSpendGbpM  Decimal?   @db.Decimal(12, 1)
   hetvProductionCount      Int?
-  sourceBoxOfficeUrl        String?
-  sourceProductionUrl       String?
-  sourceYearbook            String
-  retrievedAt               DateTime   @db.Timestamptz(3)
-  firstSeenAt               DateTime   @db.Timestamptz(3)
-  lastSeenAt                DateTime   @db.Timestamptz(3)
-  metadata                  Json       @default("{}")
-  createdAt                 DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt                 DateTime   @updatedAt @db.Timestamptz(3)
-  source                    DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sourceBoxOfficeUrl       String?
+  sourceProductionUrl      String?
+  sourceYearbook           String
+  retrievedAt              DateTime   @db.Timestamptz(3)
+  firstSeenAt              DateTime   @db.Timestamptz(3)
+  lastSeenAt               DateTime   @db.Timestamptz(3)
+  metadata                 Json       @default("{}")
+  createdAt                DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime   @updatedAt @db.Timestamptz(3)
+  source                   DataSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
 
   @@unique([sourceId, year])
   @@index([year])
@@ -428,39 +471,40 @@ model IndustryEvent {
 }
 
 model MediaArticle {
-  id                      String                    @id @default(uuid()) @db.Uuid
-  sourceId                String                    @db.Uuid
-  sourceType              String
-  externalId              String?
-  canonicalUrl            String                    @unique
-  title                   String
-  description             String?
-  publisher               String
-  sourceDomain            String
-  publishedAt             DateTime                  @db.Timestamptz(3)
-  retrievedAt             DateTime                  @db.Timestamptz(3)
-  language                String?
-  countryCode             String?                   @db.VarChar(3)
-  sectorSlug              String?
-  eventType               String?
-  polarity                String
-  confidence              String
-  importance              Int
-  aiImpactType            String?
-  reviewState             String
-  classificationRationale String
-  storyFingerprint        String?
-  possibleDuplicateStory  Boolean                   @default(false)
-  firstSeenAt             DateTime                  @db.Timestamptz(3)
-  lastSeenAt              DateTime                  @db.Timestamptz(3)
-  metadata                Json                      @default("{}")
-  createdAt               DateTime                  @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                  @updatedAt @db.Timestamptz(3)
-  source                  DataSource                @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  country                 Country?                  @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
-  sector                  Sector?                   @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
-  sourceMatches           MediaArticleSourceMatch[]
-  classificationFeedback  MediaClassificationFeedback?
+  id                         String                           @id @default(uuid()) @db.Uuid
+  sourceId                   String                           @db.Uuid
+  sourceType                 String
+  externalId                 String?
+  canonicalUrl               String                           @unique
+  title                      String
+  description                String?
+  publisher                  String
+  sourceDomain               String
+  publishedAt                DateTime                         @db.Timestamptz(3)
+  retrievedAt                DateTime                         @db.Timestamptz(3)
+  language                   String?
+  countryCode                String?                          @db.VarChar(3)
+  sectorSlug                 String?
+  eventType                  String?
+  polarity                   String
+  confidence                 String
+  importance                 Int
+  aiImpactType               String?
+  reviewState                String
+  classificationRationale    String
+  storyFingerprint           String?
+  possibleDuplicateStory     Boolean                          @default(false)
+  firstSeenAt                DateTime                         @db.Timestamptz(3)
+  lastSeenAt                 DateTime                         @db.Timestamptz(3)
+  metadata                   Json                             @default("{}")
+  createdAt                  DateTime                         @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime                         @updatedAt @db.Timestamptz(3)
+  source                     DataSource                       @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  country                    Country?                         @relation(fields: [countryCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  sector                     Sector?                          @relation(fields: [sectorSlug], references: [slug], onDelete: SetNull, onUpdate: Cascade)
+  sourceMatches              MediaArticleSourceMatch[]
+  classificationFeedback     MediaClassificationFeedback?
+  classificationReviewEvents MediaClassificationReviewEvent[]
 
   @@index([publishedAt])
   @@index([sectorSlug, publishedAt])
@@ -479,6 +523,7 @@ model MediaClassificationFeedback {
   reasons                  MediaClassificationFeedbackReason[]
   correctedSector          String?
   correctedEventType       String?
+  correctedEventTypeToNull Boolean                             @default(false)
   correctedAiTag           String?
   correctedSignalDirection String?
   correctedImportance      Int?
@@ -495,6 +540,117 @@ model MediaClassificationFeedback {
 
   @@index([reviewedAt])
   @@index([reviewState, reviewedAt])
+}
+
+model MediaClassificationReviewEvent {
+  id                          String                                   @id @default(uuid()) @db.Uuid
+  mediaArticleId              String                                   @db.Uuid
+  supersedesReviewEventId     String?                                  @unique @db.Uuid
+  action                      MediaClassificationReviewAction
+  reasons                     MediaClassificationFeedbackReason[]
+  canonicalUrl                String
+  contentHash                 String                                   @db.Char(64)
+  storyFingerprint            String?
+  publishedAt                 DateTime                                 @db.Timestamptz(3)
+  inputSnapshot               Json
+  machinePrediction           Json
+  predictedAt                 DateTime                                 @db.Timestamptz(3)
+  classifierVersion           String
+  rulesetVersion              String
+  taxonomyVersion             String
+  signalDirectionVersion      String
+  inputSchemaVersion          String
+  reviewGuidelineVersion      String
+  codeRevision                String?
+  sectorReviewStatus          MediaClassificationDimensionReviewStatus
+  humanSector                 String?
+  eventTypeReviewStatus       MediaClassificationDimensionReviewStatus
+  humanEventType              String?
+  signalDirectionReviewStatus MediaClassificationDimensionReviewStatus
+  humanSignalDirection        String?
+  importanceReviewStatus      MediaClassificationDimensionReviewStatus
+  humanImportance             Int?
+  confidenceReviewStatus      MediaClassificationDimensionReviewStatus
+  humanConfidence             String?
+  relevanceReviewStatus       MediaClassificationDimensionReviewStatus
+  humanRelevant               Boolean?
+  legacyAiReviewStatus        MediaClassificationDimensionReviewStatus
+  humanLegacyAiImpactType     String?
+  reviewedAt                  DateTime                                 @db.Timestamptz(3)
+  createdAt                   DateTime                                 @default(now()) @db.Timestamptz(3)
+  mediaArticle                MediaArticle                             @relation(fields: [mediaArticleId], references: [id], onDelete: Restrict)
+  supersedesReviewEvent       MediaClassificationReviewEvent?          @relation("MediaClassificationReviewSupersession", fields: [supersedesReviewEventId], references: [id], onDelete: Restrict)
+  supersededByReviewEvent     MediaClassificationReviewEvent?          @relation("MediaClassificationReviewSupersession")
+
+  @@index([mediaArticleId, createdAt])
+  @@index([reviewedAt])
+  @@index([classifierVersion, taxonomyVersion])
+  @@index([contentHash])
+}
+
+model LunaStorySynthesis {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  sourceId                String                      @db.Uuid
+  identityKey             String                      @unique @db.Char(64)
+  storyKey                String
+  clusterId               String
+  representativeArticleId String                      @db.Uuid
+  evidenceFingerprint     String                      @db.Char(64)
+  evidenceVersion         String
+  promptVersion           String
+  outputSchemaVersion     String
+  requestedModel          String
+  responseModel           String?
+  status                  String
+  evidenceMetadata        Json                        @default("{}")
+  synthesisPayload        Json?
+  inputTokens             Int?
+  cachedInputTokens       Int?
+  outputTokens            Int?
+  totalTokens             Int?
+  estimatedCostUsd        Decimal?                    @db.Decimal(12, 8)
+  latencyMs               Int?
+  attemptedAt             DateTime                    @db.Timestamptz(3)
+  generatedAt             DateTime?                   @db.Timestamptz(3)
+  nextAttemptAt           DateTime?                   @db.Timestamptz(3)
+  leaseId                 String?                     @db.Uuid
+  leaseExpiresAt          DateTime?                   @db.Timestamptz(3)
+  failureKind             String?
+  failureMessage          String?
+  createdAt               DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                    @updatedAt @db.Timestamptz(3)
+  source                  DataSource                  @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  attempts                LunaStorySynthesisAttempt[]
+
+  @@index([clusterId, status, generatedAt])
+  @@index([storyKey, status, generatedAt])
+  @@index([status, nextAttemptAt])
+  @@index([attemptedAt])
+  @@index([sourceId, attemptedAt])
+}
+
+model LunaStorySynthesisAttempt {
+  id                String             @id @default(uuid()) @db.Uuid
+  synthesisId       String             @db.Uuid
+  leaseId           String             @unique @db.Uuid
+  status            String
+  responseModel     String?
+  inputTokens       Int?
+  cachedInputTokens Int?
+  outputTokens      Int?
+  totalTokens       Int?
+  estimatedCostUsd  Decimal?           @db.Decimal(12, 8)
+  latencyMs         Int?
+  failureKind       String?
+  failureMessage    String?
+  attemptedAt       DateTime           @db.Timestamptz(3)
+  completedAt       DateTime?          @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  synthesis         LunaStorySynthesis @relation(fields: [synthesisId], references: [id], onDelete: Cascade)
+
+  @@index([attemptedAt])
+  @@index([synthesisId, attemptedAt])
+  @@index([status, attemptedAt])
 }
 
 model ScreenAustraliaBoxOfficeObservation {
@@ -845,4 +1001,172 @@ model SteamGameSnapshot {
   @@index([steamAppId, capturedAt])
   @@index([sourceId])
   @@index([ingestionRunId])
+}
+
+model ResearchRun {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  researchTaskId          String
+  researchTaskVersion     String
+  providerId              String
+  modelId                 String
+  stage1PromptVersion     String
+  stage2PromptVersion     String
+  contractVersion         String
+  status                  ResearchRunStatus
+  startedAt               DateTime               @db.Timestamptz(3)
+  completedAt             DateTime?              @db.Timestamptz(3)
+  durationMs              Int?
+  stage1ResponseId        String?
+  stage1Status            String?
+  stage1InputTokens       Int?
+  stage1CachedInputTokens Int?
+  stage1OutputTokens      Int?
+  stage1ReasoningTokens   Int?
+  stage1TotalTokens       Int?
+  stage1LatencyMs         Int?
+  stage2ResponseId        String?
+  stage2Status            String?
+  stage2InputTokens       Int?
+  stage2CachedInputTokens Int?
+  stage2OutputTokens      Int?
+  stage2ReasoningTokens   Int?
+  stage2TotalTokens       Int?
+  stage2LatencyMs         Int?
+  combinedTotalTokens     Int?
+  combinedLatencyMs       Int?
+  stage1Artifact          String?                @db.Text
+  resultSummary           String?                @db.Text
+  researchLimitations     Json?
+  nativeSearchTrace       Json?
+  responseDiagnostics     Json?
+  failureKind             String?
+  failureMessage          String?                @db.Text
+  failureReasons          Json?
+  createdAt               DateTime               @default(now()) @db.Timestamptz(3)
+  sourceOccurrences       ResearchRunSource[]
+  candidateOccurrences    ResearchRunCandidate[]
+
+  @@index([researchTaskId, startedAt])
+  @@index([status, startedAt])
+  @@index([providerId, modelId, startedAt])
+}
+
+model ResearchSourceDocument {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  researchTaskId       String
+  researchTaskVersion  String
+  sourceFingerprint    String                    @unique @db.Char(64)
+  sourceUrl            String
+  canonicalUrl         String
+  publisher            String
+  title                String
+  publishedAt          DateTime?                 @db.Timestamptz(3)
+  publishedAtRaw       String
+  reportingPeriodStart DateTime?                 @db.Timestamptz(3)
+  reportingPeriodEnd   DateTime?                 @db.Timestamptz(3)
+  reportingPeriodRaw   String
+  sourceRole           String
+  claim                String                    @db.Text
+  observation          Json
+  limitations          Json
+  traceConfidence      ResearchTraceConfidence
+  evidenceMediation    ResearchEvidenceMediation
+  firstSeenAt          DateTime                  @db.Timestamptz(3)
+  lastSeenAt           DateTime                  @db.Timestamptz(3)
+  occurrenceCount      Int                       @default(1)
+  createdAt            DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                  @updatedAt @db.Timestamptz(3)
+  runOccurrences       ResearchRunSource[]
+  candidates           ResearchCandidate[]
+
+  @@index([researchTaskId, lastSeenAt])
+  @@index([canonicalUrl])
+  @@index([traceConfidence, lastSeenAt])
+}
+
+model ResearchRunSource {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  runId               String                    @db.Uuid
+  sourceDocumentId    String                    @db.Uuid
+  sourceIndex         Int
+  traceConfidence     ResearchTraceConfidence
+  evidenceMediation   ResearchEvidenceMediation
+  claimSnapshot       String                    @db.Text
+  observationSnapshot Json
+  limitationsSnapshot Json
+  retrievedAt         DateTime                  @db.Timestamptz(3)
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  run                 ResearchRun               @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sourceDocument      ResearchSourceDocument    @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, sourceIndex])
+  @@index([sourceDocumentId, createdAt])
+}
+
+model ResearchCandidate {
+  id                   String                           @id @default(uuid()) @db.Uuid
+  sourceDocumentId     String                           @db.Uuid
+  researchTaskId       String
+  researchTaskVersion  String
+  candidateFingerprint String                           @unique @db.Char(64)
+  candidateType        String
+  geography            String
+  sector               String
+  reportingPeriodStart DateTime?                        @db.Timestamptz(3)
+  reportingPeriodEnd   DateTime?                        @db.Timestamptz(3)
+  claim                String                           @db.Text
+  observations         Json
+  sourceRole           String
+  limitations          Json
+  authority            String
+  freshness            String
+  ingestionFeasibility String
+  confidence           String
+  traceConfidence      ResearchTraceConfidence
+  validationState      ResearchCandidateValidationState @default(VALIDATED)
+  firstSeenAt          DateTime                         @db.Timestamptz(3)
+  lastSeenAt           DateTime                         @db.Timestamptz(3)
+  occurrenceCount      Int                              @default(1)
+  createdAt            DateTime                         @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                         @updatedAt @db.Timestamptz(3)
+  sourceDocument       ResearchSourceDocument           @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  runOccurrences       ResearchRunCandidate[]
+  reviewEvents         ResearchCandidateReviewEvent[]
+
+  @@index([researchTaskId, lastSeenAt])
+  @@index([sourceDocumentId])
+  @@index([validationState, lastSeenAt])
+}
+
+model ResearchRunCandidate {
+  id             String            @id @default(uuid()) @db.Uuid
+  runId          String            @db.Uuid
+  candidateId    String            @db.Uuid
+  candidateIndex Int
+  observedAt     DateTime          @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  run            ResearchRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  candidate      ResearchCandidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, candidateIndex])
+  @@index([candidateId, createdAt])
+}
+
+model ResearchCandidateReviewEvent {
+  id                      String                          @id @default(uuid()) @db.Uuid
+  candidateId             String                          @db.Uuid
+  supersedesReviewEventId String?                         @unique @db.Uuid
+  decision                ResearchCandidateReviewDecision
+  reason                  String                          @db.Text
+  candidateFingerprint    String                          @db.Char(64)
+  candidateSnapshot       Json
+  reviewerId              String?
+  reviewedAt              DateTime                        @db.Timestamptz(3)
+  createdAt               DateTime                        @default(now()) @db.Timestamptz(3)
+  candidate               ResearchCandidate               @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  supersedesReviewEvent   ResearchCandidateReviewEvent?   @relation("ResearchCandidateReviewSupersession", fields: [supersedesReviewEventId], references: [id], onDelete: Restrict)
+  supersededByReviewEvent ResearchCandidateReviewEvent?   @relation("ResearchCandidateReviewSupersession")
+
+  @@index([candidateId, reviewedAt])
+  @@index([decision, reviewedAt])
 }

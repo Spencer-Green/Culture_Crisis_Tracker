@@ -112,6 +112,7 @@ export type MediaStoryCluster = {
   humanReviewState: "unreviewed" | "reviewed" | "corrected" | "ambiguous";
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
+  correctedEventTypeToNull?: boolean;
   correctedAiTag: AiImpactType | null;
   correctedSignalDirection: SignalDirection | null;
   correctedImportance: number | null;
@@ -206,6 +207,7 @@ export type EffectiveMediaLabels = {
   importance: number;
   correctedSector: MediaSectorSlug | null;
   correctedEventType: MediaEventType | null;
+  correctedEventTypeToNull: boolean;
   correctedAiTag: AiImpactType | null;
   correctedSignalDirection: SignalDirection | null;
   correctedImportance: number | null;
@@ -222,6 +224,9 @@ export function getEffectiveMediaLabels(
   const correctedEventType = feedback?.reasons.includes("WRONG_EVENT_TYPE")
     ? feedback.correctedEventType
     : null;
+  const correctedEventTypeToNull =
+    feedback?.reasons.includes("WRONG_EVENT_TYPE") === true &&
+    feedback.correctedEventTypeToNull === true;
   const correctedAiTag = feedback?.reasons.includes("WRONG_AI_TAG")
     ? feedback.correctedAiTag
     : null;
@@ -235,18 +240,22 @@ export function getEffectiveMediaLabels(
     : null;
   return {
     sector: correctedSector ?? article.sectorSlug,
-    eventType: correctedEventType ?? article.eventType,
+    eventType: correctedEventTypeToNull
+      ? null
+      : (correctedEventType ?? article.eventType),
     aiImpactType: correctedAiTag ?? article.aiImpactType,
     signalDirection: correctedSignalDirection ?? article.signalDirection,
     importance: correctedImportance ?? article.importance,
     correctedSector,
     correctedEventType,
+    correctedEventTypeToNull,
     correctedAiTag,
     correctedSignalDirection,
     correctedImportance,
     corrected:
       correctedSector !== null ||
       correctedEventType !== null ||
+      correctedEventTypeToNull ||
       correctedAiTag !== null ||
       correctedSignalDirection !== null ||
       correctedImportance !== null,
@@ -496,7 +505,9 @@ function compatibleStoryIdentity(
       ((left.labels.eventType !== null &&
         eventTypeHasStoryFamily(left.labels.eventType)) ||
         left.labels.correctedEventType !== null ||
-        right.labels.correctedEventType !== null)
+        left.labels.correctedEventTypeToNull ||
+        right.labels.correctedEventType !== null ||
+        right.labels.correctedEventTypeToNull)
     );
   if (eventCompatibility === "compatible") return semanticallyEquivalent;
   if (eventCompatibility === "weak-fallback") return semanticallyEquivalent;
@@ -714,9 +725,18 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
   const sectorCorrection = distinctCorrections(
     labels.map((label) => label.correctedSector),
   );
+  const explicitNullEvent = "__EXPLICIT_NULL_EVENT__" as const;
   const eventCorrection = distinctCorrections(
-    labels.map((label) => label.correctedEventType),
+    labels.map((label) =>
+      label.correctedEventTypeToNull
+        ? explicitNullEvent
+        : label.correctedEventType,
+    ),
   );
+  const correctedEventTypeToNull = eventCorrection.value === explicitNullEvent;
+  const correctedEventType = correctedEventTypeToNull
+    ? null
+    : (eventCorrection.value as MediaEventType | null);
   const aiCorrection = distinctCorrections(
     labels.map((label) => label.correctedAiTag),
   );
@@ -738,7 +758,9 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
     : (sectorCorrection.value ?? representativeLabels.sector);
   const eventType = eventCorrection.conflict
     ? null
-    : (eventCorrection.value ?? representativeLabels.eventType);
+    : correctedEventTypeToNull
+      ? null
+      : (correctedEventType ?? representativeLabels.eventType);
   const aiImpactType = aiCorrection.conflict
     ? null
     : (aiCorrection.value ?? representativeLabels.aiImpactType);
@@ -818,7 +840,8 @@ function buildCluster(group: MediaArticleView[]): MediaStoryCluster {
           ? "reviewed"
           : "unreviewed",
     correctedSector: sectorCorrection.value,
-    correctedEventType: eventCorrection.value,
+    correctedEventType,
+    correctedEventTypeToNull,
     correctedAiTag: aiCorrection.value,
     correctedSignalDirection: signalCorrection.value,
     correctedImportance: importanceCorrection.value,

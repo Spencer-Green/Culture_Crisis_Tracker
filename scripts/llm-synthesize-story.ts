@@ -25,14 +25,22 @@ type CliOptions = {
   identifier: string | null;
   yes: boolean;
   list: boolean;
+  dryRun: boolean;
   hours: number;
+  evaluationOnly: boolean;
 };
 
 function parseOptions(arguments_: string[]): CliOptions {
   let identifier: string | null = null;
   let hours = 168;
   for (const argument of arguments_) {
-    if (argument === "--yes" || argument === "--list") continue;
+    if (
+      argument === "--yes" ||
+      argument === "--list" ||
+      argument === "--dry-run" ||
+      argument === "--evaluation-only"
+    )
+      continue;
     if (argument.startsWith("--hours=")) {
       const parsed = Number(argument.slice("--hours=".length));
       if (!Number.isInteger(parsed) || parsed < 24 || parsed > 720) {
@@ -53,7 +61,9 @@ function parseOptions(arguments_: string[]): CliOptions {
     identifier,
     yes: arguments_.includes("--yes"),
     list: arguments_.includes("--list"),
+    dryRun: arguments_.includes("--dry-run"),
     hours,
+    evaluationOnly: arguments_.includes("--evaluation-only"),
   };
 }
 
@@ -103,7 +113,7 @@ async function main() {
     if (options.identifier === null) {
       console.log("");
       console.log(
-        "Usage: npm run llm:synthesize-story -- <cluster-or-article-id> [--yes]",
+        "Usage: npm run llm:synthesize-story -- <cluster-or-article-id> [--dry-run] [--yes]",
       );
     }
     return;
@@ -111,13 +121,16 @@ async function main() {
 
   const cluster = await resolveStorySynthesisCluster(options.identifier, {
     hours: options.hours,
+    evaluationOnly: options.evaluationOnly,
   });
   if (!cluster) {
     throw new StorySynthesisEvidenceError(
       "No currently eligible story cluster matched that identifier.",
     );
   }
-  const evidence = buildStorySynthesisEvidence(cluster);
+  const evidence = buildStorySynthesisEvidence(cluster, {
+    evaluationOnly: options.evaluationOnly,
+  });
   console.log("STORY SYNTHESIS EVIDENCE");
   console.log(`cluster: ${evidence.clusterId}`);
   console.log(`headline: ${evidence.representativeHeadline}`);
@@ -134,6 +147,13 @@ async function main() {
   console.log(
     `human labels: ${cluster.humanReviewState}${cluster.ambiguousHumanCorrections ? " (ambiguous; conservative routing)" : ""}`,
   );
+  console.log(
+    `evaluation context: ${evidence.evaluationContext.evaluationOnly ? "EVALUATION_ONLY" : "PRODUCTION_ELIGIBLE"}`,
+  );
+  if (options.dryRun) {
+    console.log("dry run: no API call made");
+    return;
+  }
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -148,8 +168,11 @@ async function main() {
   }
 
   const client = createOpenAIStorySynthesisClient(apiKey);
-  const result = await synthesizeMediaStoryCluster(cluster, (request) =>
-    requestOpenAIStorySynthesis(client, request),
+  const result = await synthesizeMediaStoryCluster(
+    cluster,
+    (request) => requestOpenAIStorySynthesis(client, request),
+    undefined,
+    { evaluationOnly: options.evaluationOnly },
   );
   console.log("");
   console.log("STORY SYNTHESIS: PASS");

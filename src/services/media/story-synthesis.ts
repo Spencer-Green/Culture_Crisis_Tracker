@@ -22,18 +22,28 @@ export async function getCurrentStorySynthesisCandidates(input?: {
   now?: Date;
   hours?: number;
 }): Promise<MediaStoryCluster[]> {
+  const clusters = await getCurrentStorySynthesisClusters(input);
+  return clusters.filter(isStorySynthesisEligible);
+}
+
+export async function getCurrentStorySynthesisClusters(input?: {
+  now?: Date;
+  hours?: number;
+}): Promise<MediaStoryCluster[]> {
   const now = input?.now ?? new Date();
   const hours = input?.hours ?? 168;
   const start = new Date(now.getTime() - hours * 60 * 60 * 1_000);
   const articles = await getMediaArticlesPublishedBetween({ start, end: now });
-  return buildMediaStoryClusters(articles).filter(isStorySynthesisEligible);
+  return buildMediaStoryClusters(articles);
 }
 
 export async function resolveStorySynthesisCluster(
   identifier: string,
-  input?: { now?: Date; hours?: number },
+  input?: { now?: Date; hours?: number; evaluationOnly?: boolean },
 ): Promise<MediaStoryCluster | null> {
-  const candidates = await getCurrentStorySynthesisCandidates(input);
+  const candidates = input?.evaluationOnly
+    ? await getCurrentStorySynthesisClusters(input)
+    : await getCurrentStorySynthesisCandidates(input);
   return (
     candidates.find(
       (cluster) =>

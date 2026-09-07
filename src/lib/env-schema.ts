@@ -11,6 +11,8 @@ export const SECRET_ENVIRONMENT_KEYS = [
   "IGDB_CLIENT_SECRET",
   "THENEWSAPI_API_KEY",
   "MEDIASTACK_API_KEY",
+  "OPENAI_API_KEY",
+  "DEEPSEEK_API_KEY",
 ] as const;
 
 export type SecretEnvironmentKey = (typeof SECRET_ENVIRONMENT_KEYS)[number];
@@ -38,6 +40,7 @@ export const BASE_URL_ENVIRONMENT_KEYS = [
   "CENSUS_BASE_URL",
   "LPA_BASE_URL",
   "MEDIASTACK_BASE_URL",
+  "OPENAI_BASE_URL",
 ] as const;
 
 export type BaseUrlEnvironmentKey = (typeof BASE_URL_ENVIRONMENT_KEYS)[number];
@@ -90,6 +93,8 @@ export const serverEnvSchema = z.object({
   IGDB_CLIENT_SECRET: optionalString,
   THENEWSAPI_API_KEY: optionalString,
   MEDIASTACK_API_KEY: optionalString,
+  OPENAI_API_KEY: optionalString,
+  DEEPSEEK_API_KEY: optionalString,
   ABS_BASE_URL: optionalUrl("ABS_BASE_URL"),
   BEA_BASE_URL: optionalUrl("BEA_BASE_URL"),
   FRED_BASE_URL: optionalUrl("FRED_BASE_URL"),
@@ -130,6 +135,26 @@ export const serverEnvSchema = z.object({
     "https://reports.liveperformance.com.au/",
   ),
   MEDIASTACK_BASE_URL: optionalUrl("MEDIASTACK_BASE_URL"),
+  OPENAI_BASE_URL: optionalUrl("OPENAI_BASE_URL").default(
+    "https://api.openai.com/v1",
+  ),
+  LUNA_SYNTHESIS_ENABLED: optionalBoolean.default(false),
+  LUNA_SYNTHESIS_MAX_PER_CYCLE: optionalPositiveInteger(
+    "LUNA_SYNTHESIS_MAX_PER_CYCLE",
+    6,
+  ).default(4),
+  LUNA_SYNTHESIS_DAILY_CALL_LIMIT: optionalPositiveInteger(
+    "LUNA_SYNTHESIS_DAILY_CALL_LIMIT",
+    100,
+  ).default(16),
+  LUNA_SYNTHESIS_LOOKBACK_HOURS: optionalPositiveInteger(
+    "LUNA_SYNTHESIS_LOOKBACK_HOURS",
+    168,
+  ).default(48),
+  LUNA_SYNTHESIS_REFRESH_HOURS: optionalPositiveInteger(
+    "LUNA_SYNTHESIS_REFRESH_HOURS",
+    24,
+  ).default(3),
   SCHEDULER_ENABLED: optionalBoolean.default(false),
   SCHEDULER_CONCURRENCY: optionalPositiveInteger(
     "SCHEDULER_CONCURRENCY",

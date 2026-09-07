@@ -193,6 +193,32 @@ describe("bounded intelligence synthesis", () => {
     );
   });
 
+  it("marks explicit low-ranked packets as evaluation-only without changing labels", () => {
+    const lowRanked = buildMediaStoryClusters([
+      article({
+        id: "forecast",
+        title: "Executive estimates AI could address a very large market",
+        description:
+          "The executive said AI could address a very large market, but supplied no observed market result.",
+        eventType: null,
+        importance: 1,
+        confidence: "low",
+      }),
+    ]);
+    const evidence = buildIntelligenceSynthesisEvidence({
+      clusters: lowRanked,
+      generatedAt: new Date("2026-08-27T00:00:00.000Z"),
+      evaluationOnly: true,
+    });
+
+    expect(evidence.evaluationOnly).toBe(true);
+    expect(evidence.clusters[0].evaluationContext).toEqual({
+      productionEligible: false,
+      evaluationOnly: true,
+    });
+    expect(evidence.clusters[0].classification.importance).toBe(1);
+  });
+
   it("keeps untrusted evidence outside trusted instructions and disables tools", () => {
     const evidence = buildIntelligenceSynthesisEvidence({
       clusters: clusters(),
@@ -206,6 +232,12 @@ describe("bounded intelligence synthesis", () => {
     );
     expect(request.instructions).toContain(
       "Analysis with eventType=null is valid",
+    );
+    expect(request.instructions).toContain(
+      "Do not use 'caused', 'causes', 'led to', 'resulted in', or 'proves'",
+    );
+    expect(request.instructions).toContain(
+      "Do not write that an actor 'should' do something",
     );
     expect(request).not.toHaveProperty("tools");
     expect(request.store).toBe(false);

@@ -5,15 +5,17 @@ import {
   sanitizeResearchTraceValue,
 } from "@/services/research/deepseek-research-provider";
 import { canonicalizeResearchUrl } from "@/services/research/research-provenance";
+import { parseResearchPublicationDate } from "@/services/research/research-artifact";
+import { RESEARCH_EXTRACTION_VERSION } from "@/services/research/research-extraction";
 import type {
   ResearchCandidateV1,
   ResearchObservationV1,
 } from "@/services/research/research-schema";
 import {
   RESEARCH_CONTRACT_VERSION,
+  RESEARCH_MATERIALIZER_VERSION,
   ResearchExecutionError,
   RESEARCH_STAGE1_PROMPT_VERSION,
-  RESEARCH_STAGE2_PROMPT_VERSION,
   ResearchValidationError,
 } from "@/services/research/research-runner";
 import type {
@@ -25,9 +27,10 @@ import type {
   ResearchStage1SourceV1,
   ResearchTaskV1,
   SanitizedResearchValue,
+  ResearchPhaseTelemetry,
 } from "@/services/research/research-types";
 
-export const RESEARCH_STAGING_CONTRACT_VERSION = "research-staging-v1";
+export const RESEARCH_STAGING_CONTRACT_VERSION = "research-staging-v2";
 export const RESEARCH_PERSISTED_TRACE_CALL_MAXIMUM = 32;
 export const RESEARCH_PERSISTED_ANNOTATION_MAXIMUM = 16;
 export const RESEARCH_INSPECTION_LIMIT_DEFAULT = 20;
@@ -74,7 +77,10 @@ export type ResearchSourcePersistenceDraft = {
   reportingPeriodRaw: string;
   sourceRole: string;
   claim: string;
-  observation: { text: string };
+  observation: {
+    text: string;
+    observations?: ResearchStage1SourceV1["observations"];
+  };
   limitations: string[];
   traceConfidence: ResearchSourceTraceStatus;
   evidenceMediation: ResearchEvidenceMediation;
@@ -89,6 +95,8 @@ export type ResearchCandidatePersistenceDraft = {
 };
 
 export type ResearchRunPersistenceDraft = {
+  /** Reserved before the provider call; finalized once in the staging transaction. */
+  runId?: string;
   researchTaskId: string;
   researchTaskVersion: string;
   providerId: string;
@@ -154,6 +162,66 @@ function normalizeIdentityText(value: string): string {
     .trim();
 }
 
+type ResearchSourceIdentityInput = {
+  canonicalUrl: string;
+  reportingPeriod: string;
+  title: string;
+};
+
+function hasVersionedDocumentPath(canonicalUrl: string): boolean {
+  const pathname = decodeURIComponent(new URL(canonicalUrl).pathname);
+  return /(?:^|[\/_-])(?:19|20)\d{2}(?:$|[\/_-])/.test(pathname);
+}
+
+function normalizedReportingIdentity(
+  reportingPeriod: string,
+  title: string,
+): string {
+  const normalized = normalizeIdentityText(reportingPeriod);
+  if (!normalized || normalized === "unknown") {
+    return `title:${normalizeIdentityText(title)}`;
+  }
+
+  const exactDates = [
+    ...reportingPeriod.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g),
+  ].map((match) => match[0]);
+  if (exactDates.length > 0) return `dates:${exactDates.join(",")}`;
+
+  const monthYears = [
+    ...reportingPeriod.matchAll(
+      /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(?:19|20)\d{2}\b/gi,
+    ),
+  ].map((match) => normalizeIdentityText(match[0]));
+  if (monthYears.length > 0) return `months:${monthYears.join(",")}`;
+
+  const years = [...new Set(reportingPeriod.match(/\b(?:19|20)\d{2}\b/g) ?? [])]
+    .sort()
+    .join(",");
+  return years ? `years:${years}` : `text:${normalized}`;
+}
+
+export function buildResearchSourceIdentityKey(
+  input: ResearchSourceIdentityInput,
+): string {
+  if (hasVersionedDocumentPath(input.canonicalUrl)) {
+    return `versioned-url:${input.canonicalUrl}`;
+  }
+  return `reusable-url:${input.canonicalUrl}|${normalizedReportingIdentity(
+    input.reportingPeriod,
+    input.title,
+  )}`;
+}
+
+export function researchSourceIdentityMatches(
+  left: ResearchSourceIdentityInput,
+  right: ResearchSourceIdentityInput,
+): boolean {
+  return (
+    buildResearchSourceIdentityKey(left) ===
+    buildResearchSourceIdentityKey(right)
+  );
+}
+
 function normalizedObservationIdentity(
   observations: ResearchObservationV1[],
 ): unknown[] {
@@ -161,6 +229,7 @@ function normalizedObservationIdentity(
     metric: normalizeIdentityText(observation.metric),
     value: normalizeIdentityText(observation.value),
     unit: normalizeIdentityText(observation.unit),
+    qualifier: observation.qualifier ?? "NONE",
     periodStart: observation.periodStart,
     periodEnd: observation.periodEnd,
   }));
@@ -175,10 +244,11 @@ export function buildResearchSourceFingerprint(input: {
   return sha256(
     stableResearchJson({
       researchTaskId: input.researchTaskId,
-      canonicalUrl,
-      reportingPeriod: normalizeIdentityText(input.source.reportingPeriod),
-      publisher: normalizeIdentityText(input.source.publisher),
-      title: normalizeIdentityText(input.source.title),
+      sourceIdentity: buildResearchSourceIdentityKey({
+        canonicalUrl,
+        reportingPeriod: input.source.reportingPeriod,
+        title: input.source.title,
+      }),
     }),
   );
 }
@@ -186,6 +256,7 @@ export function buildResearchSourceFingerprint(input: {
 export function buildResearchCandidateFingerprint(input: {
   researchTaskId: string;
   candidate: ResearchCandidateV1;
+  evidenceContext?: { sourceIdentity: string; reportingPeriod: string };
 }): string {
   const canonicalUrl = canonicalizeResearchUrl(input.candidate.source.url);
   if (!canonicalUrl) throw new Error("Research candidate URL is invalid.");
@@ -194,6 +265,18 @@ export function buildResearchCandidateFingerprint(input: {
   );
   return sha256(
     stableResearchJson({
+      ...(input.evidenceContext
+        ? {
+            identityVersion: "candidate-evidence-v2",
+            sourceIdentity: input.evidenceContext.sourceIdentity,
+            reportingPeriodRaw: normalizeIdentityText(
+              input.evidenceContext.reportingPeriod,
+            ),
+            geography: normalizeIdentityText(input.candidate.scope.geography),
+            sector: input.candidate.scope.sector,
+            sourceRole: input.candidate.evidence.sourceRole,
+          }
+        : {}),
       researchTaskId: input.researchTaskId,
       canonicalUrl,
       reportingPeriodStart: input.candidate.scope.reportingPeriodStart,
@@ -212,6 +295,11 @@ function parseKnownDate(value: string | null): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) return null;
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function parseExactPublicationDate(value: string): Date | null {
+  const exactDate = parseResearchPublicationDate(value)?.exactDate ?? null;
+  return exactDate ? parseKnownDate(exactDate) : null;
 }
 
 function mediationForTrace(
@@ -238,6 +326,25 @@ function telemetryFromProvider(
     latencyMs: provider.latencyMs,
     responseDiagnostics:
       provider.responseDiagnostics as unknown as SanitizedResearchValue,
+  };
+}
+
+function phaseTelemetry(
+  phase: ResearchPhaseTelemetry | undefined,
+): ResearchProviderTelemetryDraft | null {
+  if (!phase) return null;
+  return {
+    providerId: "deepseek",
+    modelId: phase.model ?? "unknown",
+    responseId: phase.responseId,
+    status: phase.status,
+    inputTokens: phase.usage?.inputTokens ?? null,
+    cachedInputTokens: phase.usage?.cachedInputTokens ?? null,
+    outputTokens: phase.usage?.outputTokens ?? null,
+    reasoningTokens: phase.usage?.reasoningTokens ?? null,
+    totalTokens: phase.usage?.totalTokens ?? null,
+    latencyMs: phase.latencyMs,
+    responseDiagnostics: { phase: phase.phase, status: phase.status },
   };
 }
 
@@ -296,7 +403,7 @@ function sourceDraft(
     canonicalUrl,
     publisher: source.publisher,
     title: source.title,
-    publishedAt: parseKnownDate(source.publishedAt),
+    publishedAt: parseExactPublicationDate(source.publishedAt),
     publishedAtRaw: source.publishedAt,
     reportingPeriodStart: parseKnownDate(
       matchingCandidate?.scope.reportingPeriodStart ?? null,
@@ -307,7 +414,10 @@ function sourceDraft(
     reportingPeriodRaw: source.reportingPeriod,
     sourceRole: source.sourceRole,
     claim: source.claim,
-    observation: { text: source.observation },
+    observation: {
+      text: source.observation,
+      observations: source.observations,
+    },
     limitations: [source.limitations],
     traceConfidence: source.traceStatus,
     evidenceMediation: mediationForTrace(source.traceStatus),
@@ -317,15 +427,22 @@ function sourceDraft(
 export function buildSuccessfulResearchRunDraft(
   run: ResearchRunResult,
 ): ResearchRunPersistenceDraft {
-  const stage1 = telemetryFromProvider(run.stage1.provider);
-  const stage2 = telemetryFromProvider(run.stage2.provider);
+  const phases = run.stage1.provider.responseDiagnostics.phases;
+  const stage1 =
+    phaseTelemetry(phases?.find((item) => item.phase === "acquisition")) ??
+    telemetryFromProvider(run.stage1.provider);
+  const stage2 = phaseTelemetry(
+    phases?.find((item) => item.phase === "extraction"),
+  );
   return {
     researchTaskId: run.task.id,
     researchTaskVersion: run.task.version,
     providerId: stage1.providerId,
     modelId: stage1.modelId,
     stage1PromptVersion: RESEARCH_STAGE1_PROMPT_VERSION,
-    stage2PromptVersion: RESEARCH_STAGE2_PROMPT_VERSION,
+    stage2PromptVersion: stage2
+      ? RESEARCH_EXTRACTION_VERSION
+      : RESEARCH_MATERIALIZER_VERSION,
     contractVersion: RESEARCH_CONTRACT_VERSION,
     status: "SUCCEEDED",
     startedAt: run.startedAt,
@@ -333,15 +450,22 @@ export function buildSuccessfulResearchRunDraft(
     durationMs: run.completedAt.getTime() - run.startedAt.getTime(),
     stage1,
     stage2,
-    combinedTotalTokens: run.usage.totalTokens,
+    combinedTotalTokens:
+      run.stage1.provider.responseDiagnostics.usageComplete === false
+        ? null
+        : run.usage.totalTokens,
     combinedLatencyMs: run.usage.totalLatencyMs,
     stage1Artifact: run.stage1.artifact,
     resultSummary: run.result.taskSummary,
     researchLimitations: run.result.researchLimitations,
     nativeSearchTrace: boundedTrace(run.stage1.provider.nativeSearchTrace),
     responseDiagnostics: {
+      ...run.stage1.provider.responseDiagnostics,
       stage1: stage1.responseDiagnostics,
-      stage2: stage2.responseDiagnostics,
+      materializer: {
+        version: RESEARCH_MATERIALIZER_VERSION,
+        status: "completed",
+      },
       stagingContractVersion: RESEARCH_STAGING_CONTRACT_VERSION,
     },
     failureKind: null,
@@ -356,6 +480,24 @@ export function buildSuccessfulResearchRunDraft(
       candidateFingerprint: buildResearchCandidateFingerprint({
         researchTaskId: run.task.id,
         candidate,
+        ...(run.stage1.provider.responseDiagnostics.pipelineVersion
+          ? {
+              evidenceContext: {
+                sourceIdentity: buildResearchSourceIdentityKey({
+                  canonicalUrl: canonicalizeResearchUrl(candidate.source.url)!,
+                  title: candidate.source.title,
+                  reportingPeriod:
+                    run.stage1.sources[
+                      candidateSourceIndex(candidate, run.stage1.sources)
+                    ]!.reportingPeriod,
+                }),
+                reportingPeriod:
+                  run.stage1.sources[
+                    candidateSourceIndex(candidate, run.stage1.sources)
+                  ]!.reportingPeriod,
+              },
+            }
+          : {}),
       }),
       candidate,
       traceConfidence:
@@ -399,30 +541,9 @@ export function buildFailedResearchRunDraft(input: {
     typedError instanceof ResearchExecutionError
       ? typedError.providerDiagnostics
       : null;
-  const failureAtStage2 = Boolean(stage1);
-  const stage1Telemetry = stage1
+  let stage1Telemetry = stage1
     ? telemetryFromProvider(stage1.provider)
-    : !failureAtStage2 && resultProvider
-      ? telemetryFromProvider(resultProvider)
-      : !failureAtStage2 && failingDiagnostics
-        ? {
-            providerId: input.providerId,
-            modelId: failingDiagnostics.model ?? input.modelId,
-            responseId: failingDiagnostics.providerRequestId,
-            status: failingDiagnostics.status,
-            inputTokens: failingDiagnostics.usage?.inputTokens ?? null,
-            cachedInputTokens:
-              failingDiagnostics.usage?.cachedInputTokens ?? null,
-            outputTokens: failingDiagnostics.usage?.outputTokens ?? null,
-            reasoningTokens: failingDiagnostics.usage?.reasoningTokens ?? null,
-            totalTokens: failingDiagnostics.usage?.totalTokens ?? null,
-            latencyMs: failingDiagnostics.latencyMs,
-            responseDiagnostics:
-              failingDiagnostics.responseDiagnostics as unknown as SanitizedResearchValue,
-          }
-        : null;
-  const stage2Telemetry = failureAtStage2
-    ? resultProvider
+    : resultProvider
       ? telemetryFromProvider(resultProvider)
       : failingDiagnostics
         ? {
@@ -440,17 +561,50 @@ export function buildFailedResearchRunDraft(input: {
             responseDiagnostics:
               failingDiagnostics.responseDiagnostics as unknown as SanitizedResearchValue,
           }
-        : null
-    : null;
+        : null;
+  const responseDiagnostics =
+    resultProvider?.responseDiagnostics ??
+    failingDiagnostics?.responseDiagnostics;
+  const phases = responseDiagnostics?.phases;
+  stage1Telemetry =
+    phaseTelemetry(phases?.find((item) => item.phase === "acquisition")) ??
+    stage1Telemetry;
+  const stage2Telemetry = phaseTelemetry(
+    phases?.find((item) => item.phase === "extraction"),
+  );
   const message =
     error instanceof Error
       ? error.message
       : "Unknown research execution failure.";
   const reasons = error instanceof ResearchValidationError ? error.reasons : [];
+  const artifactDiagnostics =
+    error instanceof ResearchValidationError
+      ? error.artifactDiagnostics.map((diagnostic) => ({
+          sourceIndex: diagnostic.sourceIndex,
+          field: sanitizeResearchDiagnostic(
+            diagnostic.field,
+            input.secrets,
+            80,
+          ),
+          rejectedValue:
+            diagnostic.rejectedValue === null
+              ? null
+              : sanitizeResearchDiagnostic(
+                  diagnostic.rejectedValue,
+                  input.secrets,
+                  200,
+                ),
+          failureReason: sanitizeResearchDiagnostic(
+            diagnostic.failureReason,
+            input.secrets,
+            500,
+          ),
+        }))
+      : [];
   const trace =
     stage1?.provider.nativeSearchTrace ??
-    (!failureAtStage2 && resultProvider?.nativeSearchTrace) ??
-    (!failureAtStage2 && failingDiagnostics?.nativeSearchTrace) ??
+    resultProvider?.nativeSearchTrace ??
+    failingDiagnostics?.nativeSearchTrace ??
     null;
   const sourceCandidates: ResearchCandidateV1[] = [];
   return {
@@ -459,7 +613,9 @@ export function buildFailedResearchRunDraft(input: {
     providerId: input.providerId,
     modelId: input.modelId,
     stage1PromptVersion: RESEARCH_STAGE1_PROMPT_VERSION,
-    stage2PromptVersion: RESEARCH_STAGE2_PROMPT_VERSION,
+    stage2PromptVersion: stage2Telemetry
+      ? RESEARCH_EXTRACTION_VERSION
+      : RESEARCH_MATERIALIZER_VERSION,
     contractVersion: RESEARCH_CONTRACT_VERSION,
     status: "FAILED",
     startedAt: input.startedAt,
@@ -468,18 +624,32 @@ export function buildFailedResearchRunDraft(input: {
     stage1: stage1Telemetry,
     stage2: stage2Telemetry,
     combinedTotalTokens:
-      (stage1Telemetry?.totalTokens ?? 0) +
-        (stage2Telemetry?.totalTokens ?? 0) || null,
+      responseDiagnostics?.usageComplete === false
+        ? null
+        : (failingDiagnostics?.usage?.totalTokens ??
+          resultProvider?.usage.totalTokens ??
+          stage1Telemetry?.totalTokens ??
+          null),
     combinedLatencyMs:
-      (stage1Telemetry?.latencyMs ?? 0) + (stage2Telemetry?.latencyMs ?? 0) ||
+      failingDiagnostics?.latencyMs ??
+      resultProvider?.latencyMs ??
+      stage1Telemetry?.latencyMs ??
       null,
     stage1Artifact: stage1?.artifact ?? null,
     resultSummary: null,
     researchLimitations: [],
     nativeSearchTrace: trace ? boundedTrace(trace) : null,
     responseDiagnostics: {
+      ...responseDiagnostics,
       stage1: stage1Telemetry?.responseDiagnostics ?? null,
-      stage2: stage2Telemetry?.responseDiagnostics ?? null,
+      materializer: {
+        version: RESEARCH_MATERIALIZER_VERSION,
+        status: stage1 ? "failed" : "not_started",
+      },
+      artifactValidation: {
+        status: artifactDiagnostics.length > 0 ? "failed" : "not_applicable",
+        issues: artifactDiagnostics,
+      },
       stagingContractVersion: RESEARCH_STAGING_CONTRACT_VERSION,
     },
     failureKind: typedError?.code ?? "STAGE1_EXECUTION_FAILURE",

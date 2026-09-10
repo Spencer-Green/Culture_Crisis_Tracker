@@ -1,80 +1,52 @@
 import "dotenv/config";
 
-import { createDeepSeekResearchProvider } from "@/services/research/deepseek-research-provider";
 import { disconnectPrisma } from "@/lib/prisma";
-import {
-  DEEPSEEK_RESEARCH_MODEL,
-  DEEPSEEK_RESEARCH_PROVIDER,
-} from "@/services/research/deepseek-research-provider";
-import {
-  parseResearchOnceOptions,
-  persistResearchResultWhenRequested,
-} from "@/services/research/research-cli-core";
-import {
-  formatResearchFailure,
-  formatResearchRun,
-} from "@/services/research/research-cli-output";
-import {
-  ResearchExecutionError,
-  runResearchOnce,
-} from "@/services/research/research-runner";
-import {
-  buildFailedResearchRunDraft,
-  buildSuccessfulResearchRunDraft,
-} from "@/services/research/research-staging-core";
-import { persistResearchRun } from "@/services/research/research-staging-store";
+import { parseResearchOnceOptions } from "@/services/research/research-cli-core";
 import { getResearchTask } from "@/services/research/research-tasks";
+import { runSchedulerOnce } from "@/services/scheduler/scheduler-service";
+import {
+  formatResearchInspection,
+  getResearchInspection,
+} from "@/services/research/research-staging-read";
+import { sanitizeResearchTraceValue } from "@/services/research/deepseek-research-provider";
 
 async function main() {
   const options = parseResearchOnceOptions(process.argv.slice(2));
-  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
-  const startedAt = new Date();
-  try {
-    if (!apiKey) {
-      throw new ResearchExecutionError(
-        "DEEPSEEK_API_KEY is required before live research can be sent.",
-      );
-    }
-    const run = await runResearchOnce({
-      taskId: options.taskId,
-      apiKey,
-      provider: createDeepSeekResearchProvider(apiKey),
-      now: startedAt,
-    });
-    const persisted = await persistResearchResultWhenRequested({
-      persist: options.persist,
-      value: buildSuccessfulResearchRunDraft(run),
-      writer: persistResearchRun,
-    });
-    console.log(formatResearchRun(run, [apiKey], persisted));
-  } catch (error) {
-    let persistedRunId: string | null = null;
-    if (options.persist) {
-      try {
-        const persisted = await persistResearchRun(
-          buildFailedResearchRunDraft({
-            task: getResearchTask(options.taskId),
-            providerId: DEEPSEEK_RESEARCH_PROVIDER,
-            modelId: DEEPSEEK_RESEARCH_MODEL,
-            error,
-            startedAt,
-            completedAt: new Date(),
-            secrets: [apiKey ?? ""],
-          }),
-        );
-        persistedRunId = persisted.runId;
-      } catch (persistenceError) {
-        console.error(
-          `Research failure could not be staged: ${persistenceError instanceof Error ? persistenceError.message : String(persistenceError)}`,
-        );
-      }
-    }
-    console.error(formatResearchFailure(error, [apiKey ?? ""]));
-    if (persistedRunId) console.error(`STAGING RUN: ${persistedRunId}`);
+  getResearchTask(options.taskId);
+  // --persist remains accepted for compatibility. All live executions now have
+  // durable attempt accounting, including interrupted runs; no untracked CLI path.
+  console.log(
+    "Live research uses scheduler enablement, locking, cadence and rolling limits. Results are shadow-staged, never canonical or automatically approved.",
+  );
+  const cycle = await runSchedulerOnce({ sourceId: "research-agent" });
+  if (cycle.results.some((result) => result.status === "failed"))
     process.exitCode = 1;
-  } finally {
-    await disconnectPrisma();
+  const inspection = await getResearchInspection({
+    taskId: options.taskId,
+    limit: 1,
+  });
+  console.log(formatResearchInspection(inspection));
+  if (options.debugSearchTrace) {
+    console.log(
+      JSON.stringify(
+        inspection.runs.map((run) => ({
+          runId: run.id,
+          trace: sanitizeResearchTraceValue(run.nativeSearchTrace, {
+            secrets: [process.env.DEEPSEEK_API_KEY ?? ""],
+          }),
+        })),
+        null,
+        2,
+      ),
+    );
   }
 }
 
-main();
+main()
+  .catch((error) => {
+    console.error(
+      error instanceof Error ? error.message : "Research execution failed",
+    );
+    process.exitCode = 1;
+  })
+  .finally(disconnectPrisma);

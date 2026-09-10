@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDeepSeekNativeResearchRequest,
-  buildDeepSeekStructuringRequest,
+  DEEPSEEK_STAGE1_MAX_OUTPUT_TOKENS,
+  DEEPSEEK_STAGE1_REASONING_EFFORT,
   DeepSeekResearchResponseError,
   extractNativeSearchTrace,
   extractResearchResponseDiagnostics,
   mapDeepSeekNativeResearchResponse,
-  mapDeepSeekStructuringResponse,
   sanitizeResearchDiagnostic,
   sanitizeResearchTraceValue,
 } from "@/services/research/deepseek-research-provider";
@@ -77,6 +77,11 @@ function captureResponseError(
 }
 
 describe("DeepSeek research provider mapping", () => {
+  it("uses a bounded acquisition budget", () => {
+    expect(DEEPSEEK_STAGE1_REASONING_EFFORT).toBe("low");
+    expect(DEEPSEEK_STAGE1_MAX_OUTPUT_TOKENS).toBe(8_000);
+  });
+
   it("maps output, usage, and native search provenance without reasoning", () => {
     const result = mapDeepSeekNativeResearchResponse(fixture, 1_234);
     expect(result).toMatchObject({
@@ -117,7 +122,7 @@ describe("DeepSeek research provider mapping", () => {
   it("fails when no native search call is observable", () => {
     expect(() =>
       mapDeepSeekNativeResearchResponse({ ...fixture, output: [] }, 10),
-    ).toThrow("no native web_search_call");
+    ).toThrow("no successful native search action");
   });
 
   it("diagnoses a completed response containing only search items", () => {
@@ -253,40 +258,21 @@ describe("DeepSeek research provider mapping", () => {
       input: "Find evidence.",
     });
     expect(request).toMatchObject({
-      model: "deepseek-v4-flash",
-      reasoning: { effort: "high" },
+      model: "deepseek-v4-pro",
+      max_output_tokens: DEEPSEEK_STAGE1_MAX_OUTPUT_TOKENS,
+      reasoning: { effort: DEEPSEEK_STAGE1_REASONING_EFFORT },
       tools: [{ type: "web_search" }],
-      tool_choice: "auto",
+      tool_choice: { type: "web_search" },
     });
     expect(request).not.toHaveProperty("text");
     expect(request).not.toHaveProperty("store");
     expect(request).not.toHaveProperty("include");
   });
 
-  it("builds Stage 2 with JSON Schema and no tools", () => {
-    const request = buildDeepSeekStructuringRequest({
-      task: AU_LIVE_MUSIC_VENUE_VIABILITY_TASK,
-      instructions: "Structure faithfully.",
-      input: "Stage 1 artifact.",
-    });
-    expect(request).toMatchObject({
-      model: "deepseek-v4-flash",
-      reasoning: { effort: "high" },
-      text: { format: { type: "json_schema" } },
-    });
-    expect(request).not.toHaveProperty("tools");
-    expect(request).not.toHaveProperty("tool_choice");
-  });
-
-  it("maps Stage 2 without requiring a web-search call", () => {
-    const result = mapDeepSeekStructuringResponse(
-      {
-        ...fixture,
-        output: fixture.output.filter((item) => item.type === "message"),
-      },
-      50,
-    );
-    expect(result.outputText).toBe(fixture.output_text);
-    expect(result.nativeSearchTrace.calls).toEqual([]);
+  it("does not expose a second provider operation", async () => {
+    const source =
+      await import("@/services/research/deepseek-research-provider");
+    expect(source).not.toHaveProperty("buildDeepSeekStructuringRequest");
+    expect(source).not.toHaveProperty("mapDeepSeekStructuringResponse");
   });
 });

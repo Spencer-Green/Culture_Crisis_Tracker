@@ -12,13 +12,17 @@ export type ResearchInspection = Awaited<
 >;
 
 function normalizedStatus(status: string | undefined): {
-  runStatus?: "SUCCEEDED" | "FAILED";
+  runStatus?: "RUNNING" | "SUCCEEDED" | "FAILED";
   reviewStatus?:
     "REVIEW_REQUIRED" | ReturnType<typeof parseResearchReviewDecision>;
 } {
   if (!status) return {};
   const normalized = status.trim().toUpperCase().replaceAll("-", "_");
-  if (normalized === "SUCCEEDED" || normalized === "FAILED") {
+  if (
+    normalized === "RUNNING" ||
+    normalized === "SUCCEEDED" ||
+    normalized === "FAILED"
+  ) {
     return { runStatus: normalized };
   }
   if (normalized === "REVIEW_REQUIRED") {
@@ -123,7 +127,7 @@ export function formatResearchInspection(
   lines.push("", `Candidates: ${inspection.candidates.length}`);
   for (const candidate of inspection.candidates) {
     lines.push(
-      `${candidate.id} | ${candidate.currentReviewState} | ${candidate.researchTaskId} | ${candidate.traceConfidence}`,
+      `${candidate.id} | ${candidate.validationState} | ${candidate.currentReviewState} | ${candidate.researchTaskId} | ${candidate.traceConfidence}`,
     );
     lines.push(
       `  ${candidate.sourceDocument.publisher}: ${candidate.sourceDocument.title}`,

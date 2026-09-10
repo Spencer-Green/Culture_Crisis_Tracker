@@ -1,21 +1,15 @@
 import "dotenv/config";
 
 import { disconnectPrisma } from "@/lib/prisma";
+import { parseSchedulerOnceOptions } from "@/services/scheduler/scheduler-cli-core";
 import { runSchedulerOnce } from "@/services/scheduler/scheduler-service";
 
-function parseSource(args: readonly string[]) {
-  let sourceId: string | undefined;
-  for (const argument of args) {
-    if (!argument.startsWith("--source="))
-      throw new Error(`Unknown scheduler argument "${argument}".`);
-    sourceId = argument.slice("--source=".length);
-  }
-  return sourceId;
-}
-
 async function main() {
+  const options = parseSchedulerOnceOptions(process.argv.slice(2));
   const result = await runSchedulerOnce({
-    sourceId: parseSource(process.argv.slice(2)),
+    sourceId: options.sourceId,
+    forceResearchTaskCadence: options.forceResearchTaskCadence,
+    forceResearchRollingLimit: options.forceResearchRollingLimit,
   });
   console.log(`Scheduler cycle evaluated: ${result.evaluatedAt.toISOString()}`);
   console.log(`Sources selected: ${result.selected}`);

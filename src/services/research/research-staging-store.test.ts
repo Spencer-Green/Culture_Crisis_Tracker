@@ -6,12 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  buildResearchSourceFingerprint,
   buildSuccessfulResearchRunDraft,
   type ResearchRunPersistenceDraft,
 } from "@/services/research/research-staging-core";
 import {
   appendResearchCandidateReviewWithPrisma,
   persistResearchRunDraft,
+  reserveResearchRun,
 } from "@/services/research/research-staging-store";
 import { getResearchTask } from "@/services/research/research-tasks";
 import type {
@@ -34,6 +36,20 @@ class InMemoryResearchPrisma {
   ) => callback(this);
 
   researchRun = {
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { id: string; status: string };
+      data: Record<string, unknown>;
+    }) => {
+      const row = this.runs.find(
+        (row) => row.id === where.id && row.status === where.status,
+      );
+      if (!row) throw new Error("run is not RUNNING");
+      Object.assign(row, data);
+      return { id: row.id };
+    },
     create: async ({ data }: { data: Record<string, unknown> }) => {
       const row = { id: `run-${this.runs.length + 1}`, ...data };
       this.runs.push(row);
@@ -50,13 +66,42 @@ class InMemoryResearchPrisma {
             firstSeenAt: row.firstSeenAt,
             lastSeenAt: row.lastSeenAt,
             traceConfidence: row.traceConfidence,
+            canonicalUrl: row.canonicalUrl,
+            reportingPeriodRaw: row.reportingPeriodRaw,
+            title: row.title,
           }
         : null;
     },
+    findMany: async ({
+      where,
+    }: {
+      where: { researchTaskId: string; canonicalUrl: string };
+    }) =>
+      [...this.sources.values()]
+        .filter(
+          (row) =>
+            row.researchTaskId === where.researchTaskId &&
+            row.canonicalUrl === where.canonicalUrl,
+        )
+        .sort(
+          (left, right) =>
+            (left.createdAt as Date).getTime() -
+            (right.createdAt as Date).getTime(),
+        )
+        .map((row) => ({
+          id: row.id,
+          firstSeenAt: row.firstSeenAt,
+          lastSeenAt: row.lastSeenAt,
+          traceConfidence: row.traceConfidence,
+          canonicalUrl: row.canonicalUrl,
+          reportingPeriodRaw: row.reportingPeriodRaw,
+          title: row.title,
+        })),
     create: async ({ data }: { data: Record<string, unknown> }) => {
       const row = {
         id: `source-${this.sources.size + 1}`,
         occurrenceCount: 1,
+        createdAt: data.firstSeenAt,
         ...data,
       };
       this.sources.set(String(data.sourceFingerprint), row);
@@ -184,7 +229,7 @@ class InMemoryResearchPrisma {
   };
 }
 
-function provider(stage: 1 | 2): ResearchProviderResult {
+function provider(stage: 1): ResearchProviderResult {
   return {
     provider: "deepseek",
     model: "deepseek-v4-flash",
@@ -285,21 +330,31 @@ function run(value = "1,000", completedAt = "2026-09-04T00:00:01Z") {
           title: "Venue report",
           publishedAt: "2026-08-30",
           reportingPeriod: "2025",
+          geography: "Australia",
           sourceRole: "PRIMARY",
           claim: `The report recorded ${value} performances.`,
           observation: `performances / ${value} / count / 2025`,
+          observations: [
+            {
+              metric: "venue performances",
+              value,
+              unit: "performances",
+              qualifier: "NONE",
+            },
+          ],
           limitations: "Bounded source coverage.",
           rawBlock: "fixture",
           traceStatus: "TRACE_OPENED",
         },
       ],
+      summary: "Found evidence.",
+      researchLimitations: ["Bounded pass."],
       provider: provider(1),
     },
-    stage2: { provider: provider(2) },
     startedAt: new Date("2026-09-04T00:00:00Z"),
     completedAt: new Date(completedAt),
-    crossStageValidation: { matchedCandidates: 1, reasons: [] },
-    usage: { totalTokens: 30, totalLatencyMs: 200 },
+    provenanceValidation: { matchedCandidates: 1, reasons: [] },
+    usage: { totalTokens: 15, totalLatencyMs: 100 },
   } satisfies ResearchRunResult;
 }
 
@@ -307,7 +362,85 @@ function prisma(fake: InMemoryResearchPrisma): PrismaClient {
   return fake as unknown as PrismaClient;
 }
 
+function musicVictoriaDraft(input: {
+  publisher: string;
+  reportingPeriod: string;
+  completedAt: string;
+}): ResearchRunPersistenceDraft {
+  const draft = buildSuccessfulResearchRunDraft(run());
+  const url =
+    "https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/";
+  const source = {
+    ...draft.sources[0]!,
+    sourceUrl: url,
+    canonicalUrl: url.slice(0, -1),
+    publisher: input.publisher,
+    title: "Music Victoria Releases 2025 Victorian Live Music Venue Audit",
+    reportingPeriodRaw: input.reportingPeriod,
+  };
+  source.sourceFingerprint = buildResearchSourceFingerprint({
+    researchTaskId: draft.researchTaskId,
+    source: {
+      url,
+      publisher: source.publisher,
+      title: source.title,
+      publishedAt: "2026-02-24",
+      reportingPeriod: source.reportingPeriodRaw,
+      geography: "Victoria",
+      sourceRole: "PRIMARY",
+      claim: source.claim,
+      observation: source.observation.text,
+      observations: source.observation.observations ?? [],
+      limitations: source.limitations.join(" "),
+      rawBlock: "fixture",
+      traceStatus: "TRACE_ATTEMPTED",
+    },
+  });
+  return {
+    ...draft,
+    completedAt: new Date(input.completedAt),
+    sources: [source],
+    candidates: [],
+  };
+}
+
 describe("research staging store", () => {
+  it("preserves quarantine on rediscovery and prevents approval without touching the review ledger", async () => {
+    const memory = new InMemoryResearchPrisma();
+    const prisma = memory as unknown as PrismaClient;
+    const draft = buildSuccessfulResearchRunDraft(run());
+    const persisted = await persistResearchRunDraft(prisma, draft);
+    const candidate = [...memory.candidates.values()][0]!;
+    candidate.validationState = "QUARANTINED";
+    await persistResearchRunDraft(prisma, draft);
+    expect(candidate.validationState).toBe("QUARANTINED");
+    await expect(
+      appendResearchCandidateReviewWithPrisma(prisma, {
+        candidateId: persisted.candidateIds[0]!,
+        decision: "APPROVED_FOR_INGESTION_INVESTIGATION",
+        reason: "Investigate this evidence source.",
+      }),
+    ).rejects.toThrow("Quarantined evidence cannot be approved");
+    expect(memory.reviews).toHaveLength(0);
+  });
+  it("reserves a durable attempt and finalizes it exactly once", async () => {
+    const memory = new InMemoryResearchPrisma();
+    const prisma = memory as unknown as PrismaClient;
+    const draft = buildSuccessfulResearchRunDraft(run());
+    const runId = await reserveResearchRun(prisma, draft);
+    expect(memory.runs[0]).toMatchObject({
+      status: "RUNNING",
+      completedAt: null,
+    });
+    expect(memory.sources.size).toBe(0);
+    await persistResearchRunDraft(prisma, { ...draft, runId });
+    expect(memory.runs).toHaveLength(1);
+    expect(memory.runs[0]?.status).toBe("SUCCEEDED");
+    await expect(
+      persistResearchRunDraft(prisma, { ...draft, runId }),
+    ).rejects.toThrow("not RUNNING");
+  });
+
   it("persists a successful run, source, candidate, and occurrence links", async () => {
     const fake = new InMemoryResearchPrisma();
     const result = await persistResearchRunDraft(
@@ -342,6 +475,72 @@ describe("research staging store", () => {
     expect(
       ([...fake.candidates.values()][0]?.lastSeenAt as Date).toISOString(),
     ).toBe("2026-09-05T00:00:01.000Z");
+  });
+
+  it("deduplicates the two observed Music Victoria source forms", async () => {
+    const fake = new InMemoryResearchPrisma();
+    await persistResearchRunDraft(
+      prisma(fake),
+      musicVictoriaDraft({
+        publisher: "Music Victoria",
+        reportingPeriod: "2025 (audit snapshot year)",
+        completedAt: "2026-09-07T08:57:55.843Z",
+      }),
+    );
+    await persistResearchRunDraft(
+      prisma(fake),
+      musicVictoriaDraft({
+        publisher:
+          "Music Victoria (state live-music peak body; audit commissioned by Creative Victoria)",
+        reportingPeriod:
+          "2025 audit fieldwork, benchmarked against 2019 baseline",
+        completedAt: "2026-09-09T08:07:31.745Z",
+      }),
+    );
+
+    expect(fake.sources).toHaveLength(1);
+    expect(fake.runSources).toHaveLength(2);
+    const stored = [...fake.sources.values()][0]!;
+    expect(stored.occurrenceCount).toBe(2);
+    expect((stored.firstSeenAt as Date).toISOString()).toBe(
+      "2026-09-07T08:57:55.843Z",
+    );
+    expect((stored.lastSeenAt as Date).toISOString()).toBe(
+      "2026-09-09T08:07:31.745Z",
+    );
+    expect(fake.runSources.map((item) => item.sourceDocumentId)).toEqual([
+      stored.id,
+      stored.id,
+    ]);
+  });
+
+  it("reuses a matching source that still has a legacy fingerprint", async () => {
+    const fake = new InMemoryResearchPrisma();
+    const first = musicVictoriaDraft({
+      publisher: "Music Victoria",
+      reportingPeriod: "2025 (audit snapshot year)",
+      completedAt: "2026-09-07T08:57:55.843Z",
+    });
+    await persistResearchRunDraft(prisma(fake), first);
+    const [currentFingerprint, stored] = [...fake.sources.entries()][0]!;
+    fake.sources.delete(currentFingerprint);
+    stored.sourceFingerprint = "legacy-source-fingerprint";
+    fake.sources.set("legacy-source-fingerprint", stored);
+
+    await persistResearchRunDraft(
+      prisma(fake),
+      musicVictoriaDraft({
+        publisher:
+          "Music Victoria (state live-music peak body; audit commissioned by Creative Victoria)",
+        reportingPeriod:
+          "2025 audit fieldwork, benchmarked against 2019 baseline",
+        completedAt: "2026-09-09T08:07:31.745Z",
+      }),
+    );
+
+    expect(fake.sources).toHaveLength(1);
+    expect(stored.occurrenceCount).toBe(2);
+    expect(fake.runSources).toHaveLength(2);
   });
 
   it("creates a distinct candidate when the numeric value changes", async () => {

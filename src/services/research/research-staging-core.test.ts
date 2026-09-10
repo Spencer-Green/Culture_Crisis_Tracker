@@ -21,31 +21,28 @@ import type {
   ResearchStage1SourceV1,
 } from "@/services/research/research-types";
 
-function providerResult(stage: 1 | 2): ResearchProviderResult {
+function providerResult(stage: 1): ResearchProviderResult {
   return {
     provider: "deepseek",
     model: "deepseek-v4-flash",
     providerRequestId: `response-${stage}`,
     status: "completed",
-    outputText: stage === 1 ? "artifact" : "{}",
+    outputText: "artifact",
     nativeSearchTrace: {
-      calls:
-        stage === 1
-          ? [
-              {
-                sequence: 0,
-                item: {
-                  type: "web_search_call",
-                  id: "call-1",
-                  status: "completed",
-                  action: {
-                    type: "open_page",
-                    url: "https://example.gov.au/report",
-                  },
-                },
-              },
-            ]
-          : [],
+      calls: [
+        {
+          sequence: 0,
+          item: {
+            type: "web_search_call",
+            id: "call-1",
+            status: "completed",
+            action: {
+              type: "open_page",
+              url: "https://example.gov.au/report",
+            },
+          },
+        },
+      ],
       annotations: [],
     },
     responseDiagnostics: {
@@ -58,13 +55,13 @@ function providerResult(stage: 1 | 2): ResearchProviderResult {
       error: null,
     },
     usage: {
-      inputTokens: 100 * stage,
-      cachedInputTokens: 10 * stage,
-      outputTokens: 20 * stage,
-      reasoningTokens: 5 * stage,
-      totalTokens: 120 * stage,
+      inputTokens: 100,
+      cachedInputTokens: 10,
+      outputTokens: 20,
+      reasoningTokens: 5,
+      totalTokens: 120,
     },
-    latencyMs: 500 * stage,
+    latencyMs: 500,
   };
 }
 
@@ -77,9 +74,18 @@ function source(
     title: "Australian live-music venue report",
     publishedAt: "2026-08-30",
     reportingPeriod: "2025",
+    geography: "Australia",
     sourceRole: "PRIMARY",
     claim: "The report recorded 1,000 venue performances during 2025.",
     observation: "Venue performances / 1,000 / performances / 2025",
+    observations: [
+      {
+        metric: "Venue performances",
+        value: "1,000",
+        unit: "performances",
+        qualifier: "NONE",
+      },
+    ],
     limitations: "Coverage depends on participating venues.",
     rawBlock: "fixture",
     traceStatus: "TRACE_OPENED",
@@ -141,24 +147,68 @@ function successfulRun(
     },
     stage1: {
       artifact: "RESEARCH_SUMMARY\nFixture",
+      summary: "A bounded source was found.",
+      researchLimitations: ["Bounded research."],
       sources: [researchSource],
       provider: providerResult(1),
     },
-    stage2: { provider: providerResult(2) },
     startedAt: new Date("2026-09-04T00:00:00Z"),
     completedAt: new Date("2026-09-04T00:00:01.500Z"),
-    crossStageValidation: { matchedCandidates: 1, reasons: [] },
-    usage: { totalTokens: 360, totalLatencyMs: 1_500 },
+    provenanceValidation: { matchedCandidates: 1, reasons: [] },
+    usage: { totalTokens: 120, totalLatencyMs: 500 },
   };
 }
 
 describe("research staging core", () => {
-  it("builds a successful persisted-run draft with separate stage telemetry", () => {
+  it("persists separate native acquisition/extraction telemetry and evidence bindings", () => {
+    const run = successfulRun();
+    const usage = run.stage1.provider.usage;
+    run.stage1.provider.responseDiagnostics.phases = [
+      {
+        phase: "acquisition",
+        responseId: "acq",
+        model: "deepseek-v4-pro",
+        status: "completed",
+        usage,
+        latencyMs: 100,
+      },
+      {
+        phase: "extraction",
+        responseId: "ext",
+        model: "deepseek-v4-pro",
+        status: "completed",
+        usage: { ...usage, reasoningTokens: 0 },
+        latencyMs: 50,
+      },
+    ];
+    run.stage1.provider.responseDiagnostics.evidenceBindings = [
+      {
+        url: "https://example.gov.au/report",
+        callId: "open-1",
+        mediation: "DIRECTLY_OPENED",
+        quote: "An attributed excerpt.",
+        observationQuotes: [],
+      },
+    ];
+    const draft = buildSuccessfulResearchRunDraft(run);
+    expect(draft.stage1?.responseId).toBe("acq");
+    expect(draft.stage2?.responseId).toBe("ext");
+    expect(draft.stage2?.reasoningTokens).toBe(0);
+    expect(draft.responseDiagnostics).toMatchObject({
+      evidenceBindings: [expect.objectContaining({ callId: "open-1" })],
+    });
+  });
+  it("never reports partial streaming usage as a complete total", () => {
+    const run = successfulRun();
+    run.stage1.provider.responseDiagnostics.usageComplete = false;
+    expect(buildSuccessfulResearchRunDraft(run).combinedTotalTokens).toBeNull();
+  });
+  it("builds a successful one-stage persisted-run draft", () => {
     const draft = buildSuccessfulResearchRunDraft(successfulRun());
     expect(draft.status).toBe("SUCCEEDED");
     expect(draft.stage1?.responseId).toBe("response-1");
-    expect(draft.stage2?.responseId).toBe("response-2");
-    expect(draft.combinedTotalTokens).toBe(360);
+    expect(draft.stage2).toBeNull();
+    expect(draft.combinedTotalTokens).toBe(120);
     expect(draft.sources).toHaveLength(1);
     expect(draft.candidates).toHaveLength(1);
   });
@@ -174,6 +224,60 @@ describe("research staging core", () => {
     expect(draft.completedAt.toISOString()).toBe("2026-09-04T00:00:01.500Z");
   });
 
+  it.each(["2026-02", "February 2026", "2026", "UNKNOWN"])(
+    "persists coarse publication evidence %s without an exact date",
+    (publishedAt) => {
+      const draft = buildSuccessfulResearchRunDraft(
+        successfulRun(
+          { publishedAt },
+          { source: { ...candidate().source, publishedAt: null } },
+        ),
+      );
+      expect(draft.sources[0]?.publishedAt).toBeNull();
+      expect(draft.sources[0]?.publishedAtRaw).toBe(publishedAt);
+      expect(draft.sources[0]).toMatchObject({
+        sourceRole: "PRIMARY",
+        traceConfidence: "TRACE_OPENED",
+        evidenceMediation: "DIRECTLY_OPENED",
+      });
+    },
+  );
+
+  it("persists sanitized artifact field diagnostics without raw output", () => {
+    const provider = providerResult(1);
+    const draft = buildFailedResearchRunDraft({
+      task: getResearchTask("au-live-music-venue-viability"),
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+      error: new ResearchValidationError(
+        "ARTIFACT_PARSE_FAILURE",
+        "Publication date rejected.",
+        ["Publication date rejected."],
+        {
+          providerResult: provider,
+          artifactDiagnostics: [
+            {
+              sourceIndex: 1,
+              field: "PUBLICATION_DATE",
+              rejectedValue: "secret-value",
+              failureReason: "Unsupported precision.",
+            },
+          ],
+        },
+      ),
+      startedAt: new Date("2026-09-04T00:00:00Z"),
+      completedAt: new Date("2026-09-04T00:00:01Z"),
+      secrets: ["secret-value"],
+    });
+    expect(draft.stage1Artifact).toBeNull();
+    expect(draft.responseDiagnostics).toMatchObject({
+      artifactValidation: {
+        status: "failed",
+        issues: [{ rejectedValue: "[REDACTED]" }],
+      },
+    });
+  });
+
   it.each([
     ["TRACE_OPENED", "DIRECTLY_OPENED"],
     ["TRACE_ATTEMPTED", "SEARCH_MEDIATED"],
@@ -186,6 +290,40 @@ describe("research staging core", () => {
     expect(draft.sources[0]?.evidenceMediation).toBe(mediation);
   });
 
+  it("separates new candidate scope and coarse reporting context without changing legacy hashes", () => {
+    const base = {
+      researchTaskId: "au-live-music-venue-viability",
+      candidate: candidate(),
+    };
+    const context = {
+      sourceIdentity: "same-source",
+      reportingPeriod: "2025 audit",
+    };
+    const hash = buildResearchCandidateFingerprint({
+      ...base,
+      evidenceContext: context,
+    });
+    expect(hash).not.toBe(
+      buildResearchCandidateFingerprint({
+        ...base,
+        evidenceContext: { ...context, reportingPeriod: "2026 audit" },
+      }),
+    );
+    expect(hash).not.toBe(
+      buildResearchCandidateFingerprint({
+        ...base,
+        candidate: {
+          ...base.candidate,
+          scope: { ...base.candidate.scope, geography: "Victoria" },
+        },
+        evidenceContext: context,
+      }),
+    );
+    expect(hash).not.toBe(buildResearchCandidateFingerprint(base));
+    expect(buildResearchCandidateFingerprint(base)).toBe(
+      buildResearchCandidateFingerprint({ ...base }),
+    );
+  });
   it("canonicalizes source URLs for stable source fingerprints", () => {
     const taskId = "au-live-music-venue-viability";
     expect(
@@ -201,17 +339,54 @@ describe("research staging core", () => {
     );
   });
 
-  it("changes the source fingerprint for a changed reporting period", () => {
+  it("deduplicates descriptive variants of the same versioned document URL", () => {
+    const taskId = "au-live-music-venue-viability";
+    const url =
+      "https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/";
+    expect(
+      buildResearchSourceFingerprint({
+        researchTaskId: taskId,
+        source: source({
+          url,
+          publisher: "Music Victoria",
+          title:
+            "Music Victoria Releases 2025 Victorian Live Music Venue Audit",
+          reportingPeriod: "2025 (audit snapshot year)",
+        }),
+      }),
+    ).toBe(
+      buildResearchSourceFingerprint({
+        researchTaskId: taskId,
+        source: source({
+          url: `${url}#summary`,
+          publisher:
+            "Music Victoria (state live-music peak body; audit commissioned by Creative Victoria)",
+          title:
+            "Music Victoria: releases 2025 Victorian live-music venue audit",
+          reportingPeriod:
+            "2025 audit fieldwork, benchmarked against 2019 baseline",
+        }),
+      }),
+    );
+  });
+
+  it("keeps distinct editions on a reusable URL separate", () => {
     const taskId = "au-live-music-venue-viability";
     expect(
       buildResearchSourceFingerprint({
         researchTaskId: taskId,
-        source: source(),
+        source: source({
+          url: "https://example.gov.au/live-music/report",
+          reportingPeriod: "2025 audit fieldwork",
+        }),
       }),
     ).not.toBe(
       buildResearchSourceFingerprint({
         researchTaskId: taskId,
-        source: source({ reportingPeriod: "2026" }),
+        source: source({
+          url: "https://example.gov.au/live-music/report",
+          reportingPeriod: "2026 audit fieldwork",
+        }),
       }),
     );
   });
@@ -290,12 +465,12 @@ describe("research staging core", () => {
 
   it("builds a failed run without valid candidates", () => {
     const error = new ResearchValidationError(
-      "STAGE2_SCHEMA_FAILURE",
+      "MATERIALIZATION_FAILURE",
       "Invalid output.",
       ["candidate was malformed"],
       {
         stage1: successfulRun().stage1,
-        providerResult: providerResult(2),
+        providerResult: providerResult(1),
       },
     );
     const draft = buildFailedResearchRunDraft({
@@ -307,7 +482,7 @@ describe("research staging core", () => {
       completedAt: new Date("2026-09-04T00:00:02Z"),
     });
     expect(draft.status).toBe("FAILED");
-    expect(draft.failureKind).toBe("STAGE2_SCHEMA_FAILURE");
+    expect(draft.failureKind).toBe("MATERIALIZATION_FAILURE");
     expect(draft.sources).toHaveLength(1);
     expect(draft.candidates).toEqual([]);
   });

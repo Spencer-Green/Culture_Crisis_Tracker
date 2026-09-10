@@ -10,7 +10,10 @@ import type {
   ResearchReviewDecision,
   ResearchRunPersistenceDraft,
 } from "@/services/research/research-staging-core";
-import { validateResearchReviewReason } from "@/services/research/research-staging-core";
+import {
+  researchSourceIdentityMatches,
+  validateResearchReviewReason,
+} from "@/services/research/research-staging-core";
 
 export type PersistedResearchRunResult = {
   runId: string;
@@ -97,23 +100,66 @@ export async function persistResearchRunDraft(
     throw new Error("Failed research runs cannot persist valid candidates.");
   }
   return prisma.$transaction(async (transaction) => {
-    const run = await transaction.researchRun.create({
-      data: runData(draft),
-      select: { id: true },
-    });
+    const run = draft.runId
+      ? await transaction.researchRun.update({
+          where: { id: draft.runId, status: "RUNNING" },
+          data: runData(draft),
+          select: { id: true },
+        })
+      : await transaction.researchRun.create({
+          data: runData(draft),
+          select: { id: true },
+        });
     const sourceDocumentIds: string[] = [];
     const sourceIdByIndex = new Map<number, string>();
 
     for (const source of draft.sources) {
-      const existing = await transaction.researchSourceDocument.findUnique({
+      let existing = await transaction.researchSourceDocument.findUnique({
         where: { sourceFingerprint: source.sourceFingerprint },
         select: {
           id: true,
           firstSeenAt: true,
           lastSeenAt: true,
           traceConfidence: true,
+          canonicalUrl: true,
+          reportingPeriodRaw: true,
+          title: true,
         },
       });
+      if (!existing) {
+        const sameUrlSources =
+          await transaction.researchSourceDocument.findMany({
+            where: {
+              researchTaskId: draft.researchTaskId,
+              canonicalUrl: source.canonicalUrl,
+            },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              firstSeenAt: true,
+              lastSeenAt: true,
+              traceConfidence: true,
+              canonicalUrl: true,
+              reportingPeriodRaw: true,
+              title: true,
+            },
+          });
+        existing =
+          sameUrlSources.find((candidate) =>
+            researchSourceIdentityMatches(
+              {
+                canonicalUrl: candidate.canonicalUrl,
+                reportingPeriod: candidate.reportingPeriodRaw,
+                title: candidate.title,
+              },
+              {
+                canonicalUrl: source.canonicalUrl,
+                reportingPeriod: source.reportingPeriodRaw,
+                title: source.title,
+              },
+            ),
+          ) ?? null;
+      }
       const strongestSourceTrace = existing
         ? strongestTrace(existing.traceConfidence, source.traceConfidence)
         : source.traceConfidence;
@@ -260,6 +306,25 @@ export async function persistResearchRunDraft(
   });
 }
 
+export async function reserveResearchRun(
+  prisma: PrismaClient,
+  draft: ResearchRunPersistenceDraft,
+): Promise<string> {
+  const run = await prisma.researchRun.create({
+    data: {
+      ...runData(draft),
+      status: "RUNNING",
+      completedAt: null,
+      durationMs: null,
+      failureKind: null,
+      failureMessage: null,
+      failureReasons: [],
+    },
+    select: { id: true },
+  });
+  return run.id;
+}
+
 export async function persistResearchRun(
   draft: ResearchRunPersistenceDraft,
 ): Promise<PersistedResearchRunResult> {
@@ -305,6 +370,14 @@ export async function appendResearchCandidateReviewWithPrisma(
       },
     });
     if (!candidate) throw new Error("Unknown research candidate.");
+    if (
+      candidate.validationState === "QUARANTINED" &&
+      input.decision === "APPROVED_FOR_INGESTION_INVESTIGATION"
+    ) {
+      throw new Error(
+        "Quarantined evidence cannot be approved for ingestion investigation.",
+      );
+    }
     const previous = await transaction.researchCandidateReviewEvent.findFirst({
       where: {
         candidateId: candidate.id,

@@ -408,7 +408,7 @@ export function buildScheduledSourceDefinitions(
       networkKind: "networked",
       publicationFrequency: "Daily bounded shadow research task",
       requestIntensity:
-        "At most one task per scheduler cycle and two completed executions per rolling 24 hours",
+        "One DeepSeek request per task, at most one task per scheduler cycle, and two completed executions per rolling 24 hours",
       routineScope:
         "One versioned Australian live-music venue viability task; staged evidence only",
       commands: () => [],

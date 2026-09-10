@@ -68,7 +68,7 @@ function providerResult(
 }
 
 describe("research CLI failure output", () => {
-  it("prints Stage-1 and Stage-2 diagnostics for validation failures", () => {
+  it("prints sanitized Stage-1 diagnostics for materialization failures", () => {
     const stage1Provider = providerResult(
       "resp_stage1",
       "RESEARCH_SUMMARY\nFound source.\nRESEARCH_LIMITATIONS\nBounded.",
@@ -76,45 +76,69 @@ describe("research CLI failure output", () => {
     );
     const stage1: ResearchStage1RunResult = {
       artifact: stage1Provider.outputText,
+      summary: "Found source.",
+      researchLimitations: ["Bounded."],
       sources: [],
       provider: stage1Provider,
     };
     const error = new ResearchValidationError(
-      "STAGE2_JSON_PARSE_FAILURE",
-      "Stage 2 failed for secret-value.",
-      ["Output was not JSON."],
+      "MATERIALIZATION_FAILURE",
+      "Materialization failed for secret-value.",
+      ["Output did not satisfy the local schema."],
       {
         stage1,
-        providerResult: providerResult("resp_stage2", "not json", false),
+        providerResult: stage1Provider,
       },
     );
 
     const output = formatResearchFailure(error, ["secret-value"]);
-    expect(output).toContain("Failure code: STAGE2_JSON_PARSE_FAILURE");
+    expect(output).toContain("Failure code: MATERIALIZATION_FAILURE");
     expect(output).toContain("Stage 1 response ID: resp_stage1");
-    expect(output).toContain("Stage 2 response ID: resp_stage2");
     expect(output).toContain("reasoning -> web_search_call -> message");
     expect(output).toContain("https://example.gov.au/report");
     expect(output).toContain("Stage 1 total tokens: 130");
-    expect(output).toContain("Stage 2 total tokens: 130");
     expect(output).not.toContain("secret-value");
     expect(output).toContain("[REDACTED]");
   });
 
   it("does not expose hidden response text through diagnostics", () => {
-    const stage2 = providerResult(
-      "resp_stage2",
+    const stage1 = providerResult(
+      "resp_stage1",
       "hidden output text with private reasoning",
-      false,
+      true,
     );
     const error = new ResearchValidationError(
-      "STAGE2_SCHEMA_FAILURE",
+      "MATERIALIZATION_FAILURE",
       "Schema failure.",
       ["Missing candidates."],
-      { providerResult: stage2 },
+      { providerResult: stage1 },
     );
     expect(formatResearchFailure(error)).not.toContain(
       "hidden output text with private reasoning",
     );
+  });
+
+  it("prints sanitized bounded artifact field diagnostics", () => {
+    const stage1 = providerResult("resp_stage1", "not printed", true);
+    const error = new ResearchValidationError(
+      "ARTIFACT_PARSE_FAILURE",
+      "Artifact rejected.",
+      ["Publication date was invalid."],
+      {
+        providerResult: stage1,
+        artifactDiagnostics: [
+          {
+            sourceIndex: 1,
+            field: "PUBLICATION_DATE",
+            rejectedValue: "secret-value",
+            failureReason: "Unsupported publication-date precision.",
+          },
+        ],
+      },
+    );
+    const output = formatResearchFailure(error, ["secret-value"]);
+    expect(output).toContain("source=1 field=PUBLICATION_DATE");
+    expect(output).toContain("rejected=[REDACTED]");
+    expect(output).not.toContain("secret-value");
   });
 });

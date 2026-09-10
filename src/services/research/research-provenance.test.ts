@@ -1,355 +1,410 @@
 import { describe, expect, it } from "vitest";
 
-import { validateResearchStage1Artifact } from "@/services/research/research-artifact";
 import {
+  canonicalizeResearchUrl,
   classifyResearchSourceTrace,
-  validateCrossStageProvenance,
+  materializeResearchResult,
+  validateResearchMaterializationProvenance,
 } from "@/services/research/research-provenance";
-import {
-  ResearchResultV1Schema,
-  type ResearchCandidateV1,
-  type ResearchResultV1,
-} from "@/services/research/research-schema";
-import { AU_LIVE_MUSIC_VENUE_VIABILITY_TASK } from "@/services/research/research-tasks";
-import type { NativeSearchTraceV1 } from "@/services/research/research-types";
+import { getResearchTask } from "@/services/research/research-tasks";
+import type {
+  ResearchStage1SourceV1,
+  ResearchStage1ObservationV1,
+} from "@/services/research/research-types";
 
-const liveRunArtifact = `RESEARCH_SUMMARY
-Two recent primary-source candidates were found within the bounded search.
+const task = getResearchTask("au-live-music-venue-viability");
 
-SOURCE
-URL: https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/
-PUBLISHER: Music Victoria (audit commissioned by Creative Victoria)
-TITLE: Music Victoria Releases 2025 Victorian Live Music Venue Audit
-PUBLISHED_AT: 2026-02-24
-REPORTING_PERIOD: 2025 audit year
-SOURCE_ROLE: PRIMARY
-CLAIM: The audit identified 2,441 live music venues across Victoria, including 655 venues hosting at least one gig per week, with approximately 45% in regional Victoria.
-OBSERVATION: 2,441 live music venues counted; 655 venues hosting at least one gig per week; approximately 45% in regional Victoria.
-LIMITATIONS: Primary page retrieval failed; figures were extracted from search-result snippets. This is a Victorian stock count, not a national census or profitability measure.
-
-SOURCE
-URL: https://creative.gov.au/sites/creative-australia/files/documents/2026-07/Music%20Australia%20-%20The%20Bass%20Line%20Second%20Edition.pdf
-PUBLISHER: Music Australia / Creative Australia (Australian Government)
-TITLE: Music Australia - The Bass Line, Second Edition
-PUBLISHED_AT: UNKNOWN
-REPORTING_PERIOD: FY2024-25 income and 2025 survey
-SOURCE_ROLE: PRIMARY
-CLAIM: Live performance was the largest artist music-income stream at A$410 million in FY2024-25; pubs, hotels and registered clubs accounted for 23.3% of surveyed live performances in 2025.
-OBSERVATION: A$410 million artist income from live performance; 23.3% of live performances in pubs, hotels and registered clubs.
-LIMITATIONS: Primary PDF retrieval failed; figures were extracted from search-result snippets. This is not a direct venue-profitability or closure measure.
-
-RESEARCH_LIMITATIONS
-The search was bounded and both primary document retrieval attempts failed.`;
-
-const failedTrace: NativeSearchTraceV1 = {
-  calls: [
-    {
-      sequence: 1,
-      item: {
-        type: "web_search_call",
-        id: "call_music_victoria",
-        status: "failed",
-        action: {
-          type: "open_page",
-          url: "https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/#trace",
-        },
-      },
-    },
-    {
-      sequence: 2,
-      item: {
-        type: "web_search_call",
-        id: "call_creative_australia",
-        status: "failed",
-        action: {
-          type: "open_page",
-          url: "https://creative.gov.au/sites/creative-australia/files/documents/2026-07/Music%20Australia%20-%20The%20Bass%20Line%20Second%20Edition.pdf#trace",
-        },
-      },
-    },
-  ],
-  annotations: [],
-};
-
-function stage1Sources() {
-  return validateResearchStage1Artifact(liveRunArtifact).sources.map(
-    (source) => ({
-      ...source,
-      traceStatus: classifyResearchSourceTrace(source.url, failedTrace),
-    }),
-  );
+function observation(
+  metric: string,
+  value: string,
+  unit: string,
+  qualifier: ResearchStage1ObservationV1["qualifier"] = "NONE",
+): ResearchStage1ObservationV1 {
+  return { metric, value, unit, qualifier };
 }
 
-function musicVictoriaCandidate(): ResearchCandidateV1 {
+function source(
+  overrides: Partial<ResearchStage1SourceV1> = {},
+): ResearchStage1SourceV1 {
+  const observations = [
+    observation("number of live-music venues", "2,441", "venues"),
+  ];
   return {
-    candidateType: "STRUCTURED_OBSERVATION_CANDIDATE",
-    source: {
-      url: "https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/",
-      publisher: "Music Victoria",
-      title: "Music Victoria Releases 2025 Victorian Live Music Venue Audit",
-      publishedAt: "2026-02-24",
-    },
-    scope: {
-      geography: "Australia / Victoria",
-      sector: "Music",
-      reportingPeriodStart: null,
-      reportingPeriodEnd: null,
-    },
-    evidence: {
-      claim:
-        "The audit identified 2,441 live-music venues in Victoria, including 655 venues hosting at least one weekly gig, with approximately 45% in regional Victoria.",
-      observations: [
-        {
-          metric: "number of live-music venues",
-          value: "2,441",
-          unit: "count",
-          periodStart: null,
-          periodEnd: null,
-        },
-        {
-          metric: "weekly live music venues",
-          value: "655",
-          unit: "venues",
-          periodStart: null,
-          periodEnd: null,
-        },
-        {
-          metric: "percentage of venues in regional Victoria",
-          value: "45",
-          unit: "percent",
-          periodStart: null,
-          periodEnd: null,
-        },
-      ],
-      sourceRole: "PRIMARY",
-      limitations: [
-        "Primary-page retrieval failed; values were extracted from search-result snippets.",
-        "The count covers Victoria and does not establish national venue profitability.",
-      ],
-    },
-    assessment: {
-      authority: "HIGH",
-      freshness: "NEWER_THAN_EXISTING",
-      ingestionFeasibility: "MODERATE",
-      confidence: "MEDIUM",
-    },
+    url: "https://www.musicvictoria.com.au/music-victoria-releases-2025-victorian-live-music-venue-audit/",
+    publisher: "Music Victoria",
+    title: "2025 Victorian Live Music Venue Audit",
+    publishedAt: "2026-02-24",
+    reportingPeriod: "2025 audit fieldwork, benchmarked against 2019",
+    geography: "Victoria",
+    sourceRole: "PRIMARY",
+    claim: "The audit counted 2,441 Victorian live music venues.",
+    observation:
+      "METRIC=number of live-music venues | VALUE=2,441 | UNIT=venues | QUALIFIER=NONE",
+    observations,
+    limitations:
+      "HTTP 403 prevented retrieval; evidence remained search-snippet mediated and was not inspected in the page body.",
+    rawBlock: "fixture",
+    traceStatus: "TRACE_ATTEMPTED",
+    ...overrides,
   };
 }
 
-function creativeAustraliaCandidate(): ResearchCandidateV1 {
-  return {
-    candidateType: "STRUCTURED_OBSERVATION_CANDIDATE",
-    source: {
-      url: "https://creative.gov.au/sites/creative-australia/files/documents/2026-07/Music%20Australia%20-%20The%20Bass%20Line%20Second%20Edition.pdf",
-      publisher: "Music Australia / Creative Australia",
-      title: "Music Australia - The Bass Line, Second Edition",
-      publishedAt: null,
-    },
-    scope: {
-      geography: "Australia",
-      sector: "Music",
-      reportingPeriodStart: null,
-      reportingPeriodEnd: null,
-    },
-    evidence: {
-      claim:
-        "Live performance was the largest artist music-income stream at A$410 million; pubs, hotels and registered clubs accounted for 23.3% of surveyed live performances.",
-      observations: [
-        {
-          metric: "artist live-performance income",
-          value: "410 million",
-          unit: "AUD",
-          periodStart: null,
-          periodEnd: null,
-        },
-        {
-          metric:
-            "share of live performances in pubs, hotels and registered clubs",
-          value: "23.3",
-          unit: "%",
-          periodStart: null,
-          periodEnd: null,
-        },
-      ],
-      sourceRole: "PRIMARY",
-      limitations: [
-        "Primary-PDF retrieval failed; values were extracted from search-result snippets.",
-        "The evidence does not directly measure venue profitability or closures.",
-      ],
-    },
-    assessment: {
-      authority: "HIGH",
-      freshness: "COMPLEMENTARY",
-      ingestionFeasibility: "MODERATE",
-      confidence: "MEDIUM",
-    },
-  };
-}
-
-function result(candidates: ResearchCandidateV1[]): ResearchResultV1 {
-  return ResearchResultV1Schema.parse({
-    taskSummary: "Two primary-source candidates were structured faithfully.",
-    candidates,
-    researchLimitations: ["Primary document retrieval failed."],
+function materialize(sources: ResearchStage1SourceV1[]) {
+  return materializeResearchResult({
+    task,
+    summary: "Bounded evidence was found.",
+    researchLimitations: ["The search was deliberately bounded."],
+    sources,
   });
 }
 
-function reasonsFor(candidates: ResearchCandidateV1[]) {
-  return validateCrossStageProvenance(
-    AU_LIVE_MUSIC_VENUE_VIABILITY_TASK,
-    stage1Sources(),
-    result(candidates),
-  );
-}
-
-describe("cross-stage research provenance", () => {
-  it("accepts faithful semantic normalization of the live-run fixture", () => {
+describe("deterministic research materialization", () => {
+  it("materializes Music Victoria with task-owned sector and coarse dates", () => {
+    const musicVictoria = source({
+      claim:
+        "The audit counted 2,441 venues; weekly presenters declined 19.4%; and 302 venues hosted at least two weekly gigs.",
+      observation:
+        "METRIC=number of live-music venues | VALUE=2,441 | UNIT=venues | QUALIFIER=NONE; METRIC=weekly live music presenters | VALUE=19.4 | UNIT=% | QUALIFIER=DECLINE; METRIC=venues hosting at least two gigs per week | VALUE=302 | UNIT=venues | QUALIFIER=NONE",
+      observations: [
+        observation("number of live-music venues", "2,441", "venues"),
+        observation("weekly live music presenters", "19.4", "%", "DECLINE"),
+        observation(
+          "venues hosting at least two gigs per week",
+          "302",
+          "venues",
+        ),
+      ],
+    });
+    const result = materialize([musicVictoria]);
+    expect(result.candidates[0]).toMatchObject({
+      candidateType: "STRUCTURED_OBSERVATION_CANDIDATE",
+      scope: {
+        geography: "Victoria",
+        sector: "Music",
+        reportingPeriodStart: null,
+        reportingPeriodEnd: null,
+      },
+      evidence: {
+        observations: [
+          { metric: "number of live-music venues", value: "2,441" },
+          {
+            metric: "weekly live music presenters",
+            value: "19.4",
+            qualifier: "DECLINE",
+          },
+          { value: "302", unit: "venues" },
+        ],
+      },
+    });
     expect(
-      reasonsFor([musicVictoriaCandidate(), creativeAustraliaCandidate()]),
+      validateResearchMaterializationProvenance(task, [musicVictoria], result),
     ).toEqual([]);
   });
 
-  it("accepts Victoria and Australia/Victoria within the Australian task hierarchy", () => {
-    const victoria = musicVictoriaCandidate();
-    victoria.scope.geography = "Victoria";
-    const qualified = musicVictoriaCandidate();
-    qualified.scope.geography = "Australia / Victoria";
-    expect(reasonsFor([victoria])).toEqual([]);
-    expect(reasonsFor([qualified])).toEqual([]);
+  it("materializes ABC without inventing day-level reporting boundaries", () => {
+    const abc = source({
+      url: "https://www.abc.net.au/news/2026-08-18/sydney-live-music-venue-closures-diy-community/107049086",
+      publisher: "ABC News",
+      title: "Sydney music venues closing rapidly",
+      publishedAt: "2026-08-18",
+      reportingPeriod: "July 2025–June 2026",
+      geography: "Sydney",
+      sourceRole: "SECONDARY_REPORTING",
+      claim:
+        "Subsequently shuttered Sydney venues hosted more than 690 live music events between July 2025 and June 2026.",
+      observation:
+        "METRIC=events hosted by subsequently shuttered venues | VALUE=690 | UNIT=events | QUALIFIER=OVER",
+      observations: [
+        observation(
+          "events hosted by subsequently shuttered venues",
+          "690",
+          "events",
+          "OVER",
+        ),
+      ],
+      limitations:
+        "Page retrieval failed; only a search snippet supported the figure, which is a Sydney indicator rather than a national census.",
+    });
+    const result = materialize([abc]);
+    expect(result.candidates[0]).toMatchObject({
+      candidateType: "LIVE_WEB_INDICATOR",
+      scope: {
+        geography: "Sydney",
+        reportingPeriodStart: null,
+        reportingPeriodEnd: null,
+      },
+      evidence: {
+        observations: [{ value: "690", unit: "events", qualifier: "OVER" }],
+      },
+    });
+    expect(
+      validateResearchMaterializationProvenance(task, [abc], result),
+    ).toEqual([]);
   });
 
-  it("distinguishes failed trace attempts from successful opens", () => {
-    expect(stage1Sources().map((source) => source.traceStatus)).toEqual([
-      "TRACE_ATTEMPTED",
-      "TRACE_ATTEMPTED",
-    ]);
+  it("materializes Beat while preserving model-reported mediation", () => {
+    const beat = source({
+      url: "https://beat.com.au/melbourne-has-lost-one-in-four-regular-live-music-venues-since-2019/",
+      publisher: "Beat Magazine",
+      title:
+        "Melbourne has lost one in four regular live music venues since 2019",
+      publishedAt: "UNKNOWN",
+      reportingPeriod: "2019 baseline vs 2025 audit",
+      geography: "Melbourne",
+      sourceRole: "SECONDARY_REPORTING",
+      claim:
+        "Weekly live-music presenters fell from 813 to 655, while Beat described a one-in-four Melbourne regular-venue loss.",
+      observation:
+        "METRIC=weekly live music presenters | VALUE=813 -> 655 | UNIT=venues | QUALIFIER=FROM_TO",
+      observations: [
+        observation(
+          "weekly live music presenters",
+          "813 -> 655",
+          "venues",
+          "FROM_TO",
+        ),
+      ],
+      limitations:
+        "The URL was not opened or found in trace; evidence remained model-reported from search snippets.",
+      traceStatus: "MODEL_REPORTED_ONLY",
+    });
+    const result = materialize([beat]);
+    expect(result.candidates[0]).toMatchObject({
+      source: { publishedAt: null },
+      assessment: { confidence: "LOW", ingestionFeasibility: "LOW" },
+      evidence: {
+        observations: [
+          {
+            metric: "weekly live music presenters",
+            value: "813 -> 655",
+            qualifier: "FROM_TO",
+          },
+        ],
+      },
+    });
     expect(
-      classifyResearchSourceTrace(
-        "https://not-in-trace.example/report",
-        failedTrace,
+      validateResearchMaterializationProvenance(task, [beat], result),
+    ).toEqual([]);
+  });
+
+  it.each(["2026-02", "February 2026", "2026", "UNKNOWN"])(
+    "preserves coarse publication evidence %s without synthetic precision",
+    (publishedAt) => {
+      const evidence = source({ publishedAt });
+      const result = materialize([evidence]);
+      expect(result.candidates[0]?.source.publishedAt).toBeNull();
+      expect(result.candidates[0]?.evidence.sourceRole).toBe("PRIMARY");
+      expect(result.candidates[0]?.assessment.confidence).toBe("LOW");
+      expect(
+        validateResearchMaterializationProvenance(task, [evidence], result),
+      ).toEqual([]);
+    },
+  );
+
+  it("materializes an exact publication date without mutation", () => {
+    const evidence = source({ publishedAt: "2026-02-24" });
+    const result = materialize([evidence]);
+    expect(result.candidates[0]?.source.publishedAt).toBe("2026-02-24");
+    expect(
+      validateResearchMaterializationProvenance(task, [evidence], result),
+    ).toEqual([]);
+  });
+
+  it("retains unknown faithful metric wording", () => {
+    const evidence = source({
+      claim: "The report counted 77 late-night venue sessions.",
+      observation:
+        "METRIC=late-night venue sessions | VALUE=77 | UNIT=sessions | QUALIFIER=NONE",
+      observations: [
+        observation("late-night venue sessions", "77", "sessions"),
+      ],
+    });
+    expect(
+      materialize([evidence]).candidates[0]?.evidence.observations[0]?.metric,
+    ).toBe("late-night venue sessions");
+  });
+
+  it("keeps trace confidence independent from primary source role", () => {
+    const attempted = source({
+      sourceRole: "PRIMARY",
+      traceStatus: "TRACE_ATTEMPTED",
+    });
+    const reported = source({
+      url: "https://example.org/secondary",
+      sourceRole: "SECONDARY_REPORTING",
+      traceStatus: "MODEL_REPORTED_ONLY",
+    });
+    expect(materialize([attempted]).candidates[0]?.assessment.confidence).toBe(
+      "LOW",
+    );
+    expect(materialize([reported]).candidates[0]?.assessment.confidence).toBe(
+      "LOW",
+    );
+  });
+});
+
+describe("materialization provenance closure", () => {
+  function mutatedResult(
+    mutate: (
+      candidate: ReturnType<typeof materialize>["candidates"][number],
+    ) => void,
+    evidence = source(),
+  ) {
+    const result = structuredClone(materialize([evidence]));
+    mutate(result.candidates[0]!);
+    return {
+      reasons: validateResearchMaterializationProvenance(
+        task,
+        [evidence],
+        result,
       ),
-    ).toBe("MODEL_REPORTED_ONLY");
+      result,
+    };
+  }
+
+  it.each([
+    ["2,941", "HARD_VALUE_MISMATCH"],
+    ["29.4", "HARD_VALUE_MISMATCH"],
+    ["320", "HARD_VALUE_MISMATCH"],
+    ["960", "HARD_VALUE_MISMATCH"],
+  ])("rejects invented numeric value %s", (value, reason) => {
+    const outcome = mutatedResult((candidate) => {
+      candidate.evidence.observations[0]!.value = value;
+    });
+    expect(outcome.reasons.some((item) => item.includes(reason))).toBe(true);
+  });
+
+  it("rejects invented URLs and publication dates", () => {
     expect(
-      classifyResearchSourceTrace("https://example.gov.au/opened", {
+      mutatedResult((candidate) => {
+        candidate.source.url = "https://invented.example/report";
+      }).reasons,
+    ).toEqual(
+      expect.arrayContaining([expect.stringContaining("HARD_URL_MISMATCH")]),
+    );
+    expect(
+      mutatedResult((candidate) => {
+        candidate.source.publishedAt = "2026-03-01";
+      }).reasons,
+    ).toEqual(
+      expect.arrayContaining([expect.stringContaining("HARD_DATE_MISMATCH")]),
+    );
+  });
+
+  it.each(["2026-02", "February 2026", "2026", "UNKNOWN"])(
+    "rejects publication-date precision strengthening from %s",
+    (publishedAt) => {
+      const reasons = mutatedResult((candidate) => {
+        candidate.source.publishedAt = "2026-02-01";
+      }, source({ publishedAt })).reasons;
+      expect(reasons).toEqual(
+        expect.arrayContaining([expect.stringContaining("HARD_DATE_MISMATCH")]),
+      );
+    },
+  );
+
+  it("rejects unsupported exact dates and foreign geography", () => {
+    const dateReasons = mutatedResult((candidate) => {
+      candidate.scope.reportingPeriodStart = "2025-01-01";
+      candidate.scope.reportingPeriodEnd = "2025-12-31";
+    }).reasons;
+    expect(
+      dateReasons.some((item) => item.includes("HARD_DATE_MISMATCH")),
+    ).toBe(true);
+    expect(
+      mutatedResult((candidate) => {
+        candidate.scope.geography = "United Kingdom";
+      }).reasons,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("GEOGRAPHY_SCOPE_MISMATCH"),
+      ]),
+    );
+  });
+
+  it.each([
+    ["The venues became profitable.", "venue-profitability"],
+    ["The audit caused venue closures.", "causality"],
+    ["Australian venues declined nationwide.", "nationally"],
+  ])("rejects stronger unsupported claim: %s", (claim, fragment) => {
+    const reasons = mutatedResult((candidate) => {
+      candidate.evidence.claim = claim;
+    }).reasons;
+    expect(reasons.some((item) => item.includes(fragment))).toBe(true);
+  });
+
+  it("rejects removed search mediation", () => {
+    const reasons = mutatedResult((candidate) => {
+      candidate.evidence.limitations = ["Coverage was bounded."];
+    }).reasons;
+    expect(reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("EVIDENCE_MEDIATION_MISMATCH"),
+      ]),
+    );
+  });
+
+  it("rejects candidates without source evidence and excess candidates", () => {
+    const evidence = source();
+    const result = materialize([evidence]);
+    const invented = structuredClone(result.candidates[0]!);
+    invented.source.url = "https://invented.example/no-source";
+    result.candidates.push(invented, structuredClone(invented));
+    const reasons = validateResearchMaterializationProvenance(
+      task,
+      [evidence],
+      result,
+    );
+    expect(reasons).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("SOURCE_LINKAGE_MISMATCH"),
+        expect.stringContaining("HARD_URL_MISMATCH"),
+      ]),
+    );
+  });
+});
+
+describe("native search trace classification", () => {
+  it("distinguishes opened, attempted, and model-reported sources", () => {
+    const url = "https://example.gov.au/report";
+    expect(
+      classifyResearchSourceTrace(url, {
         calls: [
           {
             sequence: 0,
             item: {
               type: "web_search_call",
               status: "completed",
-              action: {
-                type: "open_page",
-                url: "https://example.gov.au/opened#trace",
-              },
+              action: { type: "open_page", url },
             },
           },
         ],
         annotations: [],
       }),
     ).toBe("TRACE_OPENED");
-  });
-
-  it.each([
-    ["2,441 → 2,941", 0, 0, "2,941"],
-    ["A$410 million → A$510 million", 1, 0, "510 million"],
-    ["23.3% → 32.3%", 1, 1, "32.3"],
-  ])(
-    "rejects changed hard values: %s",
-    (_label, candidateIndex, observationIndex, value) => {
-      const candidates = [
-        musicVictoriaCandidate(),
-        creativeAustraliaCandidate(),
-      ];
-      candidates[candidateIndex]!.evidence.observations[
-        observationIndex
-      ]!.value = value;
-      expect(
-        reasonsFor(candidates).some((reason) =>
-          reason.startsWith("HARD_VALUE_MISMATCH"),
-        ),
-      ).toBe(true);
-    },
-  );
-
-  it("rejects changed numeric scale", () => {
-    const candidates = [musicVictoriaCandidate(), creativeAustraliaCandidate()];
-    candidates[1]!.evidence.observations[0]!.value = "410 billion";
     expect(
-      reasonsFor(candidates).some((reason) =>
-        reason.startsWith("HARD_VALUE_MISMATCH"),
-      ),
-    ).toBe(true);
+      classifyResearchSourceTrace(url, {
+        calls: [
+          {
+            sequence: 0,
+            item: {
+              type: "web_search_call",
+              status: "failed",
+              action: { type: "open_page", url },
+            },
+          },
+        ],
+        annotations: [],
+      }),
+    ).toBe("TRACE_ATTEMPTED");
+    expect(
+      classifyResearchSourceTrace(url, { calls: [], annotations: [] }),
+    ).toBe("MODEL_REPORTED_ONLY");
   });
 
-  it("rejects unsupported foreign geography", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.scope.geography = "United Kingdom";
-    expect(reasonsFor([candidate])).toContain(
-      "GEOGRAPHY_SCOPE_MISMATCH: candidates.0.scope.geography is not supported by Stage 1.",
+  it("canonicalizes equivalent HTTP URLs", () => {
+    expect(canonicalizeResearchUrl("https://EXAMPLE.com/report/#part")).toBe(
+      canonicalizeResearchUrl("https://example.com/report"),
     );
-    candidate.scope.geography = "California";
-    expect(reasonsFor([candidate])).toContain(
-      "GEOGRAPHY_SCOPE_MISMATCH: candidates.0.scope.geography is not supported by Stage 1.",
-    );
-  });
-
-  it("rejects an invented URL", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.source.url = "https://invented.example/report";
-    expect(reasonsFor([candidate])[0]).toMatch(/^HARD_URL_MISMATCH/);
-  });
-
-  it("rejects an invented publication date", () => {
-    const candidate = creativeAustraliaCandidate();
-    candidate.source.publishedAt = "2026-07-01";
-    expect(reasonsFor([candidate])).toContain(
-      "HARD_DATE_MISMATCH: candidates.0 adds unsupported date 2026-07-01.",
-    );
-  });
-
-  it("rejects unsupported venue-profitability claims", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.evidence.claim =
-      "The audit found that venue profitability improved in 2025.";
-    expect(
-      reasonsFor([candidate]).some((reason) =>
-        reason.includes("venue-profitability"),
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects unsupported national extrapolation", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.scope.geography = "Australia";
-    candidate.evidence.claim =
-      "Across Australia, 2,441 venues hosted live music during 2025.";
-    const reasons = reasonsFor([candidate]);
-    expect(
-      reasons.some((reason) => reason.startsWith("GEOGRAPHY_SCOPE_MISMATCH")),
-    ).toBe(true);
-    expect(
-      reasons.some((reason) => reason.includes("extrapolates subnational")),
-    ).toBe(true);
-  });
-
-  it("rejects unsupported causal claims", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.evidence.claim =
-      "Government commissioning caused Victoria to retain 2,441 live-music venues.";
-    expect(
-      reasonsFor([candidate]).some((reason) =>
-        reason.includes("unsupported causality"),
-      ),
-    ).toBe(true);
-  });
-
-  it("requires snippet mediation to survive structuring", () => {
-    const candidate = musicVictoriaCandidate();
-    candidate.evidence.limitations = ["Coverage is limited to Victoria."];
-    expect(
-      reasonsFor([candidate]).some((reason) =>
-        reason.startsWith("EVIDENCE_MEDIATION_MISMATCH"),
-      ),
-    ).toBe(true);
   });
 });

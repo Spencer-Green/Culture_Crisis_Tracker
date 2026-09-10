@@ -1,5 +1,13 @@
-import type { ResearchResultV1 } from "@/services/research/research-schema";
+import {
+  successfulCall,
+  tracedSourceUrls,
+} from "@/services/research/research-native-evidence";
+import {
+  ResearchResultV1Schema,
+  type ResearchResultV1,
+} from "@/services/research/research-schema";
 import { RESEARCH_STAGE1_SOURCE_MAXIMUM } from "@/services/research/research-artifact";
+import { parseResearchPublicationDate } from "@/services/research/research-artifact";
 import type {
   NativeSearchTraceV1,
   ResearchSourceTraceStatus,
@@ -88,6 +96,8 @@ const METRIC_FAMILY_PATTERNS: Array<{
       /weekly (?:live music )?venues/,
       /venues hosting (?:at least )?(?:one|1).{0,20}(?:gig|performance).{0,20}(?:week|weekly)/,
       /weekly gig venues/,
+      /weekly live music presenters/,
+      /weekly presenters/,
     ],
   },
   {
@@ -206,7 +216,7 @@ function geographyIsSupported(
   const candidateScopes = extractAustralianScopes(candidateGeography);
   if (candidateScopes.size === 0) return false;
   const sourceScopes = extractAustralianScopes(
-    `${source.publisher} ${source.title} ${source.claim} ${source.reportingPeriod}`,
+    `${source.geography} ${source.publisher} ${source.title} ${source.claim} ${source.reportingPeriod}`,
   );
   const specificCandidateScopes = [...candidateScopes].filter(
     (scope) => scope !== "AUSTRALIA",
@@ -235,6 +245,16 @@ function metricIsSupported(metric: string, source: ResearchStage1SourceV1) {
     return [...candidateFamilies].some((family) => sourceFamilies.has(family));
   }
   return textsAreCompatible(metric, source.observation);
+}
+
+function exactReportingPeriod(source: ResearchStage1SourceV1): {
+  start: string | null;
+  end: string | null;
+} {
+  const dates = source.reportingPeriod.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+  if (dates.length === 0) return { start: null, end: null };
+  if (dates.length === 1) return { start: null, end: null };
+  return { start: dates[0]!, end: dates[1]! };
 }
 
 function scaleFromContext(value: string): QuantityQualifier["scale"] {
@@ -355,7 +375,7 @@ function claimClosureReasons(
     );
   }
   const sourceScopes = extractAustralianScopes(
-    `${source.publisher} ${source.title} ${source.claim} ${source.reportingPeriod}`,
+    `${source.geography} ${source.publisher} ${source.title} ${source.claim} ${source.reportingPeriod}`,
   );
   const nationalClaim =
     /\b(?:across australia|nationwide|nationally|australian venues|venues in australia)\b/;
@@ -377,6 +397,85 @@ function sourceForCandidate(
   );
 }
 
+function boundedTextParts(value: string): string[] {
+  const parts: string[] = [];
+  let remaining = value.trim();
+  while (remaining.length > 600) {
+    const boundary = Math.max(
+      remaining.lastIndexOf(". ", 599),
+      remaining.lastIndexOf("; ", 599),
+    );
+    const splitAt = boundary >= 100 ? boundary + 1 : 600;
+    parts.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
+function candidateTypeForSource(source: ResearchStage1SourceV1) {
+  if (source.sourceRole !== "PRIMARY") return "LIVE_WEB_INDICATOR" as const;
+  return source.observations.length > 0
+    ? ("STRUCTURED_OBSERVATION_CANDIDATE" as const)
+    : ("LIVE_WEB_INDICATOR" as const);
+}
+
+function assessmentForSource(source: ResearchStage1SourceV1) {
+  return {
+    authority:
+      source.sourceRole === "PRIMARY" ? ("MEDIUM" as const) : ("LOW" as const),
+    freshness: "UNCLEAR" as const,
+    ingestionFeasibility: "LOW" as const,
+    confidence: "LOW" as const,
+  };
+}
+
+export function materializeResearchResult(input: {
+  task: ResearchTaskV1;
+  summary: string;
+  researchLimitations: string[];
+  sources: ResearchStage1SourceV1[];
+}): ResearchResultV1 {
+  return ResearchResultV1Schema.parse({
+    taskSummary: input.summary,
+    researchLimitations: input.researchLimitations,
+    candidates: input.sources.map((source) => {
+      const reportingPeriod = exactReportingPeriod(source);
+      return {
+        candidateType: candidateTypeForSource(source),
+        source: {
+          url: source.url,
+          publisher: source.publisher,
+          title: source.title,
+          publishedAt:
+            parseResearchPublicationDate(source.publishedAt)?.exactDate ?? null,
+        },
+        scope: {
+          geography: source.geography,
+          sector: input.task.sector,
+          reportingPeriodStart: reportingPeriod.start,
+          reportingPeriodEnd: reportingPeriod.end,
+        },
+        evidence: {
+          claim: source.claim,
+          observations: source.observations.map((observation) => ({
+            metric: observation.metric,
+            value: observation.value,
+            unit: observation.unit,
+            qualifier: observation.qualifier,
+            periodStart: reportingPeriod.start,
+            periodEnd: reportingPeriod.end,
+          })),
+          sourceRole: source.sourceRole as
+            "PRIMARY" | "SECONDARY_REPORTING" | "SPECIALIST_ANALYSIS",
+          limitations: boundedTextParts(source.limitations),
+        },
+        assessment: assessmentForSource(source),
+      };
+    }),
+  });
+}
+
 export function classifyResearchSourceTrace(
   sourceUrl: string,
   trace: NativeSearchTraceV1,
@@ -395,12 +494,16 @@ export function classifyResearchSourceTrace(
       continue;
     }
     attempted = true;
-    if (call.item.status === "completed") return "TRACE_OPENED";
+    if (successfulCall(call.item)) return "TRACE_OPENED";
   }
-  return attempted ? "TRACE_ATTEMPTED" : "MODEL_REPORTED_ONLY";
+  return attempted ||
+    (canonicalSourceUrl !== null &&
+      tracedSourceUrls(trace).has(canonicalSourceUrl))
+    ? "TRACE_ATTEMPTED"
+    : "MODEL_REPORTED_ONLY";
 }
 
-export function validateCrossStageProvenance(
+export function validateResearchMaterializationProvenance(
   task: ResearchTaskV1,
   stage1Sources: ResearchStage1SourceV1[],
   result: ResearchResultV1,
@@ -408,8 +511,24 @@ export function validateCrossStageProvenance(
   const reasons: string[] = [];
   if (result.candidates.length > RESEARCH_STAGE1_SOURCE_MAXIMUM) {
     reasons.push(
-      `SOURCE_LINKAGE_MISMATCH: Stage 2 returned ${result.candidates.length} candidates; maximum is ${RESEARCH_STAGE1_SOURCE_MAXIMUM}.`,
+      `SOURCE_LINKAGE_MISMATCH: Materialization returned ${result.candidates.length} candidates; maximum is ${RESEARCH_STAGE1_SOURCE_MAXIMUM}.`,
     );
+  }
+  if (result.candidates.length !== stage1Sources.length) {
+    reasons.push(
+      `SOURCE_LINKAGE_MISMATCH: Materialization returned ${result.candidates.length} candidates for ${stage1Sources.length} research sources.`,
+    );
+  }
+
+  const candidateUrlCounts = new Map<string, number>();
+  for (const candidate of result.candidates) {
+    const canonicalUrl = canonicalizeResearchUrl(candidate.source.url);
+    if (canonicalUrl) {
+      candidateUrlCounts.set(
+        canonicalUrl,
+        (candidateUrlCounts.get(canonicalUrl) ?? 0) + 1,
+      );
+    }
   }
 
   result.candidates.forEach((candidate, index) => {
@@ -417,9 +536,23 @@ export function validateCrossStageProvenance(
     const source = sourceForCandidate(candidate.source.url, stage1Sources);
     if (!source) {
       reasons.push(
-        `HARD_URL_MISMATCH: ${prefix}.source.url was not present in Stage 1.`,
+        `HARD_URL_MISMATCH: ${prefix}.source.url was not present in the research artifact.`,
       );
       return;
+    }
+    const canonicalSourceUrl = canonicalizeResearchUrl(source.url);
+    if (
+      !canonicalSourceUrl ||
+      candidateUrlCounts.get(canonicalSourceUrl) !== 1
+    ) {
+      reasons.push(
+        `SOURCE_LINKAGE_MISMATCH: ${prefix} does not map one-to-one to a research source.`,
+      );
+    }
+    if (candidate.candidateType !== candidateTypeForSource(source)) {
+      reasons.push(
+        `SOURCE_IDENTITY_MISMATCH: ${prefix}.candidateType contradicts the deterministic source mapping.`,
+      );
     }
     if (!textsAreCompatible(candidate.source.publisher, source.publisher)) {
       reasons.push(
@@ -450,9 +583,15 @@ export function validateCrossStageProvenance(
       );
     }
 
-    const supportedText = source.rawBlock;
-    const dates = [
-      candidate.source.publishedAt,
+    const supportedEvidenceText = `${source.claim} ${source.observation}`;
+    const supportedPublicationDate =
+      parseResearchPublicationDate(source.publishedAt)?.exactDate ?? null;
+    if (candidate.source.publishedAt !== supportedPublicationDate) {
+      reasons.push(
+        `HARD_DATE_MISMATCH: ${prefix} publication date does not exactly match the research artifact.`,
+      );
+    }
+    const reportingDates = [
       candidate.scope.reportingPeriodStart,
       candidate.scope.reportingPeriodEnd,
       ...candidate.evidence.observations.flatMap((observation) => [
@@ -460,10 +599,10 @@ export function validateCrossStageProvenance(
         observation.periodEnd,
       ]),
     ].filter((value): value is string => Boolean(value));
-    for (const date of dates) {
-      if (!supportedText.includes(date)) {
+    for (const date of reportingDates) {
+      if (!source.reportingPeriod.includes(date)) {
         reasons.push(
-          `HARD_DATE_MISMATCH: ${prefix} adds unsupported date ${date}.`,
+          `HARD_DATE_MISMATCH: ${prefix} adds unsupported reporting date ${date}.`,
         );
       }
     }
@@ -476,7 +615,7 @@ export function validateCrossStageProvenance(
     ];
     for (const factualText of factualTexts) {
       for (const quantity of quantityQualifiers(factualText)) {
-        if (!quantityIsSupported(quantity, supportedText)) {
+        if (!quantityIsSupported(quantity, supportedEvidenceText)) {
           reasons.push(
             `HARD_VALUE_MISMATCH: ${prefix} adds unsupported numeric value ${quantity.number}.`,
           );
@@ -484,6 +623,11 @@ export function validateCrossStageProvenance(
       }
     }
 
+    if (candidate.evidence.observations.length !== source.observations.length) {
+      reasons.push(
+        `UNSUPPORTED_OBSERVATION: ${prefix}.evidence.observations does not preserve the source observation count.`,
+      );
+    }
     candidate.evidence.observations.forEach((observation, observationIndex) => {
       const observationPrefix = `${prefix}.evidence.observations.${observationIndex}`;
       if (!metricIsSupported(observation.metric, source)) {
@@ -496,7 +640,38 @@ export function validateCrossStageProvenance(
           `UNSUPPORTED_OBSERVATION: ${observationPrefix}.unit is not supported by Stage 1.`,
         );
       }
+      const matchingSourceObservation = source.observations.find(
+        (item) =>
+          item.metric === observation.metric &&
+          item.value === observation.value &&
+          item.unit === observation.unit &&
+          item.qualifier === (observation.qualifier ?? "NONE"),
+      );
+      if (
+        !matchingSourceObservation ||
+        (observation.qualifier ?? "NONE") !==
+          matchingSourceObservation.qualifier
+      ) {
+        reasons.push(
+          `UNSUPPORTED_OBSERVATION: ${observationPrefix} does not preserve a source observation and qualifier.`,
+        );
+      }
     });
+    if (!textsAreCompatible(candidate.evidence.claim, source.claim)) {
+      reasons.push(
+        `UNSUPPORTED_CLAIM_STRENGTH: ${prefix}.evidence.claim does not faithfully preserve the research claim.`,
+      );
+    }
+    if (
+      !textsAreCompatible(
+        candidate.evidence.limitations.join(" "),
+        source.limitations,
+      )
+    ) {
+      reasons.push(
+        `EVIDENCE_MEDIATION_MISMATCH: ${prefix}.evidence.limitations do not faithfully preserve the research limitations.`,
+      );
+    }
     if (
       source.traceStatus !== "TRACE_OPENED" &&
       /(?:snippet|could not open|retrieval failed|fetch timed out|timeout)/i.test(

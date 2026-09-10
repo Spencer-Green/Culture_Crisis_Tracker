@@ -24,9 +24,19 @@ function historyStore(input?: {
   completedAt?: string;
   status?: "SUCCEEDED" | "FAILED";
 }): ResearchSchedulerHistoryStore {
+  const rollingRunCount = input?.rollingRunCount ?? 0;
+  const rollingRuns = Array.from({ length: rollingRunCount }, (_, index) => ({
+    id: `rolling-run-${index + 1}`,
+    researchTaskId: "au-live-music-venue-viability",
+    researchTaskVersion: "au-live-music-venue-viability-v1",
+    status: "FAILED" as const,
+    startedAt: new Date(NOW.getTime() - (index + 1) * 2_000),
+    completedAt: new Date(NOW.getTime() - (index + 1) * 1_000),
+  }));
   return {
     loadHistory: vi.fn().mockResolvedValue({
-      rollingRunCount: input?.rollingRunCount ?? 0,
+      rollingRunCount,
+      rollingRuns,
       runs: input?.completedAt
         ? [
             {
@@ -44,7 +54,7 @@ function historyStore(input?: {
   };
 }
 
-function providerResult(stage: 1 | 2): ResearchProviderResult {
+function providerResult(stage: 1): ResearchProviderResult {
   return {
     provider: "deepseek",
     model: "deepseek-v4-flash",
@@ -143,27 +153,36 @@ function successfulRun(): ResearchRunResult {
           title: "Venue report",
           publishedAt: "2026-08-30",
           reportingPeriod: "2025",
+          geography: "Australia",
           sourceRole: "PRIMARY",
           claim: "The report counted 100 venues.",
           observation: "venue count / 100 / venues / 2025",
+          observations: [
+            {
+              metric: "venue count",
+              value: "100",
+              unit: "venues",
+              qualifier: "NONE",
+            },
+          ],
           limitations: "Bounded coverage.",
           rawBlock: "fixture",
           traceStatus: "TRACE_OPENED",
         },
       ],
+      summary: "Found one source.",
+      researchLimitations: ["Bounded pass."],
       provider: providerResult(1),
     },
-    stage2: { provider: providerResult(2) },
     startedAt: NOW,
     completedAt: new Date(NOW.getTime() + 200),
-    crossStageValidation: { matchedCandidates: 1, reasons: [] },
-    usage: { totalTokens: 30, totalLatencyMs: 200 },
+    provenanceValidation: { matchedCandidates: 1, reasons: [] },
+    usage: { totalTokens: 15, totalLatencyMs: 100 },
   };
 }
 
 const unusedProvider: ResearchProvider = {
   researchWithNativeWeb: vi.fn(),
-  structureResearch: vi.fn(),
 };
 
 function prisma(): PrismaClient {
@@ -175,6 +194,7 @@ describe("scheduled research execution", () => {
     const executeResearch = vi.fn();
     const persistDraft = vi.fn();
     const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
       prisma: prisma(),
       historyStore: historyStore(),
       enabled: false,
@@ -188,6 +208,28 @@ describe("scheduled research execution", () => {
     expect(persistDraft).not.toHaveBeenCalled();
   });
 
+  it("does not dispatch when durable attempt reservation fails", async () => {
+    const executeResearch = vi.fn();
+    const persistDraft = vi.fn();
+    await expect(
+      runScheduledResearch({
+        reserveRun: async () => {
+          throw new Error("reservation unavailable");
+        },
+        prisma: prisma(),
+        historyStore: historyStore(),
+        enabled: true,
+        apiKey: "configured",
+        now: NOW,
+        executeResearch,
+        persistDraft,
+        providerFactory: () => unusedProvider,
+      }),
+    ).rejects.toThrow("reservation unavailable");
+    expect(executeResearch).not.toHaveBeenCalled();
+    expect(persistDraft).not.toHaveBeenCalled();
+  });
+
   it("executes one due task through the existing research runner and persists validated candidates", async () => {
     const executeResearch = vi.fn().mockResolvedValue(successfulRun());
     const persistDraft = vi.fn().mockResolvedValue({
@@ -197,6 +239,7 @@ describe("scheduled research execution", () => {
     });
     const providerFactory = vi.fn().mockReturnValue(unusedProvider);
     const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
       prisma: prisma(),
       historyStore: historyStore(),
       enabled: true,
@@ -217,6 +260,7 @@ describe("scheduled research execution", () => {
     expect(persistDraft).toHaveBeenCalledTimes(1);
     expect(persistDraft.mock.calls[0]?.[1]).toMatchObject({
       status: "SUCCEEDED",
+      runId: "reserved-test-run",
       candidates: [expect.objectContaining({ candidateIndex: 0 })],
     });
   });
@@ -225,6 +269,7 @@ describe("scheduled research execution", () => {
     const executeResearch = vi.fn();
     const persistDraft = vi.fn();
     const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
       prisma: prisma(),
       historyStore: historyStore({ rollingRunCount: 2 }),
       enabled: true,
@@ -243,6 +288,7 @@ describe("scheduled research execution", () => {
     const persistDraft = vi.fn();
     await expect(
       runScheduledResearch({
+        reserveRun: async () => "reserved-test-run",
         prisma: prisma(),
         historyStore: historyStore(),
         enabled: true,
@@ -266,6 +312,7 @@ describe("scheduled research execution", () => {
     });
     await expect(
       runScheduledResearch({
+        reserveRun: async () => "reserved-test-run",
         prisma: prisma(),
         historyStore: historyStore(),
         enabled: true,
@@ -285,6 +332,7 @@ describe("scheduled research execution", () => {
   it("does not execute when the task cadence is not due", async () => {
     const executeResearch = vi.fn();
     const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
       prisma: prisma(),
       historyStore: historyStore({ completedAt: "2026-09-06T12:00:00Z" }),
       enabled: true,
@@ -295,6 +343,178 @@ describe("scheduled research execution", () => {
     });
     expect(result.skipReason).toBe("NO_TASK_DUE");
     expect(executeResearch).not.toHaveBeenCalled();
+  });
+
+  it("executes one task when an operator explicitly forces cadence", async () => {
+    const executeResearch = vi.fn().mockResolvedValue(successfulRun());
+    const persistDraft = vi.fn().mockResolvedValue({
+      runId: "forced-run",
+      sourceDocumentIds: ["source-1"],
+      candidateIds: ["candidate-1"],
+    });
+    const onCadenceOverride = vi.fn();
+    const store = historyStore({ completedAt: "2026-09-06T12:00:00Z" });
+    const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
+      prisma: prisma(),
+      historyStore: store,
+      enabled: true,
+      apiKey: "configured",
+      now: NOW,
+      forceTaskCadence: true,
+      onCadenceOverride,
+      executeResearch,
+      persistDraft,
+      providerFactory: () => unusedProvider,
+    });
+    expect(result).toMatchObject({
+      status: "EXECUTED",
+      cadenceBypassed: true,
+      taskId: "au-live-music-venue-viability",
+    });
+    expect(executeResearch).toHaveBeenCalledTimes(1);
+    expect(persistDraft).toHaveBeenCalledTimes(1);
+    expect(onCadenceOverride).toHaveBeenCalledWith(
+      expect.stringContaining("bypassed cadence only"),
+    );
+    expect(store.loadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not force through disabled, missing-key, or rolling-limit gates", async () => {
+    const executeResearch = vi.fn();
+    const persistDraft = vi.fn();
+    const disabled = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
+      prisma: prisma(),
+      historyStore: historyStore({ completedAt: "2026-09-06T12:00:00Z" }),
+      enabled: false,
+      apiKey: "configured",
+      now: NOW,
+      forceTaskCadence: true,
+      executeResearch,
+      persistDraft,
+    });
+    expect(disabled.skipReason).toBe("DISABLED");
+    await expect(
+      runScheduledResearch({
+        reserveRun: async () => "reserved-test-run",
+        prisma: prisma(),
+        historyStore: historyStore({ completedAt: "2026-09-06T12:00:00Z" }),
+        enabled: true,
+        now: NOW,
+        forceTaskCadence: true,
+        executeResearch,
+        persistDraft,
+      }),
+    ).rejects.toThrow("DEEPSEEK_API_KEY is missing");
+    const limited = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
+      prisma: prisma(),
+      historyStore: historyStore({
+        completedAt: "2026-09-06T12:00:00Z",
+        rollingRunCount: 2,
+      }),
+      enabled: true,
+      apiKey: "configured",
+      now: NOW,
+      forceTaskCadence: true,
+      executeResearch,
+      persistDraft,
+    });
+    expect(limited.skipReason).toBe("ROLLING_EXECUTION_LIMIT");
+    expect(executeResearch).not.toHaveBeenCalled();
+    expect(persistDraft).not.toHaveBeenCalled();
+  });
+
+  it("executes once above the rolling ceiling only with the explicit override", async () => {
+    const executeResearch = vi.fn().mockResolvedValue(successfulRun());
+    const persistDraft = vi.fn().mockResolvedValue({
+      runId: "rolling-forced-run",
+      sourceDocumentIds: ["source-1"],
+      candidateIds: ["candidate-1"],
+    });
+    const onRollingLimitOverride = vi.fn();
+    const store = historyStore({
+      completedAt: "2026-09-06T23:00:00Z",
+      rollingRunCount: 2,
+      status: "FAILED",
+    });
+    const result = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
+      prisma: prisma(),
+      historyStore: store,
+      enabled: true,
+      apiKey: "configured",
+      now: NOW,
+      forceTaskCadence: true,
+      forceRollingLimit: true,
+      onRollingLimitOverride,
+      executeResearch,
+      persistDraft,
+      providerFactory: () => unusedProvider,
+    });
+    expect(result).toMatchObject({
+      status: "EXECUTED",
+      cadenceBypassed: true,
+      rollingLimitBypassed: true,
+    });
+    expect(executeResearch).toHaveBeenCalledTimes(1);
+    expect(persistDraft).toHaveBeenCalledTimes(1);
+    expect(onRollingLimitOverride).toHaveBeenCalledWith(
+      expect.stringContaining("observed rolling executions 2/2"),
+    );
+    expect(onRollingLimitOverride).toHaveBeenCalledWith(
+      expect.stringContaining("rolling-run-1"),
+    );
+    expect(onRollingLimitOverride).toHaveBeenCalledWith(
+      expect.stringContaining("bypassed only the rolling ceiling"),
+    );
+    expect(store.loadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let the rolling override bypass disabled or missing-key preflight", async () => {
+    const executeResearch = vi.fn();
+    const persistDraft = vi.fn();
+    const disabled = await runScheduledResearch({
+      reserveRun: async () => "reserved-test-run",
+      prisma: prisma(),
+      historyStore: historyStore({ rollingRunCount: 2 }),
+      enabled: false,
+      apiKey: "configured",
+      now: NOW,
+      forceTaskCadence: true,
+      forceRollingLimit: true,
+      executeResearch,
+      persistDraft,
+    });
+    expect(disabled.skipReason).toBe("DISABLED");
+    await expect(
+      runScheduledResearch({
+        reserveRun: async () => "reserved-test-run",
+        prisma: prisma(),
+        historyStore: historyStore({ rollingRunCount: 2 }),
+        enabled: true,
+        now: NOW,
+        forceTaskCadence: true,
+        forceRollingLimit: true,
+        executeResearch,
+        persistDraft,
+      }),
+    ).rejects.toThrow("DEEPSEEK_API_KEY is missing");
+    expect(executeResearch).not.toHaveBeenCalled();
+    expect(persistDraft).not.toHaveBeenCalled();
+  });
+
+  it("keeps normal post-run due semantics unchanged after a forced execution", async () => {
+    const decision = await loadResearchSchedulerDecision({
+      historyStore: historyStore({ completedAt: NOW.toISOString() }),
+      enabled: true,
+      apiKeyConfigured: true,
+      now: new Date(NOW.getTime() + 1_000),
+    });
+    expect(decision.skipReason).toBe("NO_TASK_DUE");
+    expect(decision.cadenceBypassed).toBe(false);
+    expect(decision.nextDueAt?.toISOString()).toBe("2026-09-08T00:00:00.000Z");
   });
 
   it("exposes due task, next due, rolling count, and skip reason for inspection", async () => {

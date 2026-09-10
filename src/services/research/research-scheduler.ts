@@ -12,6 +12,7 @@ import {
   evaluateResearchScheduler,
   RESEARCH_SCHEDULER_ROLLING_WINDOW_MS,
   RESEARCH_SCHEDULER_SOURCE_ID,
+  type ResearchRollingRunHistory,
   type ResearchSchedulerDecision,
   type ResearchTaskRunHistory,
   type ScheduledResearchTask,
@@ -22,6 +23,7 @@ import {
 } from "@/services/research/research-staging-core";
 import {
   persistResearchRunDraft,
+  reserveResearchRun,
   type PersistedResearchRunResult,
 } from "@/services/research/research-staging-store";
 import { runResearchOnce } from "@/services/research/research-runner";
@@ -36,6 +38,7 @@ export type ResearchSchedulerHistoryStore = {
   }): Promise<{
     runs: ResearchTaskRunHistory[];
     rollingRunCount: number;
+    rollingRuns: ResearchRollingRunHistory[];
   }>;
 };
 
@@ -43,6 +46,8 @@ export type ScheduledResearchResult = {
   status: "EXECUTED" | "SKIPPED";
   taskId: string | null;
   skipReason: ResearchSchedulerDecision["skipReason"];
+  cadenceBypassed: boolean;
+  rollingLimitBypassed: boolean;
   persisted: PersistedResearchRunResult | null;
 };
 
@@ -57,10 +62,9 @@ export class PrismaResearchSchedulerHistoryStore implements ResearchSchedulerHis
       researchTaskId: task.id,
       researchTaskVersion: task.version,
     }));
-    const [runs, rollingRunCount] = await Promise.all([
+    const [runs, rollingRunCount, rollingRuns] = await Promise.all([
       this.prisma.researchRun.findMany({
         where: {
-          completedAt: { not: null },
           OR: taskVersions,
         },
         orderBy: { completedAt: "desc" },
@@ -74,15 +78,49 @@ export class PrismaResearchSchedulerHistoryStore implements ResearchSchedulerHis
         },
       }),
       this.prisma.researchRun.count({
-        where: { completedAt: { gte: input.rollingSince } },
+        where: {
+          OR: [
+            { completedAt: { gte: input.rollingSince } },
+            { completedAt: null, startedAt: { gte: input.rollingSince } },
+          ],
+        },
+      }),
+      this.prisma.researchRun.findMany({
+        where: {
+          OR: [
+            { completedAt: { gte: input.rollingSince } },
+            { completedAt: null, startedAt: { gte: input.rollingSince } },
+          ],
+        },
+        orderBy: { completedAt: "asc" },
+        select: {
+          id: true,
+          researchTaskId: true,
+          researchTaskVersion: true,
+          status: true,
+          startedAt: true,
+          completedAt: true,
+        },
       }),
     ]);
     return {
       runs: runs.map((run) => ({
         ...run,
-        completedAt: run.completedAt!,
+        status:
+          run.status === "SUCCEEDED"
+            ? ("SUCCEEDED" as const)
+            : ("FAILED" as const),
+        completedAt: run.completedAt ?? run.startedAt,
       })),
       rollingRunCount,
+      rollingRuns: rollingRuns.map((run) => ({
+        ...run,
+        status:
+          run.status === "SUCCEEDED"
+            ? ("SUCCEEDED" as const)
+            : ("FAILED" as const),
+        completedAt: run.completedAt ?? run.startedAt,
+      })),
     };
   }
 }
@@ -93,6 +131,8 @@ export async function loadResearchSchedulerDecision(input: {
   apiKeyConfigured: boolean;
   now: Date;
   tasks?: readonly ScheduledResearchTask[];
+  forceTaskCadence?: boolean;
+  forceRollingLimit?: boolean;
 }): Promise<ResearchSchedulerDecision> {
   const tasks = input.tasks ?? SCHEDULED_RESEARCH_TASKS;
   const history = await input.historyStore.loadHistory({
@@ -108,6 +148,9 @@ export async function loadResearchSchedulerDecision(input: {
     tasks,
     history: history.runs,
     rollingRunCount: history.rollingRunCount,
+    rollingRuns: history.rollingRuns,
+    forceTaskCadence: input.forceTaskCadence,
+    forceRollingLimit: input.forceRollingLimit,
   });
 }
 
@@ -118,9 +161,14 @@ export async function runScheduledResearch(input: {
   apiKey?: string;
   now: Date;
   tasks?: readonly ScheduledResearchTask[];
+  forceTaskCadence?: boolean;
+  forceRollingLimit?: boolean;
+  onCadenceOverride?: (message: string) => void;
+  onRollingLimitOverride?: (message: string) => void;
   providerFactory?: (apiKey: string) => ResearchProvider;
   executeResearch?: typeof runResearchOnce;
   persistDraft?: typeof persistResearchRunDraft;
+  reserveRun?: typeof reserveResearchRun;
 }): Promise<ScheduledResearchResult> {
   const tasks = input.tasks ?? SCHEDULED_RESEARCH_TASKS;
   const apiKey = input.apiKey?.trim();
@@ -130,6 +178,8 @@ export async function runScheduledResearch(input: {
     apiKeyConfigured: Boolean(apiKey),
     now: input.now,
     tasks,
+    forceTaskCadence: input.forceTaskCadence,
+    forceRollingLimit: input.forceRollingLimit,
   });
   if (decision.skipReason === "MISSING_API_KEY") {
     throw new Error(
@@ -141,8 +191,25 @@ export async function runScheduledResearch(input: {
       status: "SKIPPED",
       taskId: null,
       skipReason: decision.skipReason,
+      cadenceBypassed: false,
+      rollingLimitBypassed: false,
       persisted: null,
     };
+  }
+
+  if (decision.cadenceBypassed) {
+    input.onCadenceOverride?.(
+      "normal task cadence said NO_TASK_DUE; explicit operator --force-task bypassed cadence only; enablement, API key, source lock, rolling limit, one-task limit, provider limits, validation, persistence boundaries, and zero-retry policy remain enforced",
+    );
+  }
+
+  if (decision.rollingLimitBypassed) {
+    const rollingRuns = decision.rollingRuns
+      .map((run) => `${run.id}@${run.completedAt.toISOString()}(${run.status})`)
+      .join(", ");
+    input.onRollingLimitOverride?.(
+      `observed rolling executions ${decision.rollingRunCount}/${decision.rollingRunLimit}; in-window runs: ${rollingRuns || "none listed"}; ROLLING_EXECUTION_LIMIT would normally block execution; explicit operator --force-rolling-limit bypassed only the rolling ceiling; enablement, API key, source lock, active-run protection, one-task limit, provider limit, zero retries, validation, staging boundaries, and canonical/review/ingestion prohibitions remain enforced`,
+    );
   }
 
   const task = decision.selectedTask.task;
@@ -151,6 +218,19 @@ export async function runScheduledResearch(input: {
   const persistDraft = input.persistDraft ?? persistResearchRunDraft;
   const providerFactory =
     input.providerFactory ?? createDeepSeekResearchProvider;
+  // A crash or ambiguous provider timeout must still consume execution history.
+  // Reservation failure prevents dispatch. The source lock surrounds this path.
+  const runId = await (input.reserveRun ?? reserveResearchRun)(
+    input.prisma,
+    buildFailedResearchRunDraft({
+      task,
+      providerId: DEEPSEEK_RESEARCH_PROVIDER,
+      modelId: DEEPSEEK_RESEARCH_MODEL,
+      error: new Error("Execution not completed"),
+      startedAt,
+      completedAt: startedAt,
+    }),
+  );
   try {
     const run = await executeResearch({
       taskId: task.id,
@@ -158,20 +238,21 @@ export async function runScheduledResearch(input: {
       provider: providerFactory(apiKey!),
       now: startedAt,
     });
-    const persisted = await persistDraft(
-      input.prisma,
-      buildSuccessfulResearchRunDraft(run),
-    );
+    const persisted = await persistDraft(input.prisma, {
+      ...buildSuccessfulResearchRunDraft(run),
+      runId,
+    });
     return {
       status: "EXECUTED",
       taskId: task.id,
       skipReason: null,
+      cadenceBypassed: decision.cadenceBypassed,
+      rollingLimitBypassed: decision.rollingLimitBypassed,
       persisted,
     };
   } catch (error) {
-    const persisted = await persistDraft(
-      input.prisma,
-      buildFailedResearchRunDraft({
+    const persisted = await persistDraft(input.prisma, {
+      ...buildFailedResearchRunDraft({
         task,
         providerId: DEEPSEEK_RESEARCH_PROVIDER,
         modelId: DEEPSEEK_RESEARCH_MODEL,
@@ -180,7 +261,8 @@ export async function runScheduledResearch(input: {
         completedAt: new Date(),
         secrets: [apiKey ?? ""],
       }),
-    );
+      runId,
+    });
     const failureKind =
       error && typeof error === "object" && "code" in error
         ? String(error.code)
@@ -196,6 +278,10 @@ export function createResearchSchedulerExecutor(input?: {
   enabled?: boolean;
   apiKey?: string;
   now?: () => Date;
+  forceTaskCadence?: boolean;
+  forceRollingLimit?: boolean;
+  onCadenceOverride?: (message: string) => void;
+  onRollingLimitOverride?: (message: string) => void;
 }): ScheduledSourceExecutor {
   const prisma = input?.prisma ?? getPrisma();
   const historyStore = new PrismaResearchSchedulerHistoryStore(prisma);
@@ -209,6 +295,10 @@ export function createResearchSchedulerExecutor(input?: {
       enabled: input?.enabled ?? env.LLM_RESEARCHER_ENABLED,
       apiKey: input?.apiKey ?? env.DEEPSEEK_API_KEY,
       now: input?.now?.() ?? startedAt,
+      forceTaskCadence: input?.forceTaskCadence,
+      forceRollingLimit: input?.forceRollingLimit,
+      onCadenceOverride: input?.onCadenceOverride,
+      onRollingLimitOverride: input?.onRollingLimitOverride,
     });
     return {
       recordsCreated: result.persisted?.candidateIds.length ?? 0,

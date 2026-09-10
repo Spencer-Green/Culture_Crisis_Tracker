@@ -102,8 +102,26 @@ export async function runSchedulerOnce(
     logger?: SchedulerLogger;
     executor?: ScheduledSourceExecutor;
     concurrency?: number;
+    forceResearchTaskCadence?: boolean;
+    forceResearchRollingLimit?: boolean;
   } = {},
 ) {
+  if (
+    options.forceResearchTaskCadence &&
+    options.sourceId !== "research-agent"
+  ) {
+    throw new Error(
+      "Research task cadence can only be forced for --source=research-agent.",
+    );
+  }
+  if (
+    options.forceResearchRollingLimit &&
+    (options.sourceId !== "research-agent" || !options.forceResearchTaskCadence)
+  ) {
+    throw new Error(
+      "Research rolling limit can only be forced with targeted research-agent cadence override.",
+    );
+  }
   const now = options.now ?? (() => new Date());
   const logger = options.logger ?? defaultLogger;
   const capturedAt = now();
@@ -116,7 +134,14 @@ export async function runSchedulerOnce(
     options.executor ??
     (() => {
       const commandExecutor = createCommandExecutor(store);
-      const researchExecutor = createResearchSchedulerExecutor();
+      const researchExecutor = createResearchSchedulerExecutor({
+        forceTaskCadence: options.forceResearchTaskCadence ?? false,
+        forceRollingLimit: options.forceResearchRollingLimit ?? false,
+        onCadenceOverride: (message) =>
+          logger.info(`scheduler source=research-agent ${message}`),
+        onRollingLimitOverride: (message) =>
+          logger.info(`scheduler source=research-agent ${message}`),
+      });
       return ((input) =>
         input.definition.sourceId === "research-agent"
           ? researchExecutor(input)

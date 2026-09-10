@@ -21,6 +21,10 @@ export type ResearchTaskRunHistory = {
   completedAt: Date;
 };
 
+export type ResearchRollingRunHistory = ResearchTaskRunHistory & {
+  id: string;
+};
+
 export type ResearchSchedulerSkipReason =
   "DISABLED" | "MISSING_API_KEY" | "ROLLING_EXECUTION_LIMIT" | "NO_TASK_DUE";
 
@@ -33,9 +37,14 @@ export type ResearchTaskDueState = {
 
 export type ResearchSchedulerDecision = {
   enabled: boolean;
+  forceTaskCadenceRequested: boolean;
+  cadenceBypassed: boolean;
+  forceRollingLimitRequested: boolean;
+  rollingLimitBypassed: boolean;
   taskCount: number;
   rollingRunCount: number;
   rollingRunLimit: number;
+  rollingRuns: ResearchRollingRunHistory[];
   tasks: ResearchTaskDueState[];
   selectedTask: ScheduledResearchTask | null;
   skipReason: ResearchSchedulerSkipReason | null;
@@ -69,6 +78,9 @@ export function evaluateResearchScheduler(input: {
   history: readonly ResearchTaskRunHistory[];
   rollingRunCount: number;
   rollingRunLimit?: number;
+  rollingRuns?: readonly ResearchRollingRunHistory[];
+  forceTaskCadence?: boolean;
+  forceRollingLimit?: boolean;
 }): ResearchSchedulerDecision {
   const rollingRunLimit =
     input.rollingRunLimit ?? RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT;
@@ -100,20 +112,41 @@ export function evaluateResearchScheduler(input: {
     [...tasks].sort(
       (left, right) => left.nextDueAt.getTime() - right.nextDueAt.getTime(),
     )[0]?.nextDueAt ?? null;
+  const forceTaskCadenceRequested = input.forceTaskCadence ?? false;
+  const forceRollingLimitRequested = input.forceRollingLimit ?? false;
+  const dueTask = tasks.find((task) => task.due)?.task ?? null;
   let skipReason: ResearchSchedulerSkipReason | null = null;
   if (!input.enabled) skipReason = "DISABLED";
   else if (!input.apiKeyConfigured) skipReason = "MISSING_API_KEY";
-  else if (input.rollingRunCount >= rollingRunLimit) {
+  else if (
+    input.rollingRunCount >= rollingRunLimit &&
+    !forceRollingLimitRequested
+  ) {
     skipReason = "ROLLING_EXECUTION_LIMIT";
-  } else if (!tasks.some((task) => task.due)) skipReason = "NO_TASK_DUE";
+  } else if (!dueTask && !(forceTaskCadenceRequested && tasks.length > 0)) {
+    skipReason = "NO_TASK_DUE";
+  }
+  const cadenceBypassed = Boolean(
+    forceTaskCadenceRequested && !skipReason && !dueTask && tasks.length > 0,
+  );
+  const rollingLimitBypassed = Boolean(
+    forceRollingLimitRequested &&
+    !skipReason &&
+    input.rollingRunCount >= rollingRunLimit,
+  );
   const selectedTask = skipReason
     ? null
-    : (tasks.find((task) => task.due)?.task ?? null);
+    : (dueTask ?? (cadenceBypassed ? (tasks[0]?.task ?? null) : null));
   return {
     enabled: input.enabled,
+    forceTaskCadenceRequested,
+    cadenceBypassed,
+    forceRollingLimitRequested,
+    rollingLimitBypassed,
     taskCount: tasks.length,
     rollingRunCount: input.rollingRunCount,
     rollingRunLimit,
+    rollingRuns: [...(input.rollingRuns ?? [])],
     tasks,
     selectedTask,
     skipReason,

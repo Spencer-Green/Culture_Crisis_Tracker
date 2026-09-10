@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { RESEARCH_OBSERVATION_QUALIFIERS } from "@/services/research/research-types";
+
 export const RESEARCH_CANDIDATE_MAXIMUM = 8;
 
 export const RESEARCH_CANDIDATE_TYPES = [
@@ -67,6 +69,7 @@ export const ResearchObservationV1Schema = z
     metric: z.string().trim().min(1).max(240),
     value: z.string().trim().min(1).max(240),
     unit: z.string().trim().min(1).max(120),
+    qualifier: z.enum(RESEARCH_OBSERVATION_QUALIFIERS).optional(),
     periodStart: nullableDateStringSchema,
     periodEnd: nullableDateStringSchema,
   })
@@ -147,139 +150,3 @@ export const ResearchResultV1Schema = z
 export type ResearchObservationV1 = z.infer<typeof ResearchObservationV1Schema>;
 export type ResearchCandidateV1 = z.infer<typeof ResearchCandidateV1Schema>;
 export type ResearchResultV1 = z.infer<typeof ResearchResultV1Schema>;
-
-const nullableDateJsonSchema = {
-  anyOf: [
-    {
-      type: "string",
-      pattern:
-        "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:\\d{2}))?$",
-    },
-    { type: "null" },
-  ],
-} as const;
-
-const observationJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["metric", "value", "unit", "periodStart", "periodEnd"],
-  properties: {
-    metric: { type: "string", minLength: 1, maxLength: 240 },
-    value: { type: "string", minLength: 1, maxLength: 240 },
-    unit: { type: "string", minLength: 1, maxLength: 120 },
-    periodStart: nullableDateJsonSchema,
-    periodEnd: nullableDateJsonSchema,
-  },
-} as const;
-
-export const RESEARCH_RESULT_V1_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["taskSummary", "candidates", "researchLimitations"],
-  properties: {
-    taskSummary: { type: "string", minLength: 1, maxLength: 1_500 },
-    candidates: {
-      type: "array",
-      maxItems: RESEARCH_CANDIDATE_MAXIMUM,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "candidateType",
-          "source",
-          "scope",
-          "evidence",
-          "assessment",
-        ],
-        properties: {
-          candidateType: {
-            type: "string",
-            enum: RESEARCH_CANDIDATE_TYPES,
-          },
-          source: {
-            type: "object",
-            additionalProperties: false,
-            required: ["url", "publisher", "title", "publishedAt"],
-            properties: {
-              url: { type: "string", minLength: 1, format: "uri" },
-              publisher: { type: "string", minLength: 1, maxLength: 240 },
-              title: { type: "string", minLength: 1, maxLength: 500 },
-              publishedAt: nullableDateJsonSchema,
-            },
-          },
-          scope: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "geography",
-              "sector",
-              "reportingPeriodStart",
-              "reportingPeriodEnd",
-            ],
-            properties: {
-              geography: { type: "string", minLength: 1, maxLength: 160 },
-              sector: { type: "string", minLength: 1, maxLength: 120 },
-              reportingPeriodStart: nullableDateJsonSchema,
-              reportingPeriodEnd: nullableDateJsonSchema,
-            },
-          },
-          evidence: {
-            type: "object",
-            additionalProperties: false,
-            required: ["claim", "observations", "sourceRole", "limitations"],
-            properties: {
-              claim: { type: "string", minLength: 1, maxLength: 1_500 },
-              observations: {
-                type: "array",
-                maxItems: 12,
-                items: observationJsonSchema,
-              },
-              sourceRole: {
-                type: "string",
-                enum: RESEARCH_SOURCE_ROLES,
-              },
-              limitations: {
-                type: "array",
-                maxItems: 8,
-                items: { type: "string", minLength: 1, maxLength: 600 },
-              },
-            },
-          },
-          assessment: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "authority",
-              "freshness",
-              "ingestionFeasibility",
-              "confidence",
-            ],
-            properties: {
-              authority: {
-                type: "string",
-                enum: RESEARCH_AUTHORITY_LEVELS,
-              },
-              freshness: {
-                type: "string",
-                enum: RESEARCH_FRESHNESS_LEVELS,
-              },
-              ingestionFeasibility: {
-                type: "string",
-                enum: RESEARCH_INGESTION_FEASIBILITY_LEVELS,
-              },
-              confidence: {
-                type: "string",
-                enum: RESEARCH_CONFIDENCE_LEVELS,
-              },
-            },
-          },
-        },
-      },
-    },
-    researchLimitations: {
-      type: "array",
-      maxItems: 8,
-      items: { type: "string", minLength: 1, maxLength: 600 },
-    },
-  },
-} as const;

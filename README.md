@@ -1505,45 +1505,66 @@ evaluation data only and are not persisted to Prisma or used by production pages
 
 ### DeepSeek live-research shadow staging
 
-The research subsystem includes one versioned evidence-discovery task for Australian live-music
-venue viability. It uses two explicit DeepSeek Responses API stages with `deepseek-v4-flash`. Stage 1
-enables provider-native `web_search` with automatic tool choice, requests high reasoning effort,
-and produces a bounded plain-text evidence artifact; it fails closed unless at least one native
-search call is observable. Stage 2 receives only that artifact and static task identity, has no
-tools or retrieval, and converts the evidence into JSON Schema output followed by local Zod and
-cross-stage provenance validation. The pipeline has no canonical-ingestion path, page integration,
-automatic review, retry, external search provider, or application-controlled web fetcher.
+The researcher discovers evidence for `au-live-music-venue-viability` only. It is a
+shadow discovery system, separate from deterministic ingestion, classification and Luna.
+No researcher path writes canonical observations or automatically approves reviews.
+The fixed live acceptance sample found a provenance defect; unattended operation remains
+unqualified. See the validation record before enabling it.
 
-Configure the ignored local environment with `DEEPSEEK_API_KEY=` and run exactly one explicit task:
+The current pipeline uses DeepSeek Responses with `deepseek-v4-pro`:
+
+1. Reserve a durable `RUNNING` attempt under the existing scheduler lock.
+2. Stream native `web_search`, with specific web-search tool choice, low reasoning,
+   an 8,000 output-token ceiling and a 120-second deadline. Reject memory-only answers.
+3. Stop acquisition locally after a successful search plus successful page operation,
+   or at the bounded action boundary. Preserve completed original native tool items.
+4. Replay those native items into one no-tools, no-reasoning extraction request. Supply
+   observed URLs and a native-call identifier manifest; use JSON mode with an explicit
+   schema, a 4,000-token ceiling and at most 60 seconds remaining in the 180-second budget.
+5. Validate JSON locally, admit traced evidence, construct the legacy text artifact
+   deterministically, validate provenance, and finalize the same run in shadow staging.
+
+There are at most two provider requests per attempt, no retries, and no alternative
+search provider or local page fetcher. DeepSeek's server tool-loop limits are not an
+application-enforceable action quota; stopping the stream bounds client acquisition.
+An interrupted stream may not report token usage. Such acquisition usage and combined
+usage remain unknown, with the reported extraction portion retained separately.
+
+Quotes are model-extracted from provider-restored results, not independently verified
+against locally available page bodies. Source authority and retrieval confidence remain
+independent. Failed opens never establish direct inspection. Exact publication dates,
+coarse publication evidence, reporting periods and retrieval timestamps stay distinct.
+Candidate confidence remains low. Numeric observation quotes must occur in the same
+source evidence passage. Known-invalid staged candidates can be quarantined; quarantine
+persists through rediscovery and prevents approval. Unsupported source URLs are rejected independently;
+if every proposed URL is rejected, the attempt fails. Unsupported numeric observations are omitted with explicit rejection reasons; verbal
+fractions remain narrative. Other contract violations fail closed. Discovery supplies no permission to scrape, store or republish source material.
+
+Configure `DEEPSEEK_API_KEY` and explicitly enable `LLM_RESEARCHER_ENABLED=true` before
+operator execution. All CLI research now passes through scheduler safeguards and durable
+persistence; the historical `--persist` flag is accepted but is no longer needed.
 
 ```bash
 npm run research:once -- --task=au-live-music-venue-viability
-npm run research:once -- --task=au-live-music-venue-viability --debug-search-trace
-npm run research:once -- --task=au-live-music-venue-viability --persist
 npm run research:inspect -- --task=au-live-music-venue-viability
+npm run scheduler:inspect
 npm run research:review -- --candidate=<id> --decision=approve-for-investigation --reason="..."
 ```
 
-The readable result separates source publication dates from reporting periods, accepts at most two
-sourced candidates, permits zero discoveries, prints the compact Stage-1 artifact plus sanitized
-native-search metadata, and reports each stage's provider usage and combined totals. Stage 2 cannot
-introduce source URLs, dates, or numeric observations absent from Stage 1. It never prints reasoning
-content or the API key. Without `--persist`, every result is labelled `EPHEMERAL`, `NOT PERSISTED`,
-`NOT CANONICAL`, and `NOT INGESTED`. With `--persist`, runs, source evidence, validated candidates,
-deduplicated occurrences, usage, and sanitized provenance are written only to the research-staging
-tables. Candidate review is append-only and approval means only approval for ingestion
-investigation. Candidate URLs are not fetched locally, and a discovered source requires separate
-deterministic and human review before any future ingestion work.
+Normal unattended scheduling remains disabled by default, inspects every 12 hours,
+executes at most one task per cycle, applies task cadence of 24 hours and a rolling
+limit of two attempts per 24 hours. Incomplete durable attempts also count, so a process
+crash cannot erase a dispatched attempt from cadence/rolling history. Preflight skips
+make no model call and create no research run. Operator-only `--force-task` and
+`--force-rolling-limit` bypass only their named gates; they are not unattended defaults.
 
-Scheduled shadow research is independently controlled by `LLM_RESEARCHER_ENABLED=false`; a
-configured `DEEPSEEK_API_KEY` alone never enables it. When enabled alongside the scheduler worker,
-the operational `research-agent` source is inspected every 12 hours and may run the single
-versioned task once per 24 hours. It executes at most one task per scheduler cycle and no more than
-two completed research executions in any rolling 24-hour window. Successful and failed provider
-attempts advance the task cadence; disabled, missing-key, rolling-limit, and not-due preflight
-outcomes make no model call and create no false research run. There is no immediate retry. Use
-`npm run scheduler:inspect` for operational due/lock/limit state and `npm run research:inspect` for
-the staged evidence itself.
+Existing source identity, first-seen timestamps, occurrence tracking and append-only
+review history are retained. New candidate fingerprints additionally include scope and
+raw reporting context; historical fingerprints are never rewritten. Approval means
+approved for ingestion investigation, never canonical truth.
+
+See [researcher architecture and validation](docs/deepseek-researcher.md) for the live
+findings, remaining qualification requirements and migration details.
 
 Important media-methodology limits:
 

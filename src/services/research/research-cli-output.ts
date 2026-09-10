@@ -81,7 +81,11 @@ function providerResultLines(
     `${label} cached input tokens: ${provider.usage.cachedInputTokens}`,
     `${label} output tokens: ${provider.usage.outputTokens}`,
     `${label} reasoning tokens: ${provider.usage.reasoningTokens}`,
-    `${label} total tokens: ${provider.usage.totalTokens}`,
+    `${label} total tokens: ${diagnostics.usageComplete === false ? `unknown (reported portion: ${provider.usage.totalTokens})` : provider.usage.totalTokens}`,
+    ...(diagnostics.phases ?? []).map(
+      (phase) =>
+        `${phase.phase}: model=${phase.model} response=${phase.responseId} status=${phase.status} tokens=${phase.usage?.totalTokens ?? "unknown"} reasoning=${phase.usage?.reasoningTokens ?? "unknown"} latency=${phase.latencyMs}ms`,
+    ),
   ];
 }
 
@@ -165,9 +169,19 @@ export function formatResearchFailure(
     lines.push(
       ...error.reasons.map((reason) => `- ${safeText(reason, secrets)}`),
     );
+    lines.push(
+      ...error.artifactDiagnostics.map(
+        (diagnostic) =>
+          `Artifact field: source=${diagnostic.sourceIndex ?? "artifact"} field=${safeText(diagnostic.field, secrets)} rejected=${diagnostic.rejectedValue === null ? "<missing>" : safeText(diagnostic.rejectedValue, secrets)} reason=${safeText(diagnostic.failureReason, secrets)}`,
+      ),
+    );
     if (error.stage1) lines.push(...stage1Lines(error.stage1, secrets));
-    if (error.providerResult) {
-      const label = error.stage1 ? "Stage 2" : "Stage 1";
+    if (
+      error.providerResult &&
+      error.providerResult.providerRequestId !==
+        error.stage1?.provider.providerRequestId
+    ) {
+      const label = "Provider";
       lines.push(...providerResultLines(label, error.providerResult));
       lines.push(
         ...traceLines(`${label} trace`, error.providerResult, secrets),
@@ -188,10 +202,7 @@ export function formatResearchFailure(
     if (error.stage1) lines.push(...stage1Lines(error.stage1, secrets));
     if (error.providerDiagnostics) {
       lines.push(
-        ...failureDiagnosticsLines(
-          error.stage1 ? "Stage 2" : "Stage 1",
-          error.providerDiagnostics,
-        ),
+        ...failureDiagnosticsLines("Stage 1", error.providerDiagnostics),
       );
       lines.push(
         ...error.providerDiagnostics.nativeSearchTrace.calls.map(
@@ -240,8 +251,10 @@ export function formatResearchRun(
     ...heading("STAGE 1 ARTIFACT"),
     safeText(run.stage1.artifact, secrets),
     "",
-    ...heading("STAGE 2 — STRUCTURING"),
-    ...providerResultLines("Stage 2", run.stage2.provider),
+    ...heading("DETERMINISTIC MATERIALIZATION"),
+    "Local artifact parser/materializer: completed",
+    `Provider calls after Stage 1: ${run.stage1.provider.responseDiagnostics.phases?.filter((phase) => phase.phase === "extraction").length ?? 0}`,
+    "Evidence support: model-extracted from native results; not independently verified",
     "",
     ...heading("CANDIDATES"),
     run.result.taskSummary,
@@ -260,16 +273,14 @@ export function formatResearchRun(
   });
   lines.push(
     "",
-    ...heading("CROSS-STAGE VALIDATION"),
-    `Matched candidates: ${run.crossStageValidation.matchedCandidates}`,
-    `Validation reasons: ${run.crossStageValidation.reasons.join(" | ") || "none"}`,
+    ...heading("PROVENANCE VALIDATION"),
+    `Matched candidates: ${run.provenanceValidation.matchedCandidates}`,
+    `Validation reasons: ${run.provenanceValidation.reasons.join(" | ") || "none"}`,
     "",
     ...heading("USAGE"),
-    `Stage 1 total tokens: ${run.stage1.provider.usage.totalTokens}`,
+    `Acquisition total tokens: ${run.stage1.provider.responseDiagnostics.phases?.find((phase) => phase.phase === "acquisition")?.usage?.totalTokens ?? (run.stage1.provider.responseDiagnostics.usageComplete === false ? "unknown" : run.stage1.provider.usage.totalTokens)}`,
     `Stage 1 latency: ${run.stage1.provider.latencyMs} ms`,
-    `Stage 2 total tokens: ${run.stage2.provider.usage.totalTokens}`,
-    `Stage 2 latency: ${run.stage2.provider.latencyMs} ms`,
-    `Combined total tokens: ${run.usage.totalTokens}`,
+    `Combined total tokens: ${run.stage1.provider.responseDiagnostics.usageComplete === false ? "unknown" : run.usage.totalTokens}`,
     `Combined latency: ${run.usage.totalLatencyMs} ms`,
     "",
     ...heading("STATUS"),

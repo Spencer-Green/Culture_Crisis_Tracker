@@ -103,6 +103,70 @@ describe("research scheduler due policy", () => {
     expect(decision.skipReason).toBe("ROLLING_EXECUTION_LIMIT");
   });
 
+  it("lets an explicit operator override bypass only the rolling ceiling", () => {
+    const rollingRuns = [
+      {
+        id: "run-1",
+        ...history("2026-09-06T22:00:00Z", { status: "FAILED" }),
+      },
+      {
+        id: "run-2",
+        ...history("2026-09-06T23:00:00Z", { status: "FAILED" }),
+      },
+    ];
+    const decision = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [task()],
+      history: rollingRuns,
+      rollingRunCount: RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT,
+      rollingRuns,
+      forceTaskCadence: true,
+      forceRollingLimit: true,
+    });
+    expect(decision).toMatchObject({
+      skipReason: null,
+      cadenceBypassed: true,
+      rollingLimitBypassed: true,
+      forceRollingLimitRequested: true,
+      rollingRunCount: 2,
+      rollingRunLimit: 2,
+    });
+    expect(decision.selectedTask?.task.id).toBe(
+      "au-live-music-venue-viability",
+    );
+    expect(decision.rollingRuns.map((run) => run.id)).toEqual([
+      "run-1",
+      "run-2",
+    ]);
+  });
+
+  it("does not let the rolling override bypass enablement or key checks", () => {
+    for (const testCase of [
+      { enabled: false, apiKeyConfigured: true, expected: "DISABLED" },
+      {
+        enabled: true,
+        apiKeyConfigured: false,
+        expected: "MISSING_API_KEY",
+      },
+    ] as const) {
+      const decision = evaluateResearchScheduler({
+        enabled: testCase.enabled,
+        apiKeyConfigured: testCase.apiKeyConfigured,
+        now: NOW,
+        tasks: [task()],
+        history: [],
+        rollingRunCount: 2,
+        forceTaskCadence: true,
+        forceRollingLimit: true,
+      });
+      expect(decision.selectedTask).toBeNull();
+      expect(decision.skipReason).toBe(testCase.expected);
+      expect(decision.rollingLimitBypassed).toBe(false);
+    }
+  });
+
   it.each(["SUCCEEDED", "FAILED"] as const)(
     "%s provider execution advances the 24-hour task cadence",
     (status) => {
@@ -125,6 +189,143 @@ describe("research scheduler due policy", () => {
       );
     },
   );
+
+  it("lets an explicit operator override bypass only an unexpired task cadence", () => {
+    const decision = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [task()],
+      history: [history("2026-09-06T12:00:00Z")],
+      rollingRunCount: 1,
+      forceTaskCadence: true,
+    });
+    expect(decision).toMatchObject({
+      forceTaskCadenceRequested: true,
+      cadenceBypassed: true,
+      skipReason: null,
+    });
+    expect(decision.selectedTask?.task.id).toBe(
+      "au-live-music-venue-viability",
+    );
+    expect(decision.nextDueAt?.toISOString()).toBe("2026-09-07T12:00:00.000Z");
+  });
+
+  it.each([
+    {
+      name: "disabled state",
+      enabled: false,
+      apiKeyConfigured: true,
+      rollingRunCount: 1,
+      skipReason: "DISABLED",
+    },
+    {
+      name: "missing API key",
+      enabled: true,
+      apiKeyConfigured: false,
+      rollingRunCount: 1,
+      skipReason: "MISSING_API_KEY",
+    },
+    {
+      name: "rolling execution ceiling",
+      enabled: true,
+      apiKeyConfigured: true,
+      rollingRunCount: RESEARCH_SCHEDULER_ROLLING_EXECUTION_LIMIT,
+      skipReason: "ROLLING_EXECUTION_LIMIT",
+    },
+  ] as const)("does not force past $name", (testCase) => {
+    const decision = evaluateResearchScheduler({
+      enabled: testCase.enabled,
+      apiKeyConfigured: testCase.apiKeyConfigured,
+      now: NOW,
+      tasks: [task()],
+      history: [history("2026-09-06T12:00:00Z")],
+      rollingRunCount: testCase.rollingRunCount,
+      forceTaskCadence: true,
+    });
+    expect(decision.selectedTask).toBeNull();
+    expect(decision.skipReason).toBe(testCase.skipReason);
+    expect(decision.forceTaskCadenceRequested).toBe(true);
+    expect(decision.cadenceBypassed).toBe(false);
+  });
+
+  it("still selects at most one task when cadence is forced", () => {
+    const second = task({
+      task: {
+        ...getResearchTask("au-live-music-venue-viability"),
+        id: "second-task",
+        version: "second-task-v1",
+      },
+      priority: 50,
+    });
+    const decision = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [second, task()],
+      history: [
+        history("2026-09-06T12:00:00Z"),
+        history("2026-09-06T12:00:00Z", {
+          researchTaskId: "second-task",
+          researchTaskVersion: "second-task-v1",
+        }),
+      ],
+      rollingRunCount: 1,
+      forceTaskCadence: true,
+    });
+    expect(decision.selectedTask?.task.id).toBe(
+      "au-live-music-venue-viability",
+    );
+  });
+
+  it("still selects at most one task when both manual overrides are supplied", () => {
+    const second = task({
+      task: {
+        ...getResearchTask("au-live-music-venue-viability"),
+        id: "second-task",
+        version: "second-task-v1",
+      },
+      priority: 50,
+    });
+    const decision = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [second, task()],
+      history: [],
+      rollingRunCount: 2,
+      forceTaskCadence: true,
+      forceRollingLimit: true,
+    });
+    expect(RESEARCH_SCHEDULER_MAX_TASKS_PER_CYCLE).toBe(1);
+    expect(decision.selectedTask?.task.id).toBe(
+      "au-live-music-venue-viability",
+    );
+  });
+
+  it("returns to the ordinary rolling rule after a forced evaluation", () => {
+    const forced = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [task()],
+      history: [],
+      rollingRunCount: 2,
+      forceTaskCadence: true,
+      forceRollingLimit: true,
+    });
+    expect(forced.rollingLimitBypassed).toBe(true);
+    const normal = evaluateResearchScheduler({
+      enabled: true,
+      apiKeyConfigured: true,
+      now: NOW,
+      tasks: [task()],
+      history: [],
+      rollingRunCount: 3,
+    });
+    expect(normal.skipReason).toBe("ROLLING_EXECUTION_LIMIT");
+    expect(normal.selectedTask).toBeNull();
+  });
 
   it("treats a new task version independently of old-version history", () => {
     const versionedTask = task({

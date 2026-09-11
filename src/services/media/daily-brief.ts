@@ -57,7 +57,9 @@ function dateLabel(value: Date | string): string {
   }).format(new Date(value));
 }
 
-async function buildMarketContext(now: Date): Promise<BriefMarketContext[]> {
+export async function buildMarketContext(
+  now: Date,
+): Promise<BriefMarketContext[]> {
   const [music, musicSupply, usFilm, ukFilm, broadway, theatreSupply, gaming] =
     await Promise.allSettled([
       getMusicSectorData(),

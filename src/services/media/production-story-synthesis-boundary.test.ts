@@ -7,6 +7,10 @@ const REQUEST_TIME_PATHS = [
   "src/app/page.tsx",
   "src/app/brief/page.tsx",
   "src/app/media/page.tsx",
+  "src/app/developments/page.tsx",
+  "src/components/monitoring/situation.tsx",
+  "src/services/monitoring/situation-read.ts",
+  "src/services/monitoring/developments-read.ts",
 ];
 
 const FORBIDDEN_INFERENCE_REFERENCES = [
@@ -46,10 +50,10 @@ describe("production Luna request-time boundary", () => {
       const source = readFileSync(join(process.cwd(), path), "utf8");
       expect(source.match(/getPersistedStorySyntheses\(/g)).toHaveLength(1);
     }
-    const overview = readFileSync(
-      join(process.cwd(), "src/app/page.tsx"),
+    const developments = readFileSync(
+      join(process.cwd(), "src/app/developments/page.tsx"),
       "utf8",
     );
-    expect(overview).toContain("includeStorySyntheses: true");
+    expect(developments.match(/getPersistedStorySyntheses\(/g)).toHaveLength(1);
   });
 });

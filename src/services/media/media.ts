@@ -65,6 +65,8 @@ function toView(article: {
   sourceDomain: string;
   publishedAt: Date;
   retrievedAt: Date;
+  firstSeenAt?: Date;
+  lastSeenAt?: Date;
   countryCode: string | null;
   sectorSlug: string | null;
   eventType: string | null;
@@ -206,11 +208,59 @@ function toView(article: {
       : null,
     publishedAt: article.publishedAt.toISOString(),
     retrievedAt: article.retrievedAt.toISOString(),
+    firstSeenAt: article.firstSeenAt?.toISOString(),
+    lastSeenAt: article.lastSeenAt?.toISOString(),
     sourceMatches: [
       ...new Set(article.sourceMatches.map((match) => match.sourceType)),
     ],
     sourceEvidence,
   };
+}
+
+/** Read-only monitoring projection, including discoveries of older publications. */
+export async function readMonitoringArticles(start: Date, end: Date) {
+  try {
+    const rows = await getPrisma().mediaArticle.findMany({
+      where: {
+        OR: [
+          { publishedAt: { gte: start, lt: end } },
+          { firstSeenAt: { gte: start, lt: end } },
+        ],
+      },
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+      take: 2001,
+      include: {
+        classificationFeedback: true,
+        sourceMatches: { select: { sourceType: true } },
+      },
+    });
+    return {
+      available: true,
+      truncated: rows.length > 2000,
+      articles: rows
+        .slice(0, 2000)
+        .map(toView)
+        .filter((a): a is MediaArticleView => a !== null),
+    };
+  } catch {
+    return { available: false, truncated: false, articles: [] };
+  }
+}
+
+export async function readMonitoringArticle(id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { available: true, article: null };
+  try {
+    const row = await getPrisma().mediaArticle.findUnique({
+      where: { id },
+      include: {
+        classificationFeedback: true,
+        sourceMatches: { select: { sourceType: true } },
+      },
+    });
+    return { available: true, article: row ? toView(row) : null };
+  } catch {
+    return { available: false, article: null };
+  }
 }
 
 async function loadRecent(hours: number): Promise<MediaArticleView[]> {

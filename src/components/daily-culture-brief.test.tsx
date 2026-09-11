@@ -203,9 +203,9 @@ describe("Daily Culture Brief UI", () => {
     value.storySyntheses = { "cluster-one": synthesis() };
     const full = renderToStaticMarkup(<DailyBriefFull brief={value} />);
     const overview = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
-    expect(full).toContain("Luna intelligence");
+    expect(full).toContain("Luna interpretation");
     expect(full).toContain("may constrain production capacity");
-    expect(overview).toContain("Luna intelligence");
+    expect(overview).toContain("Luna interpretation");
     expect(overview).toContain("may constrain production capacity");
   });
 
@@ -213,8 +213,8 @@ describe("Daily Culture Brief UI", () => {
     const value = brief();
     value.storySyntheses = { "cluster-one": synthesis("STALE") };
     const html = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
-    expect(html).toContain("Luna intelligence");
-    expect(html).toContain("last validated · evidence changed");
+    expect(html).toContain("Luna interpretation");
+    expect(html).toContain("earlier interpretation · evidence has changed");
     expect(html).toContain('data-luna-freshness="STALE"');
   });
 
@@ -224,7 +224,7 @@ describe("Daily Culture Brief UI", () => {
       "cluster-one": { freshness: "MISSING", artifact: null },
     };
     const html = renderToStaticMarkup(<DailyBriefOverview brief={value} />);
-    expect(html).not.toContain("Luna intelligence");
+    expect(html).not.toContain("Luna interpretation");
     expect(html).toContain("Film studio announces production layoffs");
   });
 

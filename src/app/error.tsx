@@ -1,26 +1,18 @@
 "use client";
-
-export default function GlobalError({
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
-    <div className="rounded-2xl border border-red-900/60 bg-red-950/20 p-6">
-      <h1 className="text-lg font-semibold text-red-100">
-        This view could not be loaded
-      </h1>
-      <p className="mt-2 text-sm text-red-200/60">
-        Check the server environment and database state, then try again.
+    <section className="space-y-3">
+      <h1 className="text-xl font-semibold">Evidence could not be loaded</h1>
+      <p className="text-sm text-zinc-400">
+        This is a reading failure, not an absence of evidence. Refreshing this
+        view does not run research.
       </p>
       <button
-        type="button"
         onClick={reset}
-        className="mt-5 rounded-lg border border-red-800 bg-red-950 px-4 py-2 text-sm text-red-200 transition-colors hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded border border-zinc-600 px-3 py-2"
       >
-        Try again
+        Reload stored evidence
       </button>
-    </div>
+    </section>
   );
 }

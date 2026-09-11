@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s | Culture Crisis Tracker",
   },
   description:
-    "Monitoring the economic health of Western cultural and entertainment sectors.",
+    "Live cultural-economy situation monitoring with structural baselines, documented developments and provisional research.",
 };
 
 export default function RootLayout({

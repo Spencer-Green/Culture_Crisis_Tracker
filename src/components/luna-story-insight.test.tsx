@@ -52,7 +52,7 @@ function result(
 describe("Luna story insight", () => {
   it("renders concise current interpretation without deterministic badges", () => {
     const html = renderToStaticMarkup(<LunaStoryInsight result={result()} />);
-    expect(html).toContain("Luna intelligence");
+    expect(html).toContain("Luna interpretation");
     expect(html).toContain("how AI-generated work can enter");
     expect(html).toContain("Uncertainty:");
     expect(html).toContain("What to watch:");
@@ -65,7 +65,7 @@ describe("Luna story insight", () => {
     const html = renderToStaticMarkup(
       <LunaStoryInsight result={result("STALE")} />,
     );
-    expect(html).toContain("last validated · evidence changed");
+    expect(html).toContain("earlier interpretation · evidence has changed");
     expect(html).toContain('data-luna-freshness="STALE"');
   });
 

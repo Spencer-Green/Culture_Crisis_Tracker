@@ -1,113 +1,59 @@
+"use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export const NAVIGATION_ITEMS = [
-  { label: "Overview", href: "/" },
-  { label: "Daily Brief", href: "/brief" },
-  { label: "Culture Intelligence", href: "/media" },
-  { label: "Consumer Spending", href: "/consumer-spending" },
-  { label: "Music", href: "/music" },
-  { label: "Film", href: "/film" },
-  { label: "Theatre", href: "/theatre" },
-  { label: "Gaming", href: "/gaming" },
-  { label: "AI & Policy", href: "/ai-policy" },
-  { label: "Industry Events", href: "/industry-events" },
-  { label: "Data Sources", href: "/data-sources" },
-  { label: "Settings", href: "/settings" },
+  { label: "Situation", href: "/" },
+  { label: "Sectors", href: "/sectors" },
+  { label: "Developments", href: "/developments" },
+  { label: "Research", href: "/research" },
+  { label: "Coverage & Methods", href: "/coverage" },
+  { label: "Monitor Status", href: "/monitor" },
 ] as const;
-
-function Mark({ index }: { index: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex size-7 shrink-0 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 font-mono text-[10px] text-zinc-500 transition-colors group-hover:border-zinc-700 group-hover:text-zinc-300"
-    >
-      {String(index + 1).padStart(2, "0")}
-    </span>
-  );
-}
-
-export function SidebarNavigation({
-  databaseStatus,
-  activeSourceCount,
-}: {
-  databaseStatus: "available" | "unavailable";
-  activeSourceCount: number;
-}) {
-  const hasActiveSources = activeSourceCount > 0;
-  const footerTitle =
-    databaseStatus === "unavailable"
-      ? "Foundation state"
-      : hasActiveSources
-        ? "Live foundation"
-        : "Foundation phase";
-  const footerDetail =
-    databaseStatus === "unavailable"
-      ? "Ingestion status is temporarily unavailable."
-      : hasActiveSources
-        ? `${activeSourceCount} data ${activeSourceCount === 1 ? "source" : "sources"} active`
-        : "No sources have successfully ingested data.";
-
-  return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-zinc-800/80 bg-zinc-950/90 p-4 backdrop-blur-xl lg:flex">
+function NavigationLinks() {
+  const path = usePathname();
+  return NAVIGATION_ITEMS.map((item) => {
+    const active =
+      item.href === "/"
+        ? path === "/"
+        : path.startsWith(item.href) ||
+          (item.href === "/sectors" &&
+            /^\/(music|film|theatre|gaming)(\/|$)/.test(path)) ||
+          (item.href === "/coverage" && path === "/consumer-spending");
+    return (
       <Link
-        href="/"
-        className="mb-8 flex items-center gap-3 rounded-xl px-2 py-3 transition-opacity hover:opacity-80"
+        key={item.href}
+        href={item.href}
+        aria-current={active ? "page" : undefined}
+        className={`rounded px-3 py-2 text-sm ${active ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"}`}
       >
-        <span className="flex size-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold shadow-lg shadow-blue-950">
-          CC
-        </span>
-        <span>
-          <span className="block text-sm font-semibold tracking-tight">
-            Culture Crisis
-          </span>
-          <span className="block text-xs text-zinc-500">Tracker</span>
-        </span>
+        {item.label}
       </Link>
-
-      <nav aria-label="Primary navigation" className="space-y-1">
-        {NAVIGATION_ITEMS.map((item, index) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="group flex items-center gap-3 rounded-lg px-2 py-2 text-sm text-zinc-400 transition-colors duration-200 hover:bg-zinc-900 hover:text-zinc-100"
-          >
-            <Mark index={index} />
-            {item.label}
-          </Link>
-        ))}
+    );
+  });
+}
+export function SidebarNavigation() {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-zinc-800 bg-zinc-950 p-4 lg:flex">
+      <Link href="/" className="mb-7 px-3 py-3 font-semibold">
+        Culture Crisis Tracker
+      </Link>
+      <nav aria-label="Primary navigation" className="flex flex-col gap-1">
+        <NavigationLinks />
       </nav>
-
-      <div
-        className={`mt-auto rounded-xl border p-4 ${
-          hasActiveSources && databaseStatus === "available"
-            ? "border-emerald-950 bg-emerald-950/20"
-            : "border-zinc-800 bg-zinc-900/60"
-        }`}
-      >
-        <p className="text-xs font-medium text-zinc-300">{footerTitle}</p>
-        <p className="mt-1 text-xs leading-5 text-zinc-500">{footerDetail}</p>
-      </div>
+      <p className="mt-auto px-3 text-xs text-zinc-500">
+        Structural baselines · documented developments · provisional research
+      </p>
     </aside>
   );
 }
-
 export function MobileNavigation() {
   return (
     <nav
       aria-label="Mobile navigation"
-      className="overflow-x-auto border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 lg:hidden"
+      className="flex flex-wrap gap-1 border-b border-zinc-800 px-2 py-2 lg:hidden"
     >
-      <div className="flex min-w-max gap-2">
-        {NAVIGATION_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="rounded-full border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition-colors duration-200 hover:border-zinc-700 hover:text-zinc-100"
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
+      <NavigationLinks />
     </nav>
   );
 }

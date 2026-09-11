@@ -51,7 +51,7 @@ describe("Screen Australia native Film section", () => {
 
   it("keeps existing US and BFI Film sections wired", () => {
     const page = readFileSync(
-      join(process.cwd(), "src/app/film/page.tsx"),
+      join(process.cwd(), "src/app/film/analysis/page.tsx"),
       "utf8",
     );
     expect(page).toContain("US Domestic Box Office");

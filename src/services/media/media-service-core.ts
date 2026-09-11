@@ -32,6 +32,8 @@ export type MediaArticleView = {
   sourceDomain: string;
   publishedAt: string;
   retrievedAt: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
   countryCode: string | null;
   sectorSlug: MediaSectorSlug;
   eventType: MediaEventType | null;

@@ -285,7 +285,12 @@ export async function persistResearchRunDraft(
                 item.candidate.assessment.ingestionFeasibility,
               confidence: item.candidate.assessment.confidence,
               traceConfidence: item.traceConfidence,
-              validationState: "VALIDATED",
+              validationState:
+                draft.responseDiagnostics &&
+                typeof draft.responseDiagnostics === "object" &&
+                "pipelineVersion" in draft.responseDiagnostics
+                  ? "UNVERIFIED"
+                  : "VALIDATED",
               firstSeenAt: draft.completedAt,
               lastSeenAt: draft.completedAt,
             },
@@ -395,6 +400,7 @@ export async function appendResearchCandidateReviewWithPrisma(
         candidateFingerprint: candidate.candidateFingerprint,
         candidateSnapshot: inputJson({
           candidateType: candidate.candidateType,
+          validationState: candidate.validationState,
           geography: candidate.geography,
           sector: candidate.sector,
           reportingPeriodStart:

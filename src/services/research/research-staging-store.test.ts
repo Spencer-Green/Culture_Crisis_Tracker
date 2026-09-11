@@ -405,6 +405,18 @@ function musicVictoriaDraft(input: {
 }
 
 describe("research staging store", () => {
+  it("does not label provider-extracted evidence independently validated", async () => {
+    const memory = new InMemoryResearchPrisma();
+    const draft = buildSuccessfulResearchRunDraft(run());
+    draft.responseDiagnostics = {
+      ...(draft.responseDiagnostics as object),
+      pipelineVersion: "deepseek-native-replay-v1",
+    };
+    await persistResearchRunDraft(memory as unknown as PrismaClient, draft);
+    expect([...memory.candidates.values()][0]?.validationState).toBe(
+      "UNVERIFIED",
+    );
+  });
   it("preserves quarantine on rediscovery and prevents approval without touching the review ledger", async () => {
     const memory = new InMemoryResearchPrisma();
     const prisma = memory as unknown as PrismaClient;

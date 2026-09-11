@@ -39,4 +39,14 @@ describe("server environment parsing", () => {
     expect(parsed.LLM_RESEARCHER_ENABLED).toBe(false);
     expect(parsed.DEEPSEEK_BASE_URL).toBe("https://api.deepseek.com");
   });
+
+  it("does not enable auditing merely because a GLM key is configured", () => {
+    expect(
+      parseServerEnv({ GLM_API_KEY: "configured" }).RESEARCH_AUDITOR_ENABLED,
+    ).toBe(false);
+    expect(
+      parseServerEnv({ RESEARCH_AUDITOR_ENABLED: "true" })
+        .RESEARCH_AUDITOR_ENABLED,
+    ).toBe(true);
+  });
 });

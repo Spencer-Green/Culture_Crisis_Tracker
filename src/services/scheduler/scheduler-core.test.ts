@@ -181,6 +181,15 @@ describe("central scheduler evaluation", () => {
       now: NOW,
     });
     expect(selectScheduleEvaluations([due, waiting])).toEqual([due]);
+    expect(
+      selectScheduleEvaluations([due, waiting], undefined, ["abs"]),
+    ).toEqual([due]);
+    expect(
+      selectScheduleEvaluations([due, waiting], undefined, ["fred"]),
+    ).toEqual([]);
+    expect(() =>
+      selectScheduleEvaluations([due, waiting], "fred", ["fred"]),
+    ).toThrow("cannot be combined");
     expect(selectScheduleEvaluations([due, waiting], "fred")).toEqual([
       waiting,
     ]);

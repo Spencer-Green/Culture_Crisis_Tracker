@@ -13,6 +13,7 @@ export const SECRET_ENVIRONMENT_KEYS = [
   "MEDIASTACK_API_KEY",
   "OPENAI_API_KEY",
   "DEEPSEEK_API_KEY",
+  "GLM_API_KEY",
 ] as const;
 
 export type SecretEnvironmentKey = (typeof SECRET_ENVIRONMENT_KEYS)[number];
@@ -96,6 +97,8 @@ export const serverEnvSchema = z.object({
   MEDIASTACK_API_KEY: optionalString,
   OPENAI_API_KEY: optionalString,
   DEEPSEEK_API_KEY: optionalString,
+  GLM_API_KEY: optionalString,
+  RESEARCH_AUDITOR_ENABLED: optionalBoolean.default(false),
   ABS_BASE_URL: optionalUrl("ABS_BASE_URL"),
   BEA_BASE_URL: optionalUrl("BEA_BASE_URL"),
   FRED_BASE_URL: optionalUrl("FRED_BASE_URL"),

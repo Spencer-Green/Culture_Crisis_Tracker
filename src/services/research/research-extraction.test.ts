@@ -109,7 +109,10 @@ describe("native evidence admission", () => {
   });
   it("preserves coarse publication evidence and raw metric wording", () => {
     const result = materializeExtraction(JSON.stringify(evidence()), trace);
-    expect(result.artifact).toContain("PUBLICATION_DATE: 2026-02");
+    expect(result.artifact).toContain("PUBLICATION_DATE: UNKNOWN");
+    expect(result.artifact).toContain(
+      "Unverified model-reported publication date: 2026-02",
+    );
     expect(result.artifact).toContain("METRIC=live music venues");
     expect(result.artifact).toContain("not independently verified");
     expect(result.bindings[0]?.callId).toBe("open-1");
@@ -144,6 +147,27 @@ describe("native evidence admission", () => {
     expect(result.artifact).toContain("OBSERVATION: NONE");
     expect(result.artifact).not.toContain("VALUE=25");
     expect(result.bindings[0]?.observationQuotes).toEqual([]);
+  });
+  it("requires source passage support for publication dates and reporting periods", () => {
+    const data = evidence();
+    data.sources[0]!.publicationDate = "2026-02-24";
+    data.sources[0]!.reportingPeriod = "2024";
+    const result = materializeExtraction(JSON.stringify(data), trace);
+    expect(result.artifact).toContain("PUBLICATION_DATE: UNKNOWN");
+    expect(result.artifact).toContain("REPORTING_PERIOD: UNKNOWN");
+    data.sources[0]!.quote += " Published 2026-02-24. Reporting period 2024.";
+    const supported = materializeExtraction(JSON.stringify(data), trace);
+    expect(supported.artifact).toContain("PUBLICATION_DATE: 2026-02-24");
+    expect(supported.artifact).toContain("REPORTING_PERIOD: 2024");
+  });
+  it("allows a source passage to contain all three bounded observation quotes, but remains bounded", () => {
+    const data = evidence();
+    data.sources[0]!.quote += " Context.".repeat(90);
+    expect(() =>
+      materializeExtraction(JSON.stringify(data), trace),
+    ).not.toThrow();
+    data.sources[0]!.quote = "x".repeat(1601);
+    expect(() => materializeExtraction(JSON.stringify(data), trace)).toThrow();
   });
   it("rejects unknown support calls", () => {
     const data = evidence();

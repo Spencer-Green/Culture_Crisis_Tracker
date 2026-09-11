@@ -7,6 +7,8 @@ export const AU_LIVE_MUSIC_VENUE_VIABILITY_TASK: ResearchTaskV1 = {
   geography: "Australia",
   objective:
     "Discover fresh, defensible evidence about Australian live-music venue viability.",
+  preferredSources: ["APRA AMCOS", "Australian government, parliamentary or regulator sources", "State live-music bodies such as Music Victoria", "Primary industry reports"],
+  researchFocus: ["venue counts, closures and openings", "live-music attendance and live-event volume", "venue profitability, viability and employment"],
   existingEvidenceContext: [
     "Culture Tracker already has Australian Ticketmaster Music forward listings and active-venue snapshots. Ticketmaster coverage is not a census and does not establish total demand, closures, or operating viability.",
     "Culture Tracker has ABS recreation-and-culture household-spending series. Those broad consumer measures do not isolate live-music venues.",

@@ -73,6 +73,8 @@ export async function getResearchInspectionWithPrisma(
         _count: {
           select: { sourceOccurrences: true, candidateOccurrences: true },
         },
+        audits: { orderBy: { startedAt: "desc" }, take: 1 },
+        evidenceChecks: { orderBy: { createdAt: "desc" }, take: 1 },
       },
     }),
     prisma.researchCandidate.findMany({
@@ -118,6 +120,21 @@ export function formatResearchInspection(
     lines.push(
       `${run.id} | ${run.status} | ${run.researchTaskId} | ${run.startedAt.toISOString()} | sources=${run._count.sourceOccurrences} candidates=${run._count.candidateOccurrences}`,
     );
+    for (const audit of run.audits ?? []) {
+      lines.push(
+        `  audit: ${audit.status} | ${audit.modelId} | ${audit.id} (advisory, never verification)`,
+      );
+      if (audit.failureMessage)
+        lines.push(`  audit failure: ${oneLine(audit.failureMessage)}`);
+      if (audit.result)
+        lines.push(`  audit verdicts: ${JSON.stringify(audit.result)}`);
+    }
+    for (const check of run.evidenceChecks ?? []) {
+      lines.push(
+        `  local evidence checks: ${check.id} | ${check.contractVersion} (literal checks only; not source verification)`,
+      );
+      lines.push(`  checks: ${JSON.stringify(check.result)}`);
+    }
     if (run.failureKind) {
       lines.push(
         `  failure: ${run.failureKind} — ${oneLine(run.failureMessage ?? "unspecified")}`,

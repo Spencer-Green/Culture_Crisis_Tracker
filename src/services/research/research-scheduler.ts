@@ -26,6 +26,7 @@ import {
   reserveResearchRun,
   type PersistedResearchRunResult,
 } from "@/services/research/research-staging-store";
+import { auditResearchRunSafely } from "@/services/research/research-audit-service";
 import { runResearchOnce } from "@/services/research/research-runner";
 import { SCHEDULED_RESEARCH_TASKS } from "@/services/research/research-tasks";
 import type { ResearchProvider } from "@/services/research/research-types";
@@ -300,6 +301,10 @@ export function createResearchSchedulerExecutor(input?: {
       onCadenceOverride: input?.onCadenceOverride,
       onRollingLimitOverride: input?.onRollingLimitOverride,
     });
+    if (result.persisted) {
+      const audit = await auditResearchRunSafely(result.persisted.runId, prisma);
+      console.log(`research-audit run=${result.persisted.runId} status=${audit.status}${"reason" in audit ? ` reason=${audit.reason}` : ""}`);
+    }
     return {
       recordsCreated: result.persisted?.candidateIds.length ?? 0,
       recordsUpdated: result.persisted?.sourceDocumentIds.length ?? 0,

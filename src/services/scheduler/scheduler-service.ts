@@ -1,11 +1,13 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { env } from "@/lib/env";
 import { getPrisma } from "@/lib/prisma";
 import { createCommandExecutor } from "@/services/scheduler/command-executor";
 import { createResearchSchedulerExecutor } from "@/services/research/research-scheduler";
+import { auditLatestResearchRunSafely } from "@/services/research/research-audit-service";
 import {
   calculateNextScheduledAt,
   executeScheduledSource,
@@ -98,6 +100,7 @@ async function runEvaluation(input: {
 export async function runSchedulerOnce(
   options: {
     sourceId?: string;
+    automaticSourceIds?: readonly string[];
     now?: () => Date;
     logger?: SchedulerLogger;
     executor?: ScheduledSourceExecutor;
@@ -129,7 +132,11 @@ export async function runSchedulerOnce(
   const store = new PrismaSchedulerStore(getPrisma());
   await initializeStates(evaluations, store, capturedAt);
   evaluations = await loadScheduleEvaluations(capturedAt);
-  const selected = selectScheduleEvaluations(evaluations, options.sourceId);
+  const selected = selectScheduleEvaluations(
+    evaluations,
+    options.sourceId,
+    options.automaticSourceIds,
+  );
   const executor =
     options.executor ??
     (() => {
@@ -189,6 +196,7 @@ export async function runSchedulerWorker(
   options: {
     logger?: SchedulerLogger;
     signal?: AbortSignal;
+    automaticSourceIds?: readonly string[];
   } = {},
 ) {
   const logger = options.logger ?? defaultLogger;
@@ -197,27 +205,35 @@ export async function runSchedulerWorker(
     return;
   }
   logger.info(
-    `scheduler worker started concurrency=${env.SCHEDULER_CONCURRENCY} pollMinutes=${env.SCHEDULER_POLL_MINUTES} timezone=UTC`,
+    `scheduler worker started concurrency=${env.SCHEDULER_CONCURRENCY} pollMinutes=${env.SCHEDULER_POLL_MINUTES} scope=${options.automaticSourceIds?.join(",") ?? "all"} timezone=UTC`,
   );
   while (!options.signal?.aborted) {
     try {
-      await runSchedulerOnce({ logger });
+      await runSchedulerOnce({
+        logger,
+        automaticSourceIds: options.automaticSourceIds,
+      });
+      if (
+        !options.signal?.aborted &&
+        (!options.automaticSourceIds ||
+          options.automaticSourceIds.includes("research-agent"))
+      ) {
+        const audit = await auditLatestResearchRunSafely(getPrisma());
+        if (audit.status !== "SKIPPED" && audit.status !== "EXISTING")
+          logger.info(`research-audit latest status=${audit.status}`);
+      }
     } catch {
       logger.error(
         "scheduler cycle failed before completion; waiting for the next poll",
       );
     }
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, env.SCHEDULER_POLL_MINUTES * 60_000);
-      options.signal?.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timeout);
-          resolve();
-        },
-        { once: true },
-      );
-    });
+    try {
+      await sleep(env.SCHEDULER_POLL_MINUTES * 60_000, undefined, {
+        signal: options.signal,
+      });
+    } catch (error) {
+      if (!options.signal?.aborted) throw error;
+    }
   }
   logger.info("scheduler worker stopped");
 }

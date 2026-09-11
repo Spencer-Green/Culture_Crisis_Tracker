@@ -1508,8 +1508,10 @@ evaluation data only and are not persisted to Prisma or used by production pages
 The researcher discovers evidence for `au-live-music-venue-viability` only. It is a
 shadow discovery system, separate from deterministic ingestion, classification and Luna.
 No researcher path writes canonical observations or automatically approves reviews.
-The fixed live acceptance sample found a provenance defect; unattended operation remains
-unqualified. See the validation record before enabling it.
+Fresh tests confirmed that provider-extracted quotes can remain inaccurate despite local
+containment checks. The authorized unattended rollout is **unverified discovery only**:
+new model candidates are UNVERIFIED; known-bad evidence is QUARANTINED. Nothing is wired
+into the UI or canonical ingestion. See the validation record for the retained failures.
 
 The current pipeline uses DeepSeek Responses with `deepseek-v4-pro`:
 
@@ -1562,6 +1564,11 @@ Existing source identity, first-seen timestamps, occurrence tracking and append-
 review history are retained. New candidate fingerprints additionally include scope and
 raw reporting context; historical fingerprints are never rewritten. Approval means
 approved for ingestion investigation, never canonical truth.
+
+The local research-only service can be installed with `python3 ops/install-research-worker.py`
+after enabling `LLM_RESEARCHER_ENABLED=true` in `.env`. It uses launchd at user login and
+runs `scheduler-worker.ts --research-only`; it never selects other ingestion sources or
+passes operator cadence overrides. See [local service operations](ops/README.md).
 
 See [researcher architecture and validation](docs/deepseek-researcher.md) for the live
 findings, remaining qualification requirements and migration details.
@@ -2273,3 +2280,11 @@ Refresh freshness and observation freshness are deliberately separate. A source
 can refresh successfully today while its latest valid published period remains
 June 2026. Data Sources displays both, and annual or discontinued sources are
 not falsely marked overdue because their observation period is old.
+
+The paired DeepSeek/GLM shadow checker is enabled locally after fixed v3 protocol and
+historical acceptance tests. GLM selects explicit evidence passages; deterministic code
+checks fields. This is provided-text checking, **not independent source verification**.
+See the [paired pipeline record](docs/deepseek-researcher.md#2026-09-11-paired-shadow-researcher-and-checker--v3-enabled).
+`npm run research:verifier-status` reports readiness and budget gates without model calls.
+`npm run research:developments` provides a read-only projection for the later redesign;
+no research output has been added to the UI.

@@ -160,7 +160,7 @@ describe("runResearchOnce staged evidence pipeline", () => {
     expect(prompt).toMatch(/at most 2 search actions/i);
     expect(prompt).toMatch(/separate no-tools phase/i);
     expect(prompt).toMatch(/Failed opens must remain failed/i);
-    expect(RESEARCH_STAGE1_PROMPT_VERSION).toContain("v6");
+    expect(RESEARCH_STAGE1_PROMPT_VERSION).toContain("v7");
     expect(RESEARCH_CONTRACT_VERSION).toBe("research-result-v3");
     expect(RESEARCH_MATERIALIZER_VERSION).toBe("local-evidence-materializer-v2");
   });

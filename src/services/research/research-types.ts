@@ -7,6 +7,8 @@ export type ResearchTaskV1 = {
   geography: string;
   objective: string;
   existingEvidenceContext: readonly string[];
+  preferredSources: readonly string[];
+  researchFocus: readonly string[];
 };
 
 export type SanitizedResearchValue =

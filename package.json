@@ -69,7 +69,10 @@
     "llm:evaluate-stories": "node --conditions=react-server --import tsx scripts/llm-evaluate-stories.ts",
     "research:once": "node --conditions=react-server --import tsx scripts/research-once.ts",
     "research:inspect": "node --conditions=react-server --import tsx scripts/research-inspect.ts",
-    "research:review": "node --conditions=react-server --import tsx scripts/research-review.ts"
+    "research:review": "node --conditions=react-server --import tsx scripts/research-review.ts",
+    "research:audit": "node --conditions=react-server --import tsx scripts/research-audit.ts",
+    "research:developments": "node --conditions=react-server --import tsx scripts/research-developments.ts",
+    "research:verifier-status": "node --conditions=react-server --import tsx scripts/research-verifier-status.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

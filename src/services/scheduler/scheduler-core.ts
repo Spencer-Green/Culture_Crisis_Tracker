@@ -144,8 +144,19 @@ export function evaluateScheduledSource(input: {
 export function selectScheduleEvaluations(
   evaluations: readonly ScheduleEvaluation[],
   sourceId?: string,
+  automaticSourceIds?: readonly string[],
 ) {
-  if (!sourceId) return evaluations.filter((evaluation) => evaluation.due);
+  if (sourceId && automaticSourceIds)
+    throw new Error(
+      "Automatic source scope cannot be combined with an operator source override.",
+    );
+  if (!sourceId)
+    return evaluations.filter(
+      (evaluation) =>
+        evaluation.due &&
+        (!automaticSourceIds ||
+          automaticSourceIds.includes(evaluation.definition.sourceId)),
+    );
   const known = evaluations.find(
     (evaluation) => evaluation.definition.sourceId === sourceId,
   );
